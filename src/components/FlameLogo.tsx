@@ -4,69 +4,87 @@ interface FlameLogoProps {
 }
 
 export default function FlameLogo({ size = 48, className = "" }: FlameLogoProps) {
-  // Unique ID per size to avoid SVG gradient collisions when multiple logos are on the same page
   const uid = `fl${size}`;
+  // Maintain the 100:110 aspect ratio so the shape never clips
+  const h = Math.round(size * 1.1);
+
   return (
     <svg
       width={size}
-      height={Math.round(size * 1.1)}
+      height={h}
       viewBox="0 0 100 110"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
       <defs>
-        <linearGradient id={`${uid}-outer`} x1="50" y1="100" x2="50" y2="8" gradientUnits="userSpaceOnUse">
+        {/* Outer flame — dark red base → fire orange → amber tip */}
+        <linearGradient id={`${uid}-out`} x1="50" y1="108" x2="50" y2="6" gradientUnits="userSpaceOnUse">
           <stop offset="0%"   stopColor="#7f1d1d" />
-          <stop offset="35%"  stopColor="#c2410c" />
-          <stop offset="70%"  stopColor="#f97316" />
+          <stop offset="30%"  stopColor="#b91c1c" />
+          <stop offset="58%"  stopColor="#ea580c" />
+          <stop offset="82%"  stopColor="#f97316" />
           <stop offset="100%" stopColor="#fde68a" />
         </linearGradient>
-        <linearGradient id={`${uid}-inner`} x1="50" y1="96" x2="50" y2="46" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#ea580c" />
-          <stop offset="100%" stopColor="#fef08a" />
+        {/* Inner hot core — brighter */}
+        <linearGradient id={`${uid}-in`} x1="50" y1="104" x2="50" y2="44" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stopColor="#c2410c" />
+          <stop offset="55%"  stopColor="#fb923c" />
+          <stop offset="100%" stopColor="#fef9c3" />
         </linearGradient>
-        <filter id={`${uid}-glow`} x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="3" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
+        <filter id={`${uid}-glow`} x="-25%" y="-20%" width="150%" height="140%">
+          <feGaussianBlur stdDeviation="2.5" result="blur" />
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
       </defs>
 
-      {/* Outer flame — wide base, two organic side bulges, sharp tip */}
+      {/*
+        OUTER FLAME
+        Wide fire shape — NOT a teardrop/candle.
+        Key traits:
+          • Tip offset slightly left (46, 6) — asymmetric like real fire
+          • Left side bows dramatically outward at y≈56 (x≈8)
+          • Right side bows out at y≈50 (x≈90) — slightly higher so shape leans left
+          • Wide rounded base (x=14..86 at y=106)
+          • Sharp concave dip on right side near tip creates a "lick" shape
+      */}
       <path
-        d="M50 8
-           C42 16, 22 24, 18 44
-           C14 58, 18 66, 14 76
-           C10 88, 22 102, 50 102
-           C78 102, 90 88, 86 76
-           C82 66, 86 58, 82 44
-           C78 24, 58 16, 50 8Z"
-        fill={`url(#${uid}-outer)`}
+        d="M46 6
+           C36 16, 10 28, 8 52
+           C6 66, 10 76, 8 88
+           C6 100, 22 110, 50 110
+           C78 110, 94 100, 92 88
+           C90 76, 94 66, 92 52
+           C90 28, 72 14, 66 22
+           C62 28, 56 36, 50 28
+           C48 20, 48 12, 46 6Z"
+        fill={`url(#${uid}-out)`}
         filter={`url(#${uid}-glow)`}
       />
 
-      {/* Inner hot-core glow — the "container" that wraps the P */}
+      {/*
+        INNER HOT CORE
+        Sits in the belly of the flame — where the P lives.
+        Teardrop pointing upward, covering roughly y=44 to y=100.
+      */}
       <path
-        d="M50 46
-           C42 54, 36 62, 38 72
-           C40 82, 46 92, 50 92
-           C54 92, 60 82, 62 72
-           C64 62, 58 54, 50 46Z"
-        fill={`url(#${uid}-inner)`}
-        opacity="0.8"
+        d="M50 44
+           C42 54, 34 64, 36 76
+           C38 88, 44 100, 50 100
+           C56 100, 62 88, 64 76
+           C66 64, 58 54, 50 44Z"
+        fill={`url(#${uid}-in)`}
+        opacity="0.82"
       />
 
-      {/* P — sits squarely inside the inner glow */}
+      {/* P — centered in the hot core */}
       <text
         x="50"
-        y="90"
+        y="96"
         textAnchor="middle"
         fontFamily="system-ui, -apple-system, sans-serif"
         fontWeight="900"
-        fontSize="26"
+        fontSize="28"
         fill="white"
         opacity="0.95"
       >

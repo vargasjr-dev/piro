@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import FlameLogo from "~/components/FlameLogo";
+import { authClient } from "~/lib/auth.client";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -16,13 +17,12 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/sign-up/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+      const { error: authError } = await authClient.signUp.email({
+        name,
+        email,
+        password,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Signup failed");
+      if (authError) throw new Error(authError.message || "Signup failed");
       window.location.href = "/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

@@ -1,6 +1,5 @@
 "use client";
 import { createAuthClient } from "better-auth/react";
 
-export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-});
+// No baseURL — uses the current window origin (correct for Next.js same-domain auth)
+export const authClient = createAuthClient();

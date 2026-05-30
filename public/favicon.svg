@@ -1,34 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 110" fill="none">
   <defs>
-    <linearGradient id="fg-outer" x1="50" y1="100" x2="50" y2="8" gradientUnits="userSpaceOnUse">
+    <linearGradient id="fo" x1="50" y1="108" x2="50" y2="6" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#7f1d1d"/>
-      <stop offset="35%" stop-color="#c2410c"/>
-      <stop offset="70%" stop-color="#f97316"/>
+      <stop offset="30%" stop-color="#b91c1c"/>
+      <stop offset="58%" stop-color="#ea580c"/>
+      <stop offset="82%" stop-color="#f97316"/>
       <stop offset="100%" stop-color="#fde68a"/>
     </linearGradient>
-    <linearGradient id="fg-inner" x1="50" y1="96" x2="50" y2="48" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#ea580c"/>
-      <stop offset="100%" stop-color="#fef08a"/>
+    <linearGradient id="fi" x1="50" y1="100" x2="50" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c2410c"/>
+      <stop offset="55%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#fef9c3"/>
     </linearGradient>
   </defs>
-  <!-- Outer flame — wide at base, pointed tip, organic curves -->
-  <path d="M50 8
-    C42 16, 22 24, 18 44
-    C14 58, 18 66, 14 76
-    C10 88, 22 102, 50 102
-    C78 102, 90 88, 86 76
-    C82 66, 86 58, 82 44
-    C78 24, 58 16, 50 8Z"
-    fill="url(#fg-outer)"/>
-  <!-- Inner glow / hot core — wraps the letter -->
-  <path d="M50 46
-    C42 54, 36 62, 38 72
-    C40 82, 46 92, 50 92
-    C54 92, 60 82, 62 72
-    C64 62, 58 54, 50 46Z"
-    fill="url(#fg-inner)" opacity="0.85"/>
-  <!-- P letterform -->
-  <text x="50" y="90" text-anchor="middle"
-    font-family="system-ui,-apple-system,sans-serif"
-    font-weight="900" font-size="26" fill="white" opacity="0.95">P</text>
+  <path d="M46 6 C36 16,10 28,8 52 C6 66,10 76,8 88 C6 100,22 110,50 110 C78 110,94 100,92 88 C90 76,94 66,92 52 C90 28,72 14,66 22 C62 28,56 36,50 28 C48 20,48 12,46 6Z" fill="url(#fo)"/>
+  <path d="M50 44 C42 54,34 64,36 76 C38 88,44 100,50 100 C56 100,62 88,64 76 C66 64,58 54,50 44Z" fill="url(#fi)" opacity="0.82"/>
+  <text x="50" y="96" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-weight="900" font-size="28" fill="white" opacity="0.95">P</text>
 </svg>

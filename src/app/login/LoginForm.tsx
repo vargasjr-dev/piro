@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import FlameLogo from "~/components/FlameLogo";
+import { authClient } from "~/lib/auth.client";
 
 export default function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [email, setEmail] = useState("");
@@ -17,13 +18,8 @@ export default function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/sign-in/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Login failed");
+      const { error: authError } = await authClient.signIn.email({ email, password });
+      if (authError) throw new Error(authError.message || "Login failed");
       window.location.href = destination;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
