@@ -16,7 +16,7 @@
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",
     "@vercel/functions": "^1.4.1",
-    "better-auth": "^1.0.0",
+    "better-auth": "^1.4.0",
     "drizzle-orm": "^0.41.0",
     "next": "^15.0.0",
     "react": "^18.3.0",
