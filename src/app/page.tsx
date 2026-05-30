@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { redirect } from "next/navigation";
+import FlameLogo from "~/components/FlameLogo";
 
 export default async function HomePage() {
   const headersList = await headers();
@@ -21,16 +22,14 @@ export default async function HomePage() {
       <div className="relative z-10 text-center max-w-2xl">
         {/* Logo mark */}
         <div className="mb-8 flex justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-red-700 flex items-center justify-center ember-glow">
-            <span className="text-2xl font-black text-white">P</span>
-          </div>
+          <FlameLogo size={72} />
         </div>
 
         <h1 className="text-5xl font-black tracking-tight mb-4">
           <span className="text-amber-50">Your model.</span>
           <br />
           <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">
-            Built on you.
+            Built for you.
           </span>
         </h1>
 

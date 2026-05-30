@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "~/lib/auth.server";
+import FlameLogo from "~/components/FlameLogo";
 
 export default async function AppLayout({
   children,
@@ -19,10 +20,8 @@ export default async function AppLayout({
   return (
     <div className="min-h-screen bg-[#0d0a08]">
       <nav className="border-b border-amber-900/20 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-700 flex items-center justify-center">
-            <span className="text-sm font-black text-white">P</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <FlameLogo size={32} />
           <span className="font-bold text-amber-50 tracking-tight">Piro</span>
         </div>
         <form action="/api/auth/sign-out" method="POST">

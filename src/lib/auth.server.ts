@@ -23,5 +23,9 @@ export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3000",
     "https://piro.vargasjr.dev",
+    // Vercel preview/production URLs — injected automatically at runtime
+    ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
+    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+    ...(process.env.VERCEL_BRANCH_URL ? [`https://${process.env.VERCEL_BRANCH_URL}`] : []),
   ],
 });

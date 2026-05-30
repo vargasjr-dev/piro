@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import FlameLogo from "~/components/FlameLogo";
 
 export default function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [email, setEmail] = useState("");
@@ -39,9 +40,7 @@ export default function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
 
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-8 flex justify-center">
-          <Link href="/" className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-700 flex items-center justify-center">
-            <span className="text-xl font-black text-white">P</span>
-          </Link>
+          <Link href="/"><FlameLogo size={52} /></Link>
         </div>
 
         <div className="bg-[#1a1208]/80 border border-amber-900/30 rounded-2xl p-8 backdrop-blur-sm">
