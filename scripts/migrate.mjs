@@ -58,4 +58,38 @@ await sql`
   )
 `;
 
+await sql`
+  CREATE TABLE IF NOT EXISTS "integration" (
+    "id" text PRIMARY KEY,
+    "userId" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+    "provider" text NOT NULL,
+    "accessToken" text,
+    "refreshToken" text,
+    "expiresAt" timestamp,
+    "providerUserId" text,
+    "providerUsername" text,
+    "status" text NOT NULL DEFAULT 'active',
+    "lastSyncAt" timestamp,
+    "itemCount" integer NOT NULL DEFAULT 0,
+    "createdAt" timestamp NOT NULL DEFAULT now(),
+    "updatedAt" timestamp NOT NULL DEFAULT now()
+  )
+`;
+
+await sql`
+  CREATE TABLE IF NOT EXISTS "knowledge_item" (
+    "id" text PRIMARY KEY,
+    "userId" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+    "integrationId" text NOT NULL REFERENCES "integration"("id") ON DELETE CASCADE,
+    "provider" text NOT NULL,
+    "itemType" text NOT NULL,
+    "externalId" text NOT NULL,
+    "content" text NOT NULL,
+    "contentMeta" text,
+    "itemCreatedAt" timestamp,
+    "createdAt" timestamp NOT NULL DEFAULT now(),
+    CONSTRAINT "ki_integration_external" UNIQUE ("integrationId", "externalId")
+  )
+`;
+
 console.log("Done — all tables created.");

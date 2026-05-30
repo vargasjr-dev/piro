@@ -25,10 +25,17 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Coming soon modules */}
+      {/* Modules */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <a
+          href="/knowledge"
+          className="bg-[#1a1208]/60 border border-amber-700/30 rounded-xl p-6 hover:border-amber-600/50 hover:bg-[#1a1208]/80 transition-all group"
+        >
+          <h3 className="font-semibold text-amber-200 mb-1 group-hover:text-amber-100">Knowledge Base</h3>
+          <p className="text-sm text-amber-400/50">Connect your accounts and pull your data</p>
+          <span className="mt-3 inline-block text-xs text-orange-500/80 font-medium uppercase tracking-widest">Open →</span>
+        </a>
         {[
-          { label: "Knowledge Base", desc: "Connect your PKM, notes, and preferences" },
           { label: "Training Sessions", desc: "Run GRPO with your Opus judge" },
           { label: "Learning Moments", desc: "Review correction and discovery events" },
           { label: "Capability Ledger", desc: "Track what your model has learned" },

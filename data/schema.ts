@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, unique } from "drizzle-orm/pg-core";
 
 // better-auth required tables
 export const user = pgTable("user", {
@@ -50,3 +50,43 @@ export const verification = pgTable("verification", {
   createdAt: timestamp("createdAt").defaultNow(),
   updatedAt: timestamp("updatedAt").defaultNow(),
 });
+
+// Knowledge base tables
+export const integration = pgTable("integration", {
+  id: text("id").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(), // 'github' | 'gmail' | 'telegram'
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  expiresAt: timestamp("expiresAt"),
+  providerUserId: text("providerUserId"),
+  providerUsername: text("providerUsername"),
+  status: text("status").notNull().default("active"), // 'active' | 'syncing' | 'error'
+  lastSyncAt: timestamp("lastSyncAt"),
+  itemCount: integer("itemCount").notNull().default(0),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+
+export const knowledgeItem = pgTable(
+  "knowledge_item",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    integrationId: text("integrationId")
+      .notNull()
+      .references(() => integration.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    itemType: text("itemType").notNull(), // 'commit' | 'pr' | 'email' | 'message'
+    externalId: text("externalId").notNull(),
+    content: text("content").notNull(),
+    contentMeta: text("contentMeta"), // JSON string
+    itemCreatedAt: timestamp("itemCreatedAt"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [unique("ki_integration_external").on(t.integrationId, t.externalId)]
+);
