@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "./db-helper";
 import { integration, knowledgeItem } from "../../../data/schema";
-import { createHmac } from "crypto";
+import { createHash, createHmac } from "crypto";
 
 /** Verify Telegram Login Widget hash */
 export function verifyTelegramHash(data: Record<string, string>, botToken: string): boolean {
