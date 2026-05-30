@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../../data/db";
+import { user, session, account, verification } from "../../data/schema";
 
 const socialProviders =
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -13,7 +14,11 @@ const socialProviders =
     : undefined;
 
 export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: "pg" }),
+  database: drizzleAdapter(db, {
+    provider: "pg",
+    // Pass schema explicitly so better-auth doesn't need to introspect the Proxy
+    schema: { user, session, account, verification },
+  }),
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
@@ -23,10 +28,8 @@ export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3000",
     "https://piro.vargasjr.dev",
-    "https://piro-henna.vercel.app", // canonical Vercel alias
-    // Any additional deployment URLs injected at runtime
+    "https://piro-henna.vercel.app",
     ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
     ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
-    ...(process.env.VERCEL_BRANCH_URL ? [`https://${process.env.VERCEL_BRANCH_URL}`] : []),
   ],
 });
