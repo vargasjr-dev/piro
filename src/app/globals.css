@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes ember-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes flicker {
+  0%, 100% { transform: scaleY(1) scaleX(1); }
+  25% { transform: scaleY(1.02) scaleX(0.99); }
+  75% { transform: scaleY(0.98) scaleX(1.01); }
+}
+
+.ember-glow {
+  box-shadow: 0 0 24px rgba(249, 115, 22, 0.25), 0 0 48px rgba(249, 115, 22, 0.1);
+}
+
+.ember-text-glow {
+  text-shadow: 0 0 20px rgba(249, 115, 22, 0.5);
+}

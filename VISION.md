@@ -1,6 +1,6 @@
 # Piro — Vision
 
-> A tiny, RL-first model trained entirely on one person, by one person, to eventually replace a frontier model as the kernel of a personal OS.
+> A platform where anyone can train their own tiny, RL-first model — built to grow, not decay — eventually running as the kernel of a personal OS.
 
 ---
 
@@ -13,9 +13,9 @@ Every frontier model today is built the same way:
 
 RL is an afterthought. It's applied to a model that already has baked-in behaviors and biases from a data corpus no one person chose.
 
-**We flip that.** RL is not phase 3 — it is the organizing principle from the beginning. A model that learns through interaction and reward from day one. Not trained on the internet. Trained on *one person.*
+**We flip that.** RL is not phase 3 — it is the organizing principle from the beginning. A model that learns through interaction and reward from day one. Not trained on the internet. Trained on *you.*
 
-The bet: a smaller, purpose-built, RL-first model that knows one person deeply is more valuable than a general model that shallowly knows everyone.
+The bet: a smaller, purpose-built, RL-first model that knows you deeply is more valuable than a general model that shallowly knows everyone.
 
 ---
 
@@ -28,12 +28,12 @@ Instead of human raters or abstract principles, the reward signal is:
 ```
 Student generates response
     ↓
-Opus (with owner's PKM context injected) scores the response (0.0 → 1.0)
+Opus (with user's PKM context injected) scores the response (0.0 → 1.0)
     ↓
 Score becomes the RL reward
 ```
 
-The judge isn't generic. It's Opus with the owner's data injected — journal entries, conversation history, project context, preferences, decision patterns. The student is learning to satisfy a *personalized* evaluator.
+The judge isn't generic. It's Opus with *your* data injected — journal entries, conversation history, project context, preferences, decision patterns. The student is learning to satisfy *your* evaluator.
 
 This is **personalized knowledge distillation via RL**: using a context-augmented judge model to transfer individual preference structure into a small student model. At inference time, Opus is no longer needed — the personalization is baked into the student's weights.
 
