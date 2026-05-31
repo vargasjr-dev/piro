@@ -1,10 +1,10 @@
-export default function CapabilityLedgerPage() {
+export default function MentorsPage() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
       <div className="mb-8">
         <p className="text-amber-400/60">
-          Track skills your model has accumulated and catch regressions before
-          they stick.
+          Your judge configurations — the Opus-backed mentors that score your
+          student&apos;s responses and drive the reward signal.
         </p>
       </div>
 
@@ -16,31 +16,22 @@ export default function CapabilityLedgerPage() {
             height="20"
             viewBox="0 0 24 24"
             fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
             className="text-amber-600/50"
           >
-            <path
-              d="M9 11l3 3L22 4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
           </svg>
         </div>
         <div>
           <p className="text-amber-200/40 text-sm font-medium mb-1">
-            Ledger is empty
+            No mentors configured
           </p>
           <p className="text-amber-400/25 text-xs max-w-sm">
-            Capabilities are logged automatically after each training pass. Once
-            your model starts learning, they&apos;ll appear here.
+            A mentor pairs Opus with your knowledge base to score student
+            responses. Configure one to start training.
           </p>
         </div>
       </div>

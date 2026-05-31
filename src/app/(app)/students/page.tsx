@@ -1,10 +1,10 @@
-export default function LearningMomentsPage() {
+export default function StudentsPage() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
       <div className="mb-8">
         <p className="text-amber-400/60">
-          Detected corrections, discoveries, and drift events from your
-          interactions.
+          Your trained model iterations — each student is the result of a
+          completed training session.
         </p>
       </div>
 
@@ -16,24 +16,23 @@ export default function LearningMomentsPage() {
             height="20"
             viewBox="0 0 24 24"
             fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
             className="text-amber-600/50"
           >
-            <path
-              d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+            <path d="M6 12v5c3 3 9 3 12 0v-5" />
           </svg>
         </div>
         <div>
           <p className="text-amber-200/40 text-sm font-medium mb-1">
-            No learning moments captured
+            No students yet
           </p>
           <p className="text-amber-400/25 text-xs max-w-sm">
-            Learning moments are detected automatically as your model trains —
-            corrections, surprises, and shifts in what you respond to.
+            Run your first training session to produce a student. Each student
+            is a snapshot of your model at a point in time.
           </p>
         </div>
       </div>
