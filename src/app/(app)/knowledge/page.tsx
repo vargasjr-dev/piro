@@ -1,10 +1,11 @@
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../../../../data/db";
 import { integration, knowledgeItem } from "../../../../data/schema";
 import IntegrationCard from "./IntegrationCard";
 import KnowledgeItems from "./KnowledgeItems";
+import { FLASH_COOKIE } from "~/lib/flash";
 
 const PROVIDERS = [
   {
@@ -27,23 +28,36 @@ const PROVIDERS = [
   },
 ];
 
-export default async function KnowledgePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const headersList = await headers();
+export default async function KnowledgePage() {
+  const [headersList, cookieStore] = await Promise.all([headers(), cookies()]);
   const session = await auth.api.getSession({ headers: headersList });
   if (!session) return null;
 
-  const { error } = await searchParams;
+  // Flash errors (OAuth failures from callback routes — short-lived cookie)
+  const flashError = cookieStore.get(FLASH_COOKIE)?.value ?? null;
+
+  // Server-side config checks (no URL param needed)
+  const githubConfigured =
+    !!process.env.GITHUB_CLIENT_ID && !!process.env.GITHUB_CLIENT_SECRET;
+  const gmailConfigured =
+    !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET;
+
+  const configError = !githubConfigured
+    ? "github_not_configured"
+    : !gmailConfigured
+      ? "gmail_not_configured"
+      : null;
+
+  const error = flashError ?? configError;
 
   const integrations = await db
     .select()
     .from(integration)
     .where(eq(integration.userId, session.user.id));
 
-  const intByProvider = Object.fromEntries(integrations.map((i) => [i.provider, i]));
+  const intByProvider = Object.fromEntries(
+    integrations.map((i) => [i.provider, i]),
+  );
 
   // Recent knowledge items (last 50 across all integrations)
   const items =
@@ -76,12 +90,16 @@ export default async function KnowledgePage({
       {totalItems > 0 && (
         <div className="flex items-center gap-6 mb-8 px-1">
           <div>
-            <span className="text-2xl font-black text-amber-50">{totalItems.toLocaleString()}</span>
+            <span className="text-2xl font-black text-amber-50">
+              {totalItems.toLocaleString()}
+            </span>
             <span className="text-sm text-amber-400/50 ml-2">total items</span>
           </div>
           <div className="h-4 w-px bg-amber-900/40" />
           <div>
-            <span className="text-2xl font-black text-amber-50">{integrations.length}</span>
+            <span className="text-2xl font-black text-amber-50">
+              {integrations.length}
+            </span>
             <span className="text-sm text-amber-400/50 ml-2">
               {integrations.length === 1 ? "source" : "sources"} connected
             </span>
@@ -111,17 +129,19 @@ export default async function KnowledgePage({
 
 function errorMessage(code: string): string {
   const map: Record<string, string> = {
-    github_not_configured: "GitHub OAuth not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET.",
-    gmail_not_configured: "Gmail OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+    github_not_configured:
+      "GitHub OAuth not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET.",
+    gmail_not_configured:
+      "Gmail OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
     telegram_not_configured: "Telegram bot not configured.",
     github_oauth_failed: "GitHub authorization failed. Please try again.",
     gmail_oauth_failed: "Gmail authorization failed. Please try again.",
-    github_token_failed: "Could not get GitHub access token. Check OAuth app settings.",
-    gmail_token_failed: "Could not get Gmail access token. Check OAuth app settings.",
+    github_token_failed:
+      "Could not get GitHub access token. Check OAuth app settings.",
+    gmail_token_failed:
+      "Could not get Gmail access token. Check OAuth app settings.",
     telegram_invalid_hash: "Telegram auth verification failed.",
     telegram_expired: "Telegram auth expired. Please try again.",
   };
   return map[code] ?? `OAuth error: ${code}`;
 }
-
-

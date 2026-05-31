@@ -4,6 +4,7 @@ import { headers as nextHeaders } from "next/headers";
 import { eq, and } from "drizzle-orm";
 import { db } from "../../../../../../data/db";
 import { integration } from "../../../../../../data/schema";
+import { flashError } from "~/lib/flash";
 
 const BASE = process.env.BETTER_AUTH_URL ?? "https://piro-henna.vercel.app";
 
@@ -17,7 +18,10 @@ export async function GET(req: NextRequest) {
   const storedState = req.cookies.get("oauth_state")?.value;
 
   if (!code || !state || !storedState || state !== storedState) {
-    return NextResponse.redirect(new URL("/knowledge?error=gmail_oauth_failed", req.url));
+    return flashError(
+      NextResponse.redirect(new URL("/knowledge", req.url)),
+      "gmail_oauth_failed",
+    );
   }
 
   const redirectUri = `${BASE}/api/auth/callback/gmail`;
@@ -36,13 +40,21 @@ export async function GET(req: NextRequest) {
   }).then((r) => r.json() as Promise<GoogleTokenResponse>);
 
   if (!tokenRes.access_token) {
-    return NextResponse.redirect(new URL("/knowledge?error=gmail_token_failed", req.url));
+    return flashError(
+      NextResponse.redirect(new URL("/knowledge", req.url)),
+      "gmail_token_failed",
+    );
   }
 
   // Get Google user info
-  const userInfo = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-    headers: { Authorization: `Bearer ${tokenRes.access_token}` },
-  }).then((r) => r.json() as Promise<{ id: string; email: string; name?: string }>);
+  const userInfo = await fetch(
+    "https://www.googleapis.com/oauth2/v2/userinfo",
+    {
+      headers: { Authorization: `Bearer ${tokenRes.access_token}` },
+    },
+  ).then(
+    (r) => r.json() as Promise<{ id: string; email: string; name?: string }>,
+  );
 
   const expiresAt = tokenRes.expires_in
     ? new Date(Date.now() + tokenRes.expires_in * 1000)
@@ -51,7 +63,12 @@ export async function GET(req: NextRequest) {
   const existing = await db
     .select()
     .from(integration)
-    .where(and(eq(integration.userId, session.user.id), eq(integration.provider, "gmail")))
+    .where(
+      and(
+        eq(integration.userId, session.user.id),
+        eq(integration.provider, "gmail"),
+      ),
+    )
     .limit(1);
 
   if (existing.length > 0) {

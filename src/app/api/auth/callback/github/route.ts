@@ -4,6 +4,7 @@ import { headers as nextHeaders } from "next/headers";
 import { eq, and } from "drizzle-orm";
 import { db } from "../../../../../../data/db";
 import { integration } from "../../../../../../data/schema";
+import { flashError } from "~/lib/flash";
 
 const BASE = process.env.BETTER_AUTH_URL ?? "https://piro-henna.vercel.app";
 
@@ -17,7 +18,10 @@ export async function GET(req: NextRequest) {
   const storedState = req.cookies.get("oauth_state")?.value;
 
   if (!code || !state || !storedState || state !== storedState) {
-    return NextResponse.redirect(new URL("/knowledge?error=github_oauth_failed", req.url));
+    return flashError(
+      NextResponse.redirect(new URL("/knowledge", req.url)),
+      "github_oauth_failed",
+    );
   }
 
   // Exchange code for access token
@@ -30,10 +34,15 @@ export async function GET(req: NextRequest) {
       code,
       redirect_uri: `${BASE}/api/auth/callback/github`,
     }),
-  }).then((r) => r.json() as Promise<{ access_token?: string; error?: string }>);
+  }).then(
+    (r) => r.json() as Promise<{ access_token?: string; error?: string }>,
+  );
 
   if (!tokenRes.access_token) {
-    return NextResponse.redirect(new URL("/knowledge?error=github_token_failed", req.url));
+    return flashError(
+      NextResponse.redirect(new URL("/knowledge", req.url)),
+      "github_token_failed",
+    );
   }
 
   // Get GitHub user info
@@ -49,7 +58,12 @@ export async function GET(req: NextRequest) {
   const existing = await db
     .select()
     .from(integration)
-    .where(and(eq(integration.userId, session.user.id), eq(integration.provider, "github")))
+    .where(
+      and(
+        eq(integration.userId, session.user.id),
+        eq(integration.provider, "github"),
+      ),
+    )
     .limit(1);
 
   if (existing.length > 0) {

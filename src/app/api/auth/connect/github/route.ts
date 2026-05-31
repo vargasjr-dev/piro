@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "~/lib/auth.server";
 import { headers as nextHeaders } from "next/headers";
+import { flashError } from "~/lib/flash";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await nextHeaders() });
@@ -8,8 +9,9 @@ export async function GET(req: NextRequest) {
 
   const clientId = process.env.GITHUB_CLIENT_ID;
   if (!clientId) {
-    return NextResponse.redirect(
-      new URL("/knowledge?error=github_not_configured", req.url)
+    return flashError(
+      NextResponse.redirect(new URL("/knowledge", req.url)),
+      "github_not_configured",
     );
   }
 
