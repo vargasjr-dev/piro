@@ -1,15 +1,19 @@
 import Link from "next/link";
-import { headers } from "next/headers";
-import { auth } from "~/lib/auth.server";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import FlameLogo from "~/components/FlameLogo";
 
 export default async function HomePage() {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  // If a session cookie is present, send them straight to the app.
+  // Full session verification happens in the (app) layout — if the token
+  // is expired it will redirect to /login from there.
+  const cookieStore = await cookies();
+  const hasSession =
+    cookieStore.has("better-auth.session_token") ||
+    cookieStore.has("__Secure-better-auth.session_token");
 
-  if (session) {
-    redirect("/dashboard");
+  if (hasSession) {
+    redirect("/knowledge");
   }
 
   return (
