@@ -62,7 +62,6 @@ export default async function KnowledgePage({
     <div className="max-w-5xl mx-auto px-6 py-12">
       {/* Header */}
       <div className="mb-10">
-        <h1 className="text-3xl font-black text-amber-50 mb-2">Knowledge Base</h1>
         <p className="text-amber-400/60">
           Connect your accounts. Piro pulls the data that defines you.
         </p>
