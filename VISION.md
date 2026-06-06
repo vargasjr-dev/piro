@@ -133,5 +133,59 @@ Scoped out of personal OS — standalone web app first. Core primitives:
 
 ---
 
+## Compute Infrastructure (June 2026)
+
+### Philosophy
+Build the full thesis pipeline cheaply before owning hardware. Rent until $50K cumulative revenue, then buy a self-hosted H100. Long-term: H100 + home solar as the physical embodiment of the sun → intelligence pipeline.
+
+### Architecture (pre-hardware)
+
+**Inference — Modal Serverless**
+- Platform: [Modal](https://modal.com) — serverless GPU, scales to zero when idle
+- GPU: A10G (24GB) — sufficient for a 10M param model at any realistic concurrency
+- Cost: ~$0.30-0.50/hr, billed per GPU-second (near-zero cost when no users active)
+- Deployment: custom Modal function wrapping the student model weights
+- Cold start: ~2-4 seconds (acceptable for chat UI)
+- Capacity: one A10G can serve 500+ concurrent users at 10M params
+
+**Training — Modal On-Demand**
+- Platform: Modal (same account, different function)
+- GPU: A100 80GB or H100 (rented only during training runs)
+- Trigger: on-demand (weekly or when learning moment buffer exceeds threshold)
+- Cost per run: ~$1.25-6 in GPU time (10M param GRPO runs are fast)
+- Reward model: **Kimi K2 API** ($0.60/M input tokens) — no GPU needed for scoring
+- Weights persisted to Modal Volumes or S3 between runs
+
+**Training loop:**
+```
+Modal A100/H100 (on-demand)
+  → generates N rollouts per prompt (policy model, 10M params)
+  → calls Kimi K2 API for reward scores (PKM context injected)
+  → GRPO update applied to policy weights
+  → weights saved to persistent storage
+  → GPU shuts down
+```
+
+**Storage**
+- Model weights: Modal Volumes (versioned checkpoints)
+- Interaction logs + learning moment buffer: persistent DB (Postgres/SQLite)
+- PKM context: synced from workspace at training time
+
+### Revenue Model
+- User-facing product: personalized private AI at $20-30/month per user
+- Target: 500 users = $10-15K/month on one A10G serving 10M params
+- Hardware trigger: buy H100 (~$25K all-in) when $50K cumulative revenue hit
+- Post-hardware: Modal inference → self-hosted inference; training stays Modal or moves home
+
+### Hardware Roadmap
+| Milestone | Trigger | Move |
+|---|---|---|
+| Phase 0 | Now | Modal serverless inference + on-demand training |
+| Phase 1 | $50K revenue | Buy H100 PCIe 80GB + server (~$25K), self-host inference |
+| Phase 2 | $200K revenue | Home solar installed, eliminate all power costs |
+| Phase 3 | Scale | Multiple H100s, expand to full home data center |
+
+---
+
 *Started: May 30, 2026*
-*Status: Pre-naming, pre-implementation — vision locked*
+*Status: Pre-naming, pre-implementation — vision locked. Compute infra decided June 6, 2026.*
