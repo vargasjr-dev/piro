@@ -1,10 +1,10 @@
 import { headers, cookies } from "next/headers";
 import { auth } from "~/lib/auth.server";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../../../../data/db";
-import { integration, knowledgeItem } from "../../../../data/schema";
+import { integration } from "../../../../data/schema";
 import IntegrationCard from "./IntegrationCard";
-import KnowledgeItems from "./KnowledgeItems";
+import FileExplorer from "./FileExplorer";
 import { FLASH_COOKIE } from "~/lib/flash";
 
 const PROVIDERS = [
@@ -59,17 +59,6 @@ export default async function KnowledgePage() {
     integrations.map((i) => [i.provider, i]),
   );
 
-  // Recent knowledge items (last 50 across all integrations)
-  const items =
-    integrations.length > 0
-      ? await db
-          .select()
-          .from(knowledgeItem)
-          .where(eq(knowledgeItem.userId, session.user.id))
-          .orderBy(desc(knowledgeItem.createdAt))
-          .limit(50)
-      : [];
-
   const totalItems = integrations.reduce((s, i) => s + i.itemCount, 0);
 
   return (
@@ -86,27 +75,6 @@ export default async function KnowledgePage() {
         )}
       </div>
 
-      {/* Stats bar */}
-      {totalItems > 0 && (
-        <div className="flex items-center gap-6 mb-8 px-1">
-          <div>
-            <span className="text-2xl font-black text-amber-50">
-              {totalItems.toLocaleString()}
-            </span>
-            <span className="text-sm text-amber-400/50 ml-2">total items</span>
-          </div>
-          <div className="h-4 w-px bg-amber-900/40" />
-          <div>
-            <span className="text-2xl font-black text-amber-50">
-              {integrations.length}
-            </span>
-            <span className="text-sm text-amber-400/50 ml-2">
-              {integrations.length === 1 ? "source" : "sources"} connected
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Integration cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
         {PROVIDERS.map((p) => (
@@ -121,8 +89,8 @@ export default async function KnowledgePage() {
         ))}
       </div>
 
-      {/* Knowledge items */}
-      <KnowledgeItems items={items} totalItems={totalItems} />
+      {/* File explorer */}
+      <FileExplorer integrationCount={integrations.length} />
     </div>
   );
 }

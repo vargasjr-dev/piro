@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, unique, index } from "drizzle-orm/pg-core";
 
 // better-auth required tables
 export const user = pgTable("user", {
@@ -51,7 +51,8 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updatedAt").defaultNow(),
 });
 
-// Knowledge base tables
+// ---- Knowledge base ----
+
 export const integration = pgTable("integration", {
   id: text("id").primaryKey(),
   userId: text("userId")
@@ -70,8 +71,13 @@ export const integration = pgTable("integration", {
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
 
-export const knowledgeItem = pgTable(
-  "knowledge_item",
+/**
+ * Lightweight index of files stored in R2.
+ * Content lives in R2 at `r2Key` — this table is metadata only,
+ * used for "recent items" listings without hitting R2.
+ */
+export const fileIndex = pgTable(
+  "file_index",
   {
     id: text("id").primaryKey(),
     userId: text("userId")
@@ -80,13 +86,15 @@ export const knowledgeItem = pgTable(
     integrationId: text("integrationId")
       .notNull()
       .references(() => integration.id, { onDelete: "cascade" }),
-    provider: text("provider").notNull(),
+    provider: text("provider").notNull(), // 'github' | 'gmail' | 'telegram'
     itemType: text("itemType").notNull(), // 'commit' | 'pr' | 'email' | 'message'
-    externalId: text("externalId").notNull(),
-    content: text("content").notNull(),
-    contentMeta: text("contentMeta"), // JSON string
+    r2Key: text("r2Key").notNull(),       // full R2 object key
+    title: text("title").notNull(),       // human-readable one-liner for the UI
     itemCreatedAt: timestamp("itemCreatedAt"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
-  (t) => [unique("ki_integration_external").on(t.integrationId, t.externalId)]
+  (t) => [
+    unique("fi_r2key").on(t.r2Key),
+    index("fi_user_created").on(t.userId, t.createdAt),
+  ]
 );

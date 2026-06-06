@@ -1,7 +1,8 @@
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "./db-helper";
-import { integration, knowledgeItem } from "../../../data/schema";
+import { integration, fileIndex } from "../../../data/schema";
 import { createHash, createHmac } from "crypto";
+import { r2Put, r2Key } from "../r2";
 
 /** Verify Telegram Login Widget hash */
 export function verifyTelegramHash(data: Record<string, string>, botToken: string): boolean {
@@ -23,17 +24,15 @@ export function verifyTelegramHash(data: Record<string, string>, botToken: strin
 
 export async function syncTelegram(integrationId: string, userId: string, chatId: string) {
   const db = getDb();
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (!botToken) throw new Error("TELEGRAM_BOT_TOKEN not configured");
 
   // Note: getUpdates only returns unprocessed updates.
   // If a webhook is active, this will return empty — which is expected.
-  // Messages are synced in real-time via the webhook instead.
-  // This sync call just refreshes the itemCount from what's already stored.
+  // Messages are ingested in real-time via ingestTelegramMessage().
+  // This sync call just refreshes the itemCount from the fileIndex.
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(knowledgeItem)
-    .where(eq(knowledgeItem.integrationId, integrationId));
+    .from(fileIndex)
+    .where(eq(fileIndex.integrationId, integrationId));
 
   await db
     .update(integration)
@@ -62,18 +61,29 @@ export async function ingestTelegramMessage(
 
   if (!integ) return; // user hasn't connected Telegram to Piro
 
+  const bucket = date.toISOString().slice(0, 10); // yyyy-mm-dd
+  const key = r2Key(integ.userId, "telegram", `${bucket}/${messageId}-${direction}.md`);
+
+  const content = [
+    `# Message ${messageId}`,
+    `**Direction:** ${direction === "in" ? "Received" : "Sent"}`,
+    `**Date:** ${date.toISOString()}`,
+    ``,
+    text,
+  ].join("\n");
+
   try {
+    await r2Put(key, content);
     await db
-      .insert(knowledgeItem)
+      .insert(fileIndex)
       .values({
         id: crypto.randomUUID(),
         userId: integ.userId,
         integrationId: integ.id,
         provider: "telegram",
         itemType: "message",
-        externalId: `${messageId}-${direction}`,
-        content: text,
-        contentMeta: JSON.stringify({ direction, chatId: telegramUserId }),
+        r2Key: key,
+        title: text.slice(0, 80),
         itemCreatedAt: date,
       })
       .onConflictDoNothing();

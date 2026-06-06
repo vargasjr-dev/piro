@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "./db-helper";
-import { integration, knowledgeItem } from "../../../data/schema";
+import { integration, fileIndex } from "../../../data/schema";
+import { r2Put, r2Key } from "../r2";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
 
@@ -18,33 +19,46 @@ export async function syncGmail(integrationId: string, userId: string, accessTok
 
   const messages = listRes.messages ?? [];
 
-  // Fetch metadata for each (subject, from, date) — batch with individual calls
   for (const msg of messages) {
     const detail = await fetch(
       `${GMAIL_API}/users/me/messages/${msg.id}?format=metadata&metadataHeaders=Subject,From,To,Date`,
       { headers: { Authorization: auth } }
     ).then((r) => r.json() as Promise<GmailMessage>);
 
-    const headers = Object.fromEntries(
+    const hdrs = Object.fromEntries(
       (detail.payload?.headers ?? []).map((h) => [h.name, h.value])
     );
-    const subject = headers["Subject"] ?? "(no subject)";
-    const from = headers["From"] ?? "";
-    const to = headers["To"] ?? "";
-    const date = headers["Date"] ?? "";
+    const subject = hdrs["Subject"] ?? "(no subject)";
+    const from = hdrs["From"] ?? "";
+    const to = hdrs["To"] ?? "";
+    const date = hdrs["Date"] ?? "";
+
+    // Group by date: yyyy-mm bucket for clean directory structure
+    const bucket = date ? new Date(date).toISOString().slice(0, 7) : "unknown";
+    const key = r2Key(userId, "email", `${bucket}/${msg.id}.md`);
+
+    const content = [
+      `# ${subject}`,
+      `**From:** ${from}`,
+      `**To:** ${to}`,
+      `**Date:** ${date}`,
+      `**Thread:** ${detail.threadId}`,
+    ]
+      .join("\n")
+      .trimEnd();
 
     try {
+      await r2Put(key, content);
       await db
-        .insert(knowledgeItem)
+        .insert(fileIndex)
         .values({
           id: crypto.randomUUID(),
           userId,
           integrationId,
           provider: "gmail",
           itemType: "email",
-          externalId: msg.id,
-          content: `Subject: ${subject}\nFrom: ${from}\nTo: ${to}`,
-          contentMeta: JSON.stringify({ subject, from, to, date, threadId: detail.threadId }),
+          r2Key: key,
+          title: `${subject} — ${from}`,
           itemCreatedAt: date ? new Date(date) : null,
         })
         .onConflictDoNothing();
@@ -54,11 +68,10 @@ export async function syncGmail(integrationId: string, userId: string, accessTok
     }
   }
 
-  // Update item count
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(knowledgeItem)
-    .where(eq(knowledgeItem.integrationId, integrationId));
+    .from(fileIndex)
+    .where(eq(fileIndex.integrationId, integrationId));
 
   await db
     .update(integration)

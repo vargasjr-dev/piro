@@ -2,7 +2,8 @@ interface Item {
   id: string;
   provider: string;
   itemType: string;
-  content: string;
+  title: string;       // display label (content lives in R2)
+  r2Key: string;       // R2 path shown on hover for debugging
   itemCreatedAt: Date | null;
 }
 
@@ -65,9 +66,9 @@ export default function KnowledgeItems({ items, totalItems }: Props) {
               {typeBadge[item.itemType] ?? "◉"} {item.itemType}
             </span>
 
-            {/* Content */}
-            <p className="text-sm text-amber-200/70 leading-relaxed flex-1 min-w-0 truncate">
-              {item.content}
+            {/* Title */}
+            <p className="text-sm text-amber-200/70 leading-relaxed flex-1 min-w-0 truncate" title={item.r2Key}>
+              {item.title}
             </p>
 
             {/* Date */}
