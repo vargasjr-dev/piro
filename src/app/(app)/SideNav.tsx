@@ -11,6 +11,7 @@ interface Props {
 const NAV_ITEMS = [
   {
     label: "Knowledge Base",
+    shortLabel: "Knowledge",
     href: "/knowledge",
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   },
   {
     label: "Training Sessions",
+    shortLabel: "Training",
     href: "/training",
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -30,6 +32,7 @@ const NAV_ITEMS = [
   },
   {
     label: "Students",
+    shortLabel: "Students",
     href: "/students",
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -40,6 +43,7 @@ const NAV_ITEMS = [
   },
   {
     label: "Mentors",
+    shortLabel: "Mentors",
     href: "/mentors",
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -121,35 +125,30 @@ export default function SideNav({ userName }: Props) {
           </form>
         </header>
 
-        {/* Mobile horizontal tab strip */}
-        <div className="border-b border-amber-900/20 overflow-x-auto">
-          <div className="flex px-2 min-w-max">
-            {NAV_ITEMS.map((item) => {
-              const isActive =
-                pathname === item.href || pathname.startsWith(item.href + "/");
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`
-                    flex items-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap
-                    ${
-                      isActive
-                        ? "border-orange-500 text-amber-100"
-                        : "border-transparent text-amber-400/50 hover:text-amber-300"
-                    }
-                  `}
-                >
-                  <span className={isActive ? "text-orange-400" : ""}>
-                    {item.icon}
-                  </span>
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
         </div>
-      </div>
+
+      {/* Mobile bottom nav bar */}
+      <nav className="fixed bottom-0 inset-x-0 bg-[#0d0a08] border-t border-amber-900/20 flex z-50 pb-safe">
+        {NAV_ITEMS.map((item) => {
+          const isActive =
+            pathname === item.href || pathname.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`
+                flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors
+                ${isActive ? "text-orange-400" : "text-amber-400/40 hover:text-amber-300"}
+              `}
+            >
+              <span className="w-5 h-5 flex items-center justify-center">
+                {item.icon}
+              </span>
+              {item.shortLabel}
+            </Link>
+          );
+        })}
+      </nav>
     </>
   );
 }

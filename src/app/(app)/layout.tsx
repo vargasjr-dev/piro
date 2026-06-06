@@ -22,7 +22,7 @@ export default async function AppLayout({
   return (
     <div className="min-h-screen bg-[#0d0a08] lg:flex">
       <SideNav userName={session.user.name} />
-      <main className="flex-1 min-w-0">{children}</main>
+      <main className="flex-1 min-w-0 pb-20 lg:pb-0">{children}</main>
     </div>
   );
 }

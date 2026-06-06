@@ -28,5 +28,14 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Adds pb-safe for iOS home indicator safe area
+    function ({ addUtilities }: { addUtilities: (u: Record<string, Record<string, string>>) => void }) {
+      addUtilities({
+        ".pb-safe": {
+          paddingBottom: "env(safe-area-inset-bottom)",
+        },
+      });
+    },
+  ],
 };
