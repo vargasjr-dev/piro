@@ -166,9 +166,9 @@ export default function FileExplorer({ integrationCount }: { integrationCount: n
   const fetchFiles = useCallback(async () => {
     try {
       const res = await fetch("/api/files");
-      if (!res.ok) throw new Error("Failed to load files");
-      const data = (await res.json()) as { paths: string[] };
-      setPaths(data.paths);
+      const data = (await res.json()) as { paths?: string[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setPaths(data.paths ?? []);
     } catch (e) {
       setError(String(e));
     } finally {

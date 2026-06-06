@@ -19,6 +19,7 @@ function getR2Client(): S3Client {
     region: "auto",
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: false, // B2 supports virtual-hosted style; set true if ListObjects fails
   });
 }
 

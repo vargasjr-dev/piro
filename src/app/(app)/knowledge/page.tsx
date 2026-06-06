@@ -36,19 +36,8 @@ export default async function KnowledgePage() {
   // Flash errors (OAuth failures from callback routes — short-lived cookie)
   const flashError = cookieStore.get(FLASH_COOKIE)?.value ?? null;
 
-  // Server-side config checks (no URL param needed)
-  const githubConfigured =
-    !!process.env.GITHUB_CLIENT_ID && !!process.env.GITHUB_CLIENT_SECRET;
-  const gmailConfigured =
-    !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET;
-
-  const configError = !githubConfigured
-    ? "github_not_configured"
-    : !gmailConfigured
-      ? "gmail_not_configured"
-      : null;
-
-  const error = flashError ?? configError;
+  // Only surface errors from actual OAuth attempts (flash cookie set by callback routes)
+  const error = flashError;
 
   const integrations = await db
     .select()
