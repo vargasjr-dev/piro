@@ -20,11 +20,16 @@ function getR2Client(): S3Client {
     throw new Error(`Storage credentials missing: ${missing.join(", ")}`);
   }
 
+  // Normalize endpoint — ensure it has a scheme (B2 needs https://)
+  const normalizedEndpoint = endpoint.startsWith("http")
+    ? endpoint
+    : `https://${endpoint}`;
+
   return new S3Client({
     region: "auto",
-    endpoint,
+    endpoint: normalizedEndpoint,
     credentials: { accessKeyId, secretAccessKey },
-    forcePathStyle: false, // B2 supports virtual-hosted style; set true if ListObjects fails
+    forcePathStyle: true, // Required for B2 S3-compatible API
   });
 }
 
