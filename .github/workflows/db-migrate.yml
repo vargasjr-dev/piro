@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "data/schema.ts"
+  workflow_dispatch: # allow manual triggers
 
 jobs:
   migrate:
