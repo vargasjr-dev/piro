@@ -14,12 +14,16 @@ export async function syncGitHub(integrationId: string, userId: string, accessTo
   };
 
   // Fetch user's 15 most recently updated repos (owner only)
-  const repos = await fetch(
+  const reposRaw = await fetch(
     "https://api.github.com/user/repos?per_page=15&sort=updated&affiliation=owner",
     { headers }
-  ).then((r) => r.json() as Promise<GHRepo[]>);
+  ).then((r) => r.json());
 
-  if (!Array.isArray(repos)) throw new Error("GitHub API error fetching repos");
+  if (!Array.isArray(reposRaw)) {
+    const msg = (reposRaw as { message?: string })?.message ?? JSON.stringify(reposRaw);
+    throw new Error(`GitHub API error fetching repos: ${msg}`);
+  }
+  const repos = reposRaw as GHRepo[];
 
   for (const repo of repos) {
     // ---- Commits (last 100 by the authed user) ----

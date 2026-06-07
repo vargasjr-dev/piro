@@ -70,6 +70,8 @@ export default function IntegrationCard({
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   const isConnected = !!integration;
   const Icon = ICONS[provider];
@@ -78,13 +80,14 @@ export default function IntegrationCard({
   async function handleSync() {
     if (!integration) return;
     setSyncing(true);
+    setSyncError(null);
     try {
       const res = await fetch(`/api/integrations/${integration.id}/sync`, {
         method: "POST",
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        alert(data.error ?? "Sync failed");
+        setSyncError(data.error ?? "Sync failed");
       }
       router.refresh();
       onAction?.();
@@ -95,8 +98,12 @@ export default function IntegrationCard({
 
   async function handleDisconnect() {
     if (!integration) return;
-    if (!confirm(`Disconnect ${name}? All synced items will be deleted.`)) return;
+    if (!confirmDisconnect) {
+      setConfirmDisconnect(true);
+      return;
+    }
     setDisconnecting(true);
+    setConfirmDisconnect(false);
     try {
       await fetch(`/api/integrations/${integration.id}`, { method: "DELETE" });
       router.refresh();
@@ -151,8 +158,15 @@ export default function IntegrationCard({
         </span>
       </div>
 
+      {/* Sync error */}
+      {syncError && (
+        <div className="bg-red-950/40 border border-red-800/30 rounded-xl px-3 py-2.5 text-xs text-red-400 leading-relaxed">
+          <span className="font-semibold">Sync failed:</span> {syncError}
+        </div>
+      )}
+
       {/* Actions */}
-      <div className="mt-auto pt-1">
+      <div className="mt-auto pt-1 flex flex-col gap-2">
         {!isConnected ? (
           <a
             href={connectHref}
@@ -160,6 +174,25 @@ export default function IntegrationCard({
           >
             Connect →
           </a>
+        ) : confirmDisconnect ? (
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs text-amber-400/60 text-center">Remove {name} and all synced files?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDisconnect}
+                disabled={disconnecting}
+                className="flex-1 px-3 py-2 rounded-xl bg-red-900/40 border border-red-800/30 text-red-400 text-sm font-medium hover:bg-red-900/60 disabled:opacity-40 transition"
+              >
+                {disconnecting ? "Removing…" : "Yes, remove"}
+              </button>
+              <button
+                onClick={() => setConfirmDisconnect(false)}
+                className="flex-1 px-3 py-2 rounded-xl bg-amber-900/20 border border-amber-800/20 text-amber-400/60 text-sm font-medium hover:bg-amber-900/40 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="flex gap-2">
             <button
@@ -174,7 +207,7 @@ export default function IntegrationCard({
               disabled={disconnecting}
               className="px-3 py-2 rounded-xl bg-red-900/20 border border-red-800/20 text-red-400/70 text-sm font-medium hover:bg-red-900/40 disabled:opacity-40 transition"
             >
-              {disconnecting ? "…" : "Disconnect"}
+              Disconnect
             </button>
           </div>
         )}
