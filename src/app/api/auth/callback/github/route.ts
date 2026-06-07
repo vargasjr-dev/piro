@@ -45,14 +45,23 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Get GitHub user info
-  const ghUser = await fetch("https://api.github.com/user", {
+  // Get GitHub user info (also validates the token works)
+  const ghUserRes = await fetch("https://api.github.com/user", {
     headers: {
       Authorization: `Bearer ${tokenRes.access_token}`,
       Accept: "application/vnd.github.v3+json",
       "User-Agent": "Piro-KB/1.0",
     },
-  }).then((r) => r.json() as Promise<{ id: number; login: string }>);
+  });
+
+  if (!ghUserRes.ok) {
+    return flashError(
+      NextResponse.redirect(new URL("/knowledge", req.url)),
+      "github_token_failed",
+    );
+  }
+
+  const ghUser = (await ghUserRes.json()) as { id: number; login: string };
 
   // Upsert integration
   const existing = await db
