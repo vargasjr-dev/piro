@@ -52,10 +52,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ ok: true, ...result, integration: updated });
   } catch (e) {
+    const msg = String(e);
+    const isAuthError =
+      msg.includes("Bad credentials") ||
+      msg.includes("401") ||
+      msg.includes("Unauthorized");
+
     await db
       .update(integration)
       .set({ status: "error", updatedAt: new Date() })
       .where(eq(integration.id, id));
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+
+    return NextResponse.json(
+      { error: msg, reconnect: isAuthError },
+      { status: 500 },
+    );
   }
 }
