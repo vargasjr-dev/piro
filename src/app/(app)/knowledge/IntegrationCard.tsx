@@ -1,15 +1,25 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface Integration {
   id: string;
   provider: string;
   providerUsername: string | null;
   status: string;
+  syncMeta: string | null;
   lastSyncAt: Date | string | null;
   itemCount: number;
+}
+
+interface SyncMeta {
+  step: string;
+  current?: string;
+  done: number;
+  total: number;
+  error?: string;
+  reconnect?: boolean;
 }
 
 interface Props {
@@ -21,7 +31,7 @@ interface Props {
   onAction?: () => void;
 }
 
-// Icons live here — client-only, not serialized across RSC boundary
+// ---- Icons ----
 function GitHubIcon({ size = 22 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -47,17 +57,25 @@ function TelegramIcon({ size = 22 }: { size?: number }) {
   );
 }
 
-const ICONS = {
-  github: GitHubIcon,
-  gmail: GmailIcon,
-  telegram: TelegramIcon,
-};
+const ICONS = { github: GitHubIcon, gmail: GmailIcon, telegram: TelegramIcon };
+const ICON_COLORS = { github: "text-slate-300", gmail: "text-red-400", telegram: "text-sky-400" };
 
-const ICON_COLORS = {
-  github: "text-slate-300",
-  gmail: "text-red-400",
-  telegram: "text-sky-400",
-};
+// ---- Progress bar ----
+function ProgressBar({ done, total }: { done: number; total: number }) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : null;
+  return (
+    <div className="w-full h-1 bg-amber-900/30 rounded-full overflow-hidden">
+      {pct !== null ? (
+        <div
+          className="h-full bg-orange-500/60 rounded-full transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      ) : (
+        <div className="h-full bg-orange-500/40 rounded-full animate-pulse w-1/3" />
+      )}
+    </div>
+  );
+}
 
 export default function IntegrationCard({
   provider,
@@ -73,38 +91,97 @@ export default function IntegrationCard({
   const [syncError, setSyncError] = useState<string | null>(null);
   const [needsReconnect, setNeedsReconnect] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<string | null>(null);
+  const [liveMeta, setLiveMeta] = useState<SyncMeta | null>(null);
+  const [liveItemCount, setLiveItemCount] = useState<number | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isConnected = !!integration;
   const Icon = ICONS[provider];
   const colorClass = ICON_COLORS[provider];
+
+  // Derive effective status — prefer live polled status
+  const effectiveStatus = liveStatus ?? integration?.status ?? null;
+  const isSyncing = effectiveStatus === "syncing";
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const startPolling = useCallback((integrationId: string) => {
+    stopPolling();
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/integrations/${integrationId}/status`);
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          status: string;
+          syncMeta: SyncMeta | null;
+          itemCount: number;
+        };
+        setLiveStatus(data.status);
+        setLiveMeta(data.syncMeta);
+        setLiveItemCount(data.itemCount);
+
+        if (data.status !== "syncing") {
+          stopPolling();
+          setSyncing(false);
+          if (data.status === "error" && data.syncMeta?.error) {
+            setSyncError(data.syncMeta.error);
+            setNeedsReconnect(data.syncMeta.reconnect ?? false);
+          }
+          router.refresh();
+          onAction?.();
+        }
+      } catch {
+        // network blip — keep polling
+      }
+    }, 2500);
+  }, [stopPolling, router, onAction]);
+
+  // Auto-resume polling if card mounts while already syncing
+  useEffect(() => {
+    if (integration?.status === "syncing") {
+      setSyncing(true);
+      startPolling(integration.id);
+    }
+    return stopPolling;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSync() {
     if (!integration) return;
     setSyncing(true);
     setSyncError(null);
     setNeedsReconnect(false);
+    setLiveStatus("syncing");
+    setLiveMeta({ step: "Starting…", done: 0, total: 0 });
+
     try {
-      const res = await fetch(`/api/integrations/${integration.id}/sync`, {
-        method: "POST",
-      });
+      const res = await fetch(`/api/integrations/${integration.id}/sync`, { method: "POST" });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string; reconnect?: boolean };
         setSyncError(data.error ?? "Sync failed");
-        if (data.reconnect) setNeedsReconnect(true);
+        setNeedsReconnect(data.reconnect ?? false);
+        setLiveStatus("error");
+        setSyncing(false);
+        return;
       }
-      router.refresh();
-      onAction?.();
-    } finally {
+      // 202 — kick off polling
+      startPolling(integration.id);
+    } catch {
+      setSyncError("Network error — try again");
+      setLiveStatus("error");
       setSyncing(false);
     }
   }
 
   async function handleDisconnect() {
     if (!integration) return;
-    if (!confirmDisconnect) {
-      setConfirmDisconnect(true);
-      return;
-    }
+    if (!confirmDisconnect) { setConfirmDisconnect(true); return; }
+    stopPolling();
     setDisconnecting(true);
     setConfirmDisconnect(false);
     try {
@@ -116,63 +193,58 @@ export default function IntegrationCard({
     }
   }
 
+  const statusDot = !isConnected
+    ? "bg-amber-900/60"
+    : isSyncing
+      ? "bg-amber-400 animate-pulse"
+      : effectiveStatus === "error"
+        ? "bg-red-500"
+        : "bg-emerald-500";
+
+  const itemCount = liveItemCount ?? integration?.itemCount ?? 0;
+  const lastSync = integration?.lastSyncAt;
+
   return (
-    <div className="bg-[#120e08] border border-amber-900/30 rounded-2xl p-6 flex flex-col gap-5 hover:border-amber-800/50 transition-colors">
+    <div className="bg-[#120e08] border border-amber-900/30 rounded-2xl p-6 flex flex-col gap-4 hover:border-amber-800/50 transition-colors">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <div className={`mt-0.5 ${colorClass}`}>
-          <Icon size={22} />
-        </div>
+        <div className={`mt-0.5 ${colorClass}`}><Icon size={22} /></div>
         <div>
           <h3 className="font-bold text-amber-50 leading-none mb-1">{name}</h3>
           <p className="text-xs text-amber-400/50">{description}</p>
         </div>
       </div>
 
-      {/* Status */}
+      {/* Status row */}
       <div className="flex items-center gap-2">
-        <span
-          className={`w-1.5 h-1.5 rounded-full ${
-            !isConnected
-              ? "bg-amber-900/60"
-              : integration.status === "syncing"
-                ? "bg-amber-400 animate-pulse"
-                : integration.status === "error"
-                  ? "bg-red-500"
-                  : "bg-emerald-500"
-          }`}
-        />
-        <span className="text-xs text-amber-400/60">
-          {!isConnected ? (
-            "Not connected"
-          ) : integration.status === "syncing" ? (
-            "Syncing…"
-          ) : (
-            <>
-              <span className="text-amber-200/80">{integration.providerUsername}</span>
-              {integration.itemCount > 0 && (
-                <> · {integration.itemCount.toLocaleString()} items</>
-              )}
-              {integration.lastSyncAt && (
-                <> · {timeAgo(new Date(integration.lastSyncAt))}</>
-              )}
-            </>
-          )}
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot}`} />
+        <span className="text-xs text-amber-400/60 truncate">
+          {!isConnected ? "Not connected"
+            : isSyncing ? (liveMeta?.current ? `${liveMeta.current}` : (liveMeta?.step ?? "Syncing…"))
+            : (
+              <>
+                <span className="text-amber-200/80">{integration?.providerUsername}</span>
+                {itemCount > 0 && <> · {itemCount.toLocaleString()} files</>}
+                {lastSync && !isSyncing && <> · {timeAgo(new Date(lastSync))}</>}
+              </>
+            )}
         </span>
       </div>
 
+      {/* Progress bar — only while syncing */}
+      {isSyncing && liveMeta && (
+        <ProgressBar done={liveMeta.done} total={liveMeta.total} />
+      )}
+
       {/* Sync error */}
-      {syncError && (
+      {syncError && !isSyncing && (
         <div className="bg-red-950/40 border border-red-800/30 rounded-xl px-3 py-2.5 text-xs text-red-400 leading-relaxed space-y-2">
           <p>
             <span className="font-semibold">Sync failed:</span>{" "}
             {needsReconnect ? "Your session expired or was revoked." : syncError}
           </p>
           {needsReconnect && (
-            <a
-              href={connectHref}
-              className="inline-block px-3 py-1.5 rounded-lg bg-orange-600/80 hover:bg-orange-500 text-white text-xs font-semibold transition-colors"
-            >
+            <a href={connectHref} className="inline-block px-3 py-1.5 rounded-lg bg-orange-600/80 hover:bg-orange-500 text-white text-xs font-semibold transition-colors">
               Reconnect {name} →
             </a>
           )}
@@ -180,47 +252,33 @@ export default function IntegrationCard({
       )}
 
       {/* Actions */}
-      <div className="mt-auto pt-1 flex flex-col gap-2">
+      <div className="mt-auto flex flex-col gap-2">
         {!isConnected ? (
-          <a
-            href={connectHref}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 text-white text-sm font-semibold hover:from-orange-500 hover:to-amber-400 transition-all"
-          >
+          <a href={connectHref} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 text-white text-sm font-semibold hover:from-orange-500 hover:to-amber-400 transition-all">
             Connect →
           </a>
         ) : confirmDisconnect ? (
           <div className="flex flex-col gap-1.5">
             <p className="text-xs text-amber-400/60 text-center">Remove {name} and all synced files?</p>
             <div className="flex gap-2">
-              <button
-                onClick={handleDisconnect}
-                disabled={disconnecting}
-                className="flex-1 px-3 py-2 rounded-xl bg-red-900/40 border border-red-800/30 text-red-400 text-sm font-medium hover:bg-red-900/60 disabled:opacity-40 transition"
-              >
+              <button onClick={handleDisconnect} disabled={disconnecting}
+                className="flex-1 px-3 py-2 rounded-xl bg-red-900/40 border border-red-800/30 text-red-400 text-sm font-medium hover:bg-red-900/60 disabled:opacity-40 transition">
                 {disconnecting ? "Removing…" : "Yes, remove"}
               </button>
-              <button
-                onClick={() => setConfirmDisconnect(false)}
-                className="flex-1 px-3 py-2 rounded-xl bg-amber-900/20 border border-amber-800/20 text-amber-400/60 text-sm font-medium hover:bg-amber-900/40 transition"
-              >
+              <button onClick={() => setConfirmDisconnect(false)}
+                className="flex-1 px-3 py-2 rounded-xl bg-amber-900/20 border border-amber-800/20 text-amber-400/60 text-sm font-medium hover:bg-amber-900/40 transition">
                 Cancel
               </button>
             </div>
           </div>
         ) : (
           <div className="flex gap-2">
-            <button
-              onClick={handleSync}
-              disabled={syncing || integration.status === "syncing"}
-              className="flex-1 px-3 py-2 rounded-xl bg-amber-900/30 border border-amber-800/30 text-amber-300 text-sm font-medium hover:bg-amber-900/50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            >
-              {syncing ? "Syncing…" : "Sync"}
+            <button onClick={handleSync} disabled={isSyncing}
+              className="flex-1 px-3 py-2 rounded-xl bg-amber-900/30 border border-amber-800/30 text-amber-300 text-sm font-medium hover:bg-amber-900/50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              {isSyncing ? "Syncing…" : "Sync"}
             </button>
-            <button
-              onClick={handleDisconnect}
-              disabled={disconnecting}
-              className="px-3 py-2 rounded-xl bg-red-900/20 border border-red-800/20 text-red-400/70 text-sm font-medium hover:bg-red-900/40 disabled:opacity-40 transition"
-            >
+            <button onClick={handleDisconnect} disabled={disconnecting || isSyncing}
+              className="px-3 py-2 rounded-xl bg-red-900/20 border border-red-800/20 text-red-400/70 text-sm font-medium hover:bg-red-900/40 disabled:opacity-40 transition">
               Disconnect
             </button>
           </div>

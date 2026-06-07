@@ -65,6 +65,7 @@ export const integration = pgTable("integration", {
   providerUserId: text("providerUserId"),
   providerUsername: text("providerUsername"),
   status: text("status").notNull().default("active"), // 'active' | 'syncing' | 'error'
+  syncMeta: text("syncMeta"), // JSON: { step, current?, done, total } — live progress during sync
   lastSyncAt: timestamp("lastSyncAt"),
   itemCount: integer("itemCount").notNull().default(0),
   createdAt: timestamp("createdAt").notNull().defaultNow(),

@@ -9,6 +9,7 @@ interface Integration {
   provider: string;
   providerUsername: string | null;
   status: string;
+  syncMeta: string | null;
   lastSyncAt: Date | string | null;
   itemCount: number;
 }

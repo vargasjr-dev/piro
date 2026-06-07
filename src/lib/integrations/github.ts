@@ -2,8 +2,14 @@ import { eq, sql } from "drizzle-orm";
 import { getDb } from "./db-helper";
 import { integration, fileIndex } from "../../../data/schema";
 import { r2Put, r2Key } from "../r2";
+import type { ProgressFn } from "./types";
 
-export async function syncGitHub(integrationId: string, userId: string, accessToken: string) {
+export async function syncGitHub(
+  integrationId: string,
+  userId: string,
+  accessToken: string,
+  onProgress?: ProgressFn,
+) {
   const db = getDb();
   let inserted = 0;
 
@@ -25,7 +31,10 @@ export async function syncGitHub(integrationId: string, userId: string, accessTo
   }
   const repos = reposRaw as GHRepo[];
 
-  for (const repo of repos) {
+  await onProgress?.({ step: "Fetched repos", done: 0, total: repos.length });
+
+  for (const [repoIdx, repo] of repos.entries()) {
+    await onProgress?.({ step: "Syncing commits & PRs", current: repo.full_name, done: repoIdx, total: repos.length });
     // ---- Commits (last 100 by the authed user) ----
     const commits = await fetch(
       `https://api.github.com/repos/${repo.full_name}/commits?per_page=100&author=${repo.owner.login}`,
@@ -119,6 +128,8 @@ export async function syncGitHub(integrationId: string, userId: string, accessTo
       }
     }
   }
+
+  await onProgress?.({ step: "Finalizing", done: repos.length, total: repos.length });
 
   // Update integration metadata
   const [{ count }] = await db
