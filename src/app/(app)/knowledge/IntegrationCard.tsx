@@ -18,6 +18,7 @@ interface Props {
   description: string;
   connectHref: string;
   integration: Integration | null;
+  onAction?: () => void;
 }
 
 // Icons live here — client-only, not serialized across RSC boundary
@@ -64,6 +65,7 @@ export default function IntegrationCard({
   description,
   connectHref,
   integration,
+  onAction,
 }: Props) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
@@ -85,6 +87,7 @@ export default function IntegrationCard({
         alert(data.error ?? "Sync failed");
       }
       router.refresh();
+      onAction?.();
     } finally {
       setSyncing(false);
     }
@@ -97,6 +100,7 @@ export default function IntegrationCard({
     try {
       await fetch(`/api/integrations/${integration.id}`, { method: "DELETE" });
       router.refresh();
+      onAction?.();
     } finally {
       setDisconnecting(false);
     }

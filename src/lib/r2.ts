@@ -12,7 +12,12 @@ function getR2Client(): S3Client {
   const secretAccessKey = process.env.BUCKET_APPLICATION_SECRET;
 
   if (!endpoint || !accessKeyId || !secretAccessKey) {
-    throw new Error("Storage credentials not configured (BUCKET_ENDPOINT_URL, BUCKET_KEY_ID, BUCKET_APPLICATION_SECRET)");
+    const missing = [
+      !endpoint && "BUCKET_ENDPOINT_URL",
+      !accessKeyId && "BUCKET_KEY_ID",
+      !secretAccessKey && "BUCKET_APPLICATION_SECRET",
+    ].filter(Boolean);
+    throw new Error(`Storage credentials missing: ${missing.join(", ")}`);
   }
 
   return new S3Client({
