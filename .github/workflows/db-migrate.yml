@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: bun install --no-save
 
-      - name: Push schema
-        run: bun run db:push
+      - name: Run migrations
+        run: node scripts/migrate.mjs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
