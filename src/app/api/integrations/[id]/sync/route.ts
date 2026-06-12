@@ -8,6 +8,7 @@ import { integration, fileIndex } from "../../../../../../data/schema";
 import { syncGitHub } from "~/lib/integrations/github";
 import { syncGmail } from "~/lib/integrations/gmail";
 import { syncTelegram } from "~/lib/integrations/telegram";
+import { syncRoam } from "~/lib/integrations/roam";
 import type { SyncProgress } from "~/lib/integrations/types";
 
 async function writeProgress(id: string, meta: SyncProgress) {
@@ -53,6 +54,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         } else if (integ.provider === "telegram") {
           if (!integ.providerUserId) throw new Error("No Telegram user ID");
           await syncTelegram(id, session.user.id, integ.providerUserId);
+        } else if (integ.provider === "roam") {
+          if (!integ.accessToken) throw new Error("No API token");
+          if (!integ.providerUsername) throw new Error("No graph name");
+          await syncRoam(id, session.user.id, integ.accessToken, integ.providerUsername, onProgress);
         } else {
           throw new Error(`Unknown provider: ${integ.provider}`);
         }
