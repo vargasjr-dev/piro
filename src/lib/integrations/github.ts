@@ -2,16 +2,17 @@ import { eq, sql } from "drizzle-orm";
 import { getDb } from "./db-helper";
 import { integration, fileIndex } from "../../../data/schema";
 import { r2Put, r2Key } from "../r2";
-import type { ProgressFn } from "./types";
+import type { ProgressFn, SyncResult } from "./types";
 
 export async function syncGitHub(
   integrationId: string,
   userId: string,
   accessToken: string,
   onProgress?: ProgressFn,
-) {
+): Promise<SyncResult> {
   const db = getDb();
-  let inserted = 0;
+  let filesWritten = 0;
+  let bytesWritten = 0;
 
   const headers = {
     Authorization: `Bearer ${accessToken}`,
@@ -22,11 +23,12 @@ export async function syncGitHub(
   // Fetch user's 15 most recently updated repos (owner only)
   const reposRaw = await fetch(
     "https://api.github.com/user/repos?per_page=15&sort=updated&affiliation=owner",
-    { headers }
+    { headers },
   ).then((r) => r.json());
 
   if (!Array.isArray(reposRaw)) {
-    const msg = (reposRaw as { message?: string })?.message ?? JSON.stringify(reposRaw);
+    const msg =
+      (reposRaw as { message?: string })?.message ?? JSON.stringify(reposRaw);
     throw new Error(`GitHub API error fetching repos: ${msg}`);
   }
   const repos = reposRaw as GHRepo[];
@@ -34,11 +36,17 @@ export async function syncGitHub(
   await onProgress?.({ step: "Fetched repos", done: 0, total: repos.length });
 
   for (const [repoIdx, repo] of repos.entries()) {
-    await onProgress?.({ step: "Syncing commits & PRs", current: repo.full_name, done: repoIdx, total: repos.length });
+    await onProgress?.({
+      step: "Syncing commits & PRs",
+      current: repo.full_name,
+      done: repoIdx,
+      total: repos.length,
+    });
+
     // ---- Commits (last 100 by the authed user) ----
     const commits = await fetch(
       `https://api.github.com/repos/${repo.full_name}/commits?per_page=100&author=${repo.owner.login}`,
-      { headers }
+      { headers },
     ).then((r) => r.json() as Promise<GHCommit[]>);
 
     if (Array.isArray(commits)) {
@@ -48,7 +56,11 @@ export async function syncGitHub(
 
         const body = c.commit.message.split("\n").slice(2).join("\n").trim();
         const date = c.commit.author?.date ?? "";
-        const key = r2Key(userId, "github", `${repo.full_name}/commits/${c.sha}.md`);
+        const key = r2Key(
+          userId,
+          "github",
+          `${repo.full_name}/commits/${c.sha}.md`,
+        );
 
         const content = [
           `# Commit: ${c.sha.slice(0, 8)}`,
@@ -65,6 +77,7 @@ export async function syncGitHub(
 
         try {
           await r2Put(key, content);
+          bytesWritten += new TextEncoder().encode(content).length;
           await db
             .insert(fileIndex)
             .values({
@@ -78,7 +91,7 @@ export async function syncGitHub(
               itemCreatedAt: date ? new Date(date) : null,
             })
             .onConflictDoNothing();
-          inserted++;
+          filesWritten++;
         } catch {
           // skip individual failures
         }
@@ -88,12 +101,16 @@ export async function syncGitHub(
     // ---- Merged PRs (last 50) ----
     const prs = await fetch(
       `https://api.github.com/repos/${repo.full_name}/pulls?state=closed&per_page=50&sort=updated`,
-      { headers }
+      { headers },
     ).then((r) => r.json() as Promise<GHPR[]>);
 
     if (Array.isArray(prs)) {
       for (const pr of prs.filter((p) => p.merged_at)) {
-        const key = r2Key(userId, "github", `${repo.full_name}/prs/${pr.number}.md`);
+        const key = r2Key(
+          userId,
+          "github",
+          `${repo.full_name}/prs/${pr.number}.md`,
+        );
 
         const content = [
           `# PR #${pr.number}: ${pr.title}`,
@@ -108,6 +125,7 @@ export async function syncGitHub(
 
         try {
           await r2Put(key, content);
+          bytesWritten += new TextEncoder().encode(content).length;
           await db
             .insert(fileIndex)
             .values({
@@ -121,7 +139,7 @@ export async function syncGitHub(
               itemCreatedAt: pr.merged_at ? new Date(pr.merged_at) : null,
             })
             .onConflictDoNothing();
-          inserted++;
+          filesWritten++;
         } catch {
           // skip
         }
@@ -129,9 +147,12 @@ export async function syncGitHub(
     }
   }
 
-  await onProgress?.({ step: "Finalizing", done: repos.length, total: repos.length });
+  await onProgress?.({
+    step: "Finalizing",
+    done: repos.length,
+    total: repos.length,
+  });
 
-  // Update integration metadata
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(fileIndex)
@@ -139,10 +160,15 @@ export async function syncGitHub(
 
   await db
     .update(integration)
-    .set({ lastSyncAt: new Date(), itemCount: count, status: "active", updatedAt: new Date() })
+    .set({
+      lastSyncAt: new Date(),
+      itemCount: count,
+      status: "active",
+      updatedAt: new Date(),
+    })
     .where(eq(integration.id, integrationId));
 
-  return { inserted, total: count };
+  return { filesWritten, bytesWritten };
 }
 
 // ---- Types ----

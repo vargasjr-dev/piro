@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, unique, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, bigint, unique, index } from "drizzle-orm/pg-core";
 
 // better-auth required tables
 export const user = pgTable("user", {
@@ -71,6 +71,34 @@ export const integration = pgTable("integration", {
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
+
+/**
+ * One row per sync job — append-only history.
+ * Created at sync start, updated on completion or error.
+ */
+export const syncJob = pgTable(
+  "sync_job",
+  {
+    id: text("id").primaryKey(),
+    integrationId: text("integrationId")
+      .notNull()
+      .references(() => integration.id, { onDelete: "cascade" }),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("running"), // 'running' | 'complete' | 'error'
+    startedAt: timestamp("startedAt").notNull().defaultNow(),
+    finishedAt: timestamp("finishedAt"),
+    durationMs: integer("durationMs"),           // wall-clock ms from start to finish
+    filesWritten: integer("filesWritten").notNull().default(0),
+    bytesWritten: bigint("bytesWritten", { mode: "number" }).notNull().default(0), // sum of content byte lengths written to R2
+    error: text("error"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [
+    index("sj_integration_started").on(t.integrationId, t.startedAt),
+  ]
+);
 
 /**
  * Lightweight index of files stored in R2.

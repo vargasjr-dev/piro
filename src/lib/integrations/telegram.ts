@@ -3,6 +3,7 @@ import { getDb } from "./db-helper";
 import { integration, fileIndex } from "../../../data/schema";
 import { createHash, createHmac } from "crypto";
 import { r2Put, r2Key } from "../r2";
+import type { SyncResult } from "./types";
 
 /** Verify Telegram Login Widget hash */
 export function verifyTelegramHash(data: Record<string, string>, botToken: string): boolean {
@@ -22,7 +23,11 @@ export function verifyTelegramHash(data: Record<string, string>, botToken: strin
   return expectedHash === hash;
 }
 
-export async function syncTelegram(integrationId: string, userId: string, chatId: string) {
+export async function syncTelegram(
+  integrationId: string,
+  userId: string,
+  chatId: string,
+): Promise<SyncResult> {
   const db = getDb();
 
   // Note: getUpdates only returns unprocessed updates.
@@ -36,10 +41,15 @@ export async function syncTelegram(integrationId: string, userId: string, chatId
 
   await db
     .update(integration)
-    .set({ lastSyncAt: new Date(), itemCount: count, status: "active", updatedAt: new Date() })
+    .set({
+      lastSyncAt: new Date(),
+      itemCount: count,
+      status: "active",
+      updatedAt: new Date(),
+    })
     .where(eq(integration.id, integrationId));
 
-  return { inserted: 0, total: count };
+  return { filesWritten: 0, bytesWritten: 0 };
 }
 
 /** Called by the VargasJR webhook to log incoming messages into Piro's KB */

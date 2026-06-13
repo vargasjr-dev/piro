@@ -2,19 +2,24 @@ import { eq, sql } from "drizzle-orm";
 import { getDb } from "./db-helper";
 import { integration, fileIndex } from "../../../data/schema";
 import { r2Put, r2Key } from "../r2";
+import type { SyncResult } from "./types";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
 
-export async function syncGmail(integrationId: string, userId: string, accessToken: string) {
+export async function syncGmail(
+  integrationId: string,
+  userId: string,
+  accessToken: string,
+): Promise<SyncResult> {
   const db = getDb();
-  let inserted = 0;
+  let filesWritten = 0;
+  let bytesWritten = 0;
 
   const auth = `Bearer ${accessToken}`;
 
-  // Get list of messages (last 200 in inbox + sent)
   const listRes = await fetch(
     `${GMAIL_API}/users/me/messages?maxResults=200&q=in:inbox OR in:sent`,
-    { headers: { Authorization: auth } }
+    { headers: { Authorization: auth } },
   ).then((r) => r.json() as Promise<{ messages?: { id: string }[] }>);
 
   const messages = listRes.messages ?? [];
@@ -22,18 +27,17 @@ export async function syncGmail(integrationId: string, userId: string, accessTok
   for (const msg of messages) {
     const detail = await fetch(
       `${GMAIL_API}/users/me/messages/${msg.id}?format=metadata&metadataHeaders=Subject,From,To,Date`,
-      { headers: { Authorization: auth } }
+      { headers: { Authorization: auth } },
     ).then((r) => r.json() as Promise<GmailMessage>);
 
     const hdrs = Object.fromEntries(
-      (detail.payload?.headers ?? []).map((h) => [h.name, h.value])
+      (detail.payload?.headers ?? []).map((h) => [h.name, h.value]),
     );
     const subject = hdrs["Subject"] ?? "(no subject)";
     const from = hdrs["From"] ?? "";
     const to = hdrs["To"] ?? "";
     const date = hdrs["Date"] ?? "";
 
-    // Group by date: yyyy-mm bucket for clean directory structure
     const bucket = date ? new Date(date).toISOString().slice(0, 7) : "unknown";
     const key = r2Key(userId, "email", `${bucket}/${msg.id}.md`);
 
@@ -49,6 +53,7 @@ export async function syncGmail(integrationId: string, userId: string, accessTok
 
     try {
       await r2Put(key, content);
+      bytesWritten += new TextEncoder().encode(content).length;
       await db
         .insert(fileIndex)
         .values({
@@ -62,7 +67,7 @@ export async function syncGmail(integrationId: string, userId: string, accessTok
           itemCreatedAt: date ? new Date(date) : null,
         })
         .onConflictDoNothing();
-      inserted++;
+      filesWritten++;
     } catch {
       // skip
     }
@@ -75,10 +80,15 @@ export async function syncGmail(integrationId: string, userId: string, accessTok
 
   await db
     .update(integration)
-    .set({ lastSyncAt: new Date(), itemCount: count, status: "active", updatedAt: new Date() })
+    .set({
+      lastSyncAt: new Date(),
+      itemCount: count,
+      status: "active",
+      updatedAt: new Date(),
+    })
     .where(eq(integration.id, integrationId));
 
-  return { inserted, total: count };
+  return { filesWritten, bytesWritten };
 }
 
 interface GmailMessage {

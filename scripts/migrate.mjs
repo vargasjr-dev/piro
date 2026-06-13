@@ -41,4 +41,25 @@ await sql`CREATE UNIQUE INDEX IF NOT EXISTS fi_r2key ON file_index ("r2Key")`;
 await sql`CREATE INDEX IF NOT EXISTS fi_user_created ON file_index ("userId", "createdAt")`;
 console.log("✓ file_index indexes");
 
+// ── sync_job table ────────────────────────────────────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS sync_job (
+    id              TEXT        PRIMARY KEY,
+    "integrationId" TEXT        NOT NULL REFERENCES integration(id) ON DELETE CASCADE,
+    "userId"        TEXT        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    status          TEXT        NOT NULL DEFAULT 'running',
+    "startedAt"     TIMESTAMP   NOT NULL DEFAULT NOW(),
+    "finishedAt"    TIMESTAMP,
+    "durationMs"    INTEGER,
+    "filesWritten"  INTEGER     NOT NULL DEFAULT 0,
+    "bytesWritten"  BIGINT      NOT NULL DEFAULT 0,
+    error           TEXT,
+    "createdAt"     TIMESTAMP   NOT NULL DEFAULT NOW()
+  )
+`;
+console.log("✓ sync_job table");
+
+await sql`CREATE INDEX IF NOT EXISTS sj_integration_started ON sync_job ("integrationId", "startedAt" DESC)`;
+console.log("✓ sync_job index");
+
 console.log("Migrations complete ✓");

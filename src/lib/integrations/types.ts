@@ -6,3 +6,9 @@ export interface SyncProgress {
 }
 
 export type ProgressFn = (meta: SyncProgress) => Promise<void>;
+
+/** Returned by every sync* function */
+export interface SyncResult {
+  filesWritten: number;  // new rows written to file_index
+  bytesWritten: number;  // sum of content byte lengths written to R2
+}

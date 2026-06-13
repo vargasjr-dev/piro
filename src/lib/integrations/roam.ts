@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { getDb } from "./db-helper";
 import { integration, fileIndex } from "../../../data/schema";
 import { r2Put, r2Key } from "../r2";
-import type { ProgressFn } from "./types";
+import type { ProgressFn, SyncResult } from "./types";
 
 const ROAM_API = "https://api.roamresearch.com/api/graph";
 
@@ -56,8 +56,10 @@ export async function syncRoam(
   apiToken: string,
   graphName: string,
   onProgress?: ProgressFn,
-): Promise<{ inserted: number; total: number }> {
+): Promise<SyncResult> {
   const db = getDb();
+  let filesWritten = 0;
+  let bytesWritten = 0;
   const base = `${ROAM_API}/${graphName}`;
   const headers = {
     "X-Authorization": `Bearer ${apiToken}`,
@@ -122,7 +124,9 @@ export async function syncRoam(
       const slug = titleToSlug(title);
       const key = r2Key(userId, "roam", `${slug}.md`);
 
-      await r2Put(key, content.trimEnd());
+      const trimmed = content.trimEnd();
+      await r2Put(key, trimmed);
+      bytesWritten += new TextEncoder().encode(trimmed).length;
 
       await db
         .insert(fileIndex)
@@ -138,7 +142,7 @@ export async function syncRoam(
         })
         .onConflictDoNothing();
 
-      inserted++;
+      filesWritten++;
     } catch {
       // skip individual page failures — don't abort the whole sync
     }
@@ -159,5 +163,5 @@ export async function syncRoam(
     })
     .where(eq(integration.id, integrationId));
 
-  return { inserted, total: count };
+  return { filesWritten, bytesWritten };
 }

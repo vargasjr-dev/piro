@@ -9,6 +9,8 @@ import {
 import type { ProviderKey } from "~/lib/integrations/catalog";
 import type { IntegrationData } from "./IntegrationRow";
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
 interface SyncMeta {
   step: string;
   current?: string;
@@ -16,6 +18,17 @@ interface SyncMeta {
   total: number;
   error?: string;
   reconnect?: boolean;
+}
+
+interface SyncJobRecord {
+  id: string;
+  status: string; // 'running' | 'complete' | 'error'
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  filesWritten: number;
+  bytesWritten: number;
+  error: string | null;
 }
 
 interface Props {
@@ -27,6 +40,45 @@ interface Props {
   onAction?: () => void;
   onBack: () => void;
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function timeAgo(date: Date): string {
+  const s = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const mins = Math.floor(ms / 60_000);
+  const secs = Math.floor((ms % 60_000) / 1000);
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function ProgressBar({ done, total }: { done: number; total: number }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : null;
@@ -44,15 +96,120 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
   );
 }
 
-function timeAgo(date: Date): string {
-  const s = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+function JobRow({ job }: { job: SyncJobRecord }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const isRunning = job.status === "running";
+  const isError = job.status === "error";
+
+  const statusDot = isRunning
+    ? "bg-amber-400 animate-pulse"
+    : isError
+      ? "bg-red-500"
+      : "bg-emerald-500";
+
+  const statusLabel = isRunning ? "Running" : isError ? "Failed" : "Complete";
+
+  return (
+    <div className="rounded-xl border border-amber-900/25 overflow-hidden">
+      {/* Row header — always visible */}
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-amber-900/15 transition-colors text-left"
+      >
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-0.5 ${statusDot}`} />
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-amber-200/80">
+              {timeAgo(new Date(job.startedAt))}
+            </span>
+            {!isRunning && job.durationMs !== null && (
+              <span className="text-[10px] text-amber-600/50">
+                {formatDuration(job.durationMs)}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            {!isRunning && job.filesWritten > 0 && (
+              <span className="text-[10px] text-amber-600/40">
+                {job.filesWritten.toLocaleString()} files
+              </span>
+            )}
+            {!isRunning && job.bytesWritten > 0 && (
+              <span className="text-[10px] text-amber-600/30">
+                {formatBytes(job.bytesWritten)}
+              </span>
+            )}
+            {isRunning && (
+              <span className="text-[10px] text-amber-400/50">In progress…</span>
+            )}
+            {isError && !expanded && (
+              <span className="text-[10px] text-red-400/60 truncate">
+                {job.error?.slice(0, 40)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          className={`shrink-0 text-amber-600/30 transition-transform duration-150 ${expanded ? "rotate-90" : ""}`}
+        >
+          <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="border-t border-amber-900/20 px-3 py-3 space-y-1.5 bg-amber-900/5">
+          <DetailRow label="Status" value={statusLabel} />
+          <DetailRow
+            label="Started"
+            value={formatDate(job.startedAt)}
+          />
+          {job.finishedAt && (
+            <DetailRow label="Finished" value={formatDate(job.finishedAt)} />
+          )}
+          {job.durationMs !== null && (
+            <DetailRow
+              label="Duration"
+              value={formatDuration(job.durationMs)}
+            />
+          )}
+          <DetailRow
+            label="Files"
+            value={job.filesWritten > 0 ? job.filesWritten.toLocaleString() : "—"}
+          />
+          <DetailRow label="Data" value={formatBytes(job.bytesWritten)} />
+          {job.error && (
+            <div className="mt-2 bg-red-950/40 border border-red-800/30 rounded-lg px-3 py-2">
+              <p className="text-[10px] text-red-400/80 leading-relaxed font-mono break-all">
+                {job.error}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="text-[10px] text-amber-600/40 w-14 shrink-0">{label}</span>
+      <span className="text-[10px] text-amber-300/70">{value}</span>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function IntegrationDetail({
   providerKey,
@@ -72,6 +229,8 @@ export default function IntegrationDetail({
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
   const [liveMeta, setLiveMeta] = useState<SyncMeta | null>(null);
   const [liveItemCount, setLiveItemCount] = useState<number | null>(null);
+  const [jobs, setJobs] = useState<SyncJobRecord[] | null>(null);
+  const [loadingJobs, setLoadingJobs] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const Icon = PROVIDER_ICONS[providerKey];
@@ -80,6 +239,24 @@ export default function IntegrationDetail({
   const effectiveStatus = liveStatus ?? integration.status;
   const isSyncing = effectiveStatus === "syncing";
   const itemCount = liveItemCount ?? integration.itemCount ?? 0;
+
+  // Fetch sync job history
+  const fetchJobs = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/integrations/${integration.id}/jobs?limit=20`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { jobs: SyncJobRecord[] };
+      setJobs(data.jobs);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingJobs(false);
+    }
+  }, [integration.id]);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -111,6 +288,8 @@ export default function IntegrationDetail({
               setSyncError(data.syncMeta.error);
               setNeedsReconnect(data.syncMeta.reconnect ?? false);
             }
+            // Refresh job history after sync completes
+            fetchJobs();
             router.refresh();
             onAction?.();
           }
@@ -119,7 +298,7 @@ export default function IntegrationDetail({
         }
       }, 2500);
     },
-    [stopPolling, router, onAction],
+    [stopPolling, router, onAction, fetchJobs],
   );
 
   // Auto-resume polling if mounted while already syncing
@@ -153,6 +332,8 @@ export default function IntegrationDetail({
         setSyncing(false);
         return;
       }
+      // Refresh job list immediately so the "running" job appears
+      fetchJobs();
       startPolling(integration.id);
     } catch {
       setSyncError("Network error — try again");
@@ -213,8 +394,8 @@ export default function IntegrationDetail({
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
         {/* Meta row */}
         <div className="space-y-1.5">
           {integration.providerUsername && (
@@ -243,7 +424,7 @@ export default function IntegrationDetail({
           )}
         </div>
 
-        {/* Progress */}
+        {/* Active sync progress */}
         {isSyncing && (
           <div className="space-y-2">
             <div className="text-xs text-amber-400/60 truncate">
@@ -260,7 +441,7 @@ export default function IntegrationDetail({
           </div>
         )}
 
-        {/* Sync error */}
+        {/* Sync error banner */}
         {syncError && !isSyncing && (
           <div className="bg-red-950/40 border border-red-800/30 rounded-xl px-4 py-3 text-xs text-red-400 space-y-2">
             <p>
@@ -303,11 +484,46 @@ export default function IntegrationDetail({
             </div>
           </div>
         )}
+
+        {/* ── Sync history ─────────────────────────────────────── */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600/40 mb-2">
+            Sync history
+          </p>
+
+          {loadingJobs ? (
+            <div className="flex items-center gap-2 py-3 text-amber-600/35 text-xs">
+              <svg
+                className="animate-spin w-3.5 h-3.5 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"
+                  strokeLinecap="round"
+                />
+              </svg>
+              Loading…
+            </div>
+          ) : jobs && jobs.length > 0 ? (
+            <div className="space-y-1.5">
+              {jobs.map((job) => (
+                <JobRow key={job.id} job={job} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-amber-600/30 py-2">
+              No syncs yet — hit Sync now to start.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Footer actions */}
       {!confirmDisconnect && (
-        <div className="px-5 pb-5 pt-2 shrink-0 flex gap-2 border-t border-amber-900/20">
+        <div className="px-5 pb-5 pt-3 shrink-0 flex gap-2 border-t border-amber-900/20">
           <button
             onClick={handleSync}
             disabled={isSyncing}
