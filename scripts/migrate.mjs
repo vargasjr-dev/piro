@@ -41,6 +41,23 @@ await sql`CREATE UNIQUE INDEX IF NOT EXISTS fi_r2key ON file_index ("r2Key")`;
 await sql`CREATE INDEX IF NOT EXISTS fi_user_created ON file_index ("userId", "createdAt")`;
 console.log("✓ file_index indexes");
 
+// ── mentor table ─────────────────────────────────────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS mentor (
+    id              TEXT        PRIMARY KEY,
+    "userId"        TEXT        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    name            TEXT        NOT NULL,
+    description     TEXT,
+    model           TEXT        NOT NULL DEFAULT 'claude-sonnet-4-5',
+    "systemPrompt"  TEXT        NOT NULL,
+    temperature     REAL        NOT NULL DEFAULT 0.2,
+    "scoreCount"    INTEGER     NOT NULL DEFAULT 0,
+    "createdAt"     TIMESTAMP   NOT NULL DEFAULT NOW(),
+    "updatedAt"     TIMESTAMP   NOT NULL DEFAULT NOW()
+  )
+`;
+console.log("✓ mentor table");
+
 // ── sync_job table ────────────────────────────────────────────────────────────
 await sql`
   CREATE TABLE IF NOT EXISTS sync_job (

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, bigint, unique, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, bigint, real, unique, index } from "drizzle-orm/pg-core";
 
 // better-auth required tables
 export const user = pgTable("user", {
@@ -68,6 +68,26 @@ export const integration = pgTable("integration", {
   syncMeta: text("syncMeta"), // JSON: { step, current?, done, total } — live progress during sync
   lastSyncAt: timestamp("lastSyncAt"),
   itemCount: integer("itemCount").notNull().default(0),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+
+/**
+ * A mentor is an LLM agent configured to score student model responses (0.0→1.0).
+ * The system prompt encodes the evaluation rubric — what "good" looks like for this user.
+ * During RL training, N student responses are sent to the mentor; scores become GRPO rewards.
+ */
+export const mentor = pgTable("mentor", {
+  id: text("id").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  model: text("model").notNull().default("claude-sonnet-4-5"),
+  systemPrompt: text("systemPrompt").notNull(),
+  temperature: real("temperature").notNull().default(0.2),
+  scoreCount: integer("scoreCount").notNull().default(0),  // total score calls
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
