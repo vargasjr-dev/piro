@@ -172,14 +172,12 @@ def _run_all(
 
 def _print_table(targets: list[tuple[str, list[dict[str, Any]]]]) -> None:
     """Pretty-print a score table to stdout."""
-    # Collect benchmark names
     bench_names = [r["benchmark"] for r in targets[0][1]]
     target_names = [name for name, _ in targets]
 
     col_w = max(len(n) for n in bench_names + ["Benchmark"]) + 2
     score_w = max(max(len(n) for n in target_names), 10) + 2
 
-    # Header
     header = f"{'Benchmark':<{col_w}}" + "".join(
         f"{n:>{score_w}}" for n in target_names
     )
@@ -207,6 +205,62 @@ def _print_table(targets: list[tuple[str, list[dict[str, Any]]]]) -> None:
         total = len(results)
         print(f"  {name}: {passed}/{total} passed")
     print()
+
+
+def _print_details(targets: list[tuple[str, list[dict[str, Any]]]]) -> None:
+    """
+    Print a per-benchmark detail block after the main score table.
+
+    Surfaces metadata fields that are too verbose for the table:
+      - OODGeneralization: accuracy at 4×N, sample count, example failures
+      - Any benchmark: non-empty metadata is shown as key: value pairs
+    """
+    bench_names = [r["benchmark"] for r in targets[0][1]]
+
+    for i, bench_name in enumerate(bench_names):
+        # Collect per-target rows for this benchmark
+        per_target = [(label, rows[i]) for label, rows in targets]
+
+        # Only print a detail block if at least one target has non-trivial metadata
+        has_detail = any(
+            r["metadata"] and r["metadata"] != {}
+            for _, r in per_target
+        )
+        if not has_detail:
+            continue
+
+        print(f"  ── {bench_name} ──")
+
+        for label, r in per_target:
+            meta = r["metadata"]
+            if not meta:
+                continue
+
+            # OODGeneralization-specific fields
+            if "test_length" in meta:
+                n_samples = meta.get("n_samples", "?")
+                n_correct = meta.get("n_correct", "?")
+                test_len = meta.get("test_length", "?")
+                train_len = meta.get("train_length", "?")
+                acc = f"{n_correct}/{n_samples}"
+                print(
+                    f"    {label:<16}"
+                    f"  accuracy at {test_len} (4×{train_len}): {acc}"
+                    f"  ({r['score']:.1%})"
+                )
+                failures = meta.get("failure_examples", [])
+                for fail in failures:
+                    print(f"      ✗ {fail}")
+            else:
+                # Generic: show all metadata as key: value
+                kv = ", ".join(f"{k}={v!r}" for k, v in meta.items() if k != "reply")
+                if kv:
+                    print(f"    {label:<16}  {kv}")
+                reply = meta.get("reply")
+                if reply:
+                    print(f"    {label:<16}  reply={reply!r}")
+
+        print()
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +338,7 @@ def main() -> None:
         target_rows.append((label, rows))
 
     _print_table(target_rows)
+    _print_details(target_rows)
 
     # Save results
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
