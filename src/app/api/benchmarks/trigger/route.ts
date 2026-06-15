@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "~/lib/auth.server";
 import { headers } from "next/headers";
 import { createSign } from "crypto";
+import { eq } from "drizzle-orm";
+import { db } from "../../../../../data/db";
+import { benchmarkSuiteRun } from "../../../../../data/schema";
 
 const REPO_OWNER = "vargasjr-dev";
 const REPO_NAME = "piro";
@@ -49,7 +52,9 @@ async function getInstallationToken(
   return data.token;
 }
 
-// ── POST /api/benchmarks/trigger — dispatch a benchmark run via GitHub Actions ─
+// ── POST /api/benchmarks/trigger ─────────────────────────────────────────────
+// Body: { benchmarks?: string[], targets?: string[] }
+// Creates a benchmark_suite_run record then dispatches the GHA workflow.
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -65,24 +70,44 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const body = await req.json().catch(() => ({}));
+  const { benchmarks, targets } = body as {
+    benchmarks?: string[];
+    targets?: string[];
+  };
+
+  // Create the suite run record first — this is what the UI polls
+  const suiteRunId = crypto.randomUUID();
+  await db.insert(benchmarkSuiteRun).values({
+    id: suiteRunId,
+    userId: session.user.id,
+    status: "queued",
+    benchmarks: benchmarks && benchmarks.length > 0
+      ? JSON.stringify(benchmarks)
+      : null,
+    targets: targets && targets.length > 0
+      ? JSON.stringify(targets)
+      : null,
+  });
+
+  // Dispatch GHA workflow
   let token: string;
   try {
     token = await getInstallationToken(appId, privateKey);
   } catch (e) {
     console.error("[benchmarks/trigger] App auth failed:", e);
+    // Mark as error so the UI doesn't spin forever
+    await db
+      .update(benchmarkSuiteRun)
+      .set({ status: "error", error: "GitHub App authentication failed", completedAt: new Date() })
+      .where(eq(benchmarkSuiteRun.id, suiteRunId));
     return NextResponse.json(
       { error: "GitHub App authentication failed" },
       { status: 503 },
     );
   }
 
-  const body = await req.json().catch(() => ({}));
-  const { benchmark, model } = body as {
-    benchmark?: string;
-    model?: string;
-  };
-
-  const res = await fetch(
+  const dispatched = await fetch(
     `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${WORKFLOW_ID}/dispatches`,
     {
       method: "POST",
@@ -95,26 +120,26 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         ref: "main",
         inputs: {
-          benchmark: benchmark ?? "",
-          model: model ?? "",
+          suite_run_id: suiteRunId,
+          benchmarks: benchmarks?.join(",") ?? "",
+          models: targets?.join(",") ?? "",
         },
       }),
     },
   );
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(
-      "[benchmarks/trigger] GitHub dispatch failed:",
-      res.status,
-      text,
-    );
+  if (!dispatched.ok) {
+    const text = await dispatched.text();
+    console.error("[benchmarks/trigger] GitHub dispatch failed:", dispatched.status, text);
+    await db
+      .update(benchmarkSuiteRun)
+      .set({ status: "error", error: `GitHub dispatch failed (${dispatched.status})`, completedAt: new Date() })
+      .where(eq(benchmarkSuiteRun.id, suiteRunId));
     return NextResponse.json(
-      { error: `GitHub dispatch failed (${res.status})` },
-      { status: res.status },
+      { error: `GitHub dispatch failed (${dispatched.status})` },
+      { status: dispatched.status },
     );
   }
 
-  // GitHub returns 204 No Content on success
-  return NextResponse.json({ queued: true });
+  return NextResponse.json({ suiteRunId });
 }

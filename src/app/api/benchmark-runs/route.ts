@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "~/lib/auth.server";
 import { headers } from "next/headers";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "../../../../data/db";
-import { benchmarkRun } from "../../../../data/schema";
+import { benchmarkRun, benchmarkSuiteRun } from "../../../../data/schema";
 import { z } from "zod/v4";
 
 // ── Ingest schema — matches what run_benchmarks.py POSTs ─────────────────────
@@ -106,6 +106,12 @@ export async function POST(req: NextRequest) {
   }));
 
   await db.insert(benchmarkRun).values(rows);
+
+  // Mark the corresponding suite run as complete if it exists
+  await db
+    .update(benchmarkSuiteRun)
+    .set({ status: "complete", completedAt: new Date() })
+    .where(eq(benchmarkSuiteRun.id, suiteRunId));
 
   return NextResponse.json({ inserted: rows.length }, { status: 201 });
 }

@@ -284,15 +284,25 @@ def main() -> None:
     parser.add_argument(
         "--benchmark",
         metavar="NAME",
-        help="Run only the benchmark with this name (e.g. --benchmark SanityCheck)",
+        action="append",
+        dest="benchmarks",
+        help="Run only this benchmark (repeatable: --benchmark A --benchmark B)",
     )
     # --only is a deprecated alias for --benchmark kept for backward compat
     parser.add_argument("--only", metavar="NAME", help=argparse.SUPPRESS)
     parser.add_argument(
         "--model",
         metavar="TARGET",
+        action="append",
+        dest="models",
         choices=["gpt-4o-mini", "gpt-4o", "piro-student"],
-        help="Run against a single target: gpt-4o-mini | gpt-4o | piro-student",
+        help="Run against this target (repeatable: --model gpt-4o-mini --model gpt-4o)",
+    )
+    parser.add_argument(
+        "--suite-run-id",
+        metavar="ID",
+        default=os.environ.get("PIRO_SUITE_RUN_ID"),
+        help="Suite run ID from benchmark_suite_run table (links results back to the UI)",
     )
     parser.add_argument(
         "--post-url",
@@ -314,14 +324,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    filter_name = args.benchmark or args.only
+    # Benchmark filter — --benchmark is now repeatable; --only is legacy single-value
+    filter_names: list[str] = list(args.benchmarks or [])
+    if args.only and args.only not in filter_names:
+        filter_names.append(args.only)
     benchmarks = (
-        [b for b in REGISTRY if b.name == filter_name]
-        if filter_name
+        [b for b in REGISTRY if b.name in filter_names]
+        if filter_names
         else list(REGISTRY)
     )
     if not benchmarks:
-        print(f"No benchmarks found{f' named {filter_name!r}' if filter_name else ''}.")
+        print(f"No benchmarks found{f' matching {filter_names!r}' if filter_names else ''}.")
         sys.exit(1)
 
     stub = _RandomStub()
@@ -340,9 +353,11 @@ def main() -> None:
         ]
     )
 
-    if args.model:
+    # Model filter — --model is now repeatable
+    model_filter: list[str] = list(args.models or [])
+    if model_filter:
         targets: list[tuple[str, Any]] = [
-            (label, model) for label, model in all_targets if label == args.model
+            (label, model) for label, model in all_targets if label in model_filter
         ]
     else:
         targets = all_targets
@@ -377,12 +392,15 @@ def main() -> None:
     print(f"Results saved to {latest.relative_to(ROOT.parent)}")
 
     # ── Optional: POST results to Piro web app ────────────────────────────────
+    # Use --suite-run-id if provided (links results back to benchmark_suite_run row),
+    # otherwise fall back to the timestamp string.
+    suite_run_id = args.suite_run_id or ts
     if args.post_url and (args.post_token or args.post_key):
         _post_results(
             base_url=args.post_url.rstrip("/"),
             token=args.post_token,
             api_key=args.post_key,
-            suite_run_id=ts,
+            suite_run_id=suite_run_id,
             ran_at=all_results["run_at"],
             target_rows=target_rows,
             benchmarks=benchmarks,

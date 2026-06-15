@@ -150,6 +150,31 @@ export const benchmarkRun = pgTable(
 );
 
 /**
+ * One row per benchmark run initiated from the UI.
+ * Created when the user dispatches a run; updated to 'complete' or 'error'
+ * when results arrive (or a timeout is detected).
+ * The suiteRunId here matches suiteRunId on benchmark_run rows.
+ */
+export const benchmarkSuiteRun = pgTable(
+  "benchmark_suite_run",
+  {
+    id: text("id").primaryKey(),              // same value as suiteRunId on benchmark_run
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("queued"), // 'queued' | 'complete' | 'error'
+    benchmarks: text("benchmarks"),           // JSON string[] | null = all
+    targets: text("targets"),                 // JSON string[] | null = all
+    queuedAt: timestamp("queuedAt").notNull().defaultNow(),
+    completedAt: timestamp("completedAt"),
+    error: text("error"),
+  },
+  (t) => [
+    index("bsr_user_queued").on(t.userId, t.queuedAt),
+  ],
+);
+
+/**
  * Lightweight index of files stored in R2.
  * Content lives in R2 at `r2Key` — this table is metadata only,
  * used for "recent items" listings without hitting R2.

@@ -3,12 +3,16 @@ name: Run Benchmarks
 on:
   workflow_dispatch:
     inputs:
-      benchmark:
-        description: "Benchmark name to run (leave blank for all)"
+      suite_run_id:
+        description: "Suite run ID (from benchmark_suite_run table)"
         required: false
         default: ""
-      model:
-        description: "Target model to run against (leave blank for all three)"
+      benchmarks:
+        description: "Comma-separated benchmark names to run (blank = all)"
+        required: false
+        default: ""
+      models:
+        description: "Comma-separated model targets to run (blank = all)"
         required: false
         default: ""
 
@@ -41,13 +45,25 @@ jobs:
           PIRO_POST_KEY: ${{ secrets.PIRO_POST_KEY }}
         run: |
           ARGS=""
-          if [ -n "${{ github.event.inputs.benchmark }}" ]; then
-            ARGS="$ARGS --benchmark ${{ github.event.inputs.benchmark }}"
+          # Suite run ID (links results back to benchmark_suite_run row)
+          if [ -n "${{ github.event.inputs.suite_run_id }}" ]; then
+            ARGS="$ARGS --suite-run-id ${{ github.event.inputs.suite_run_id }}"
           fi
-          if [ -n "${{ github.event.inputs.model }}" ]; then
-            ARGS="$ARGS --model ${{ github.event.inputs.model }}"
+          # Benchmark filter (comma-separated → multiple --benchmark flags)
+          if [ -n "${{ github.event.inputs.benchmarks }}" ]; then
+            IFS=',' read -ra BENCHES <<< "${{ github.event.inputs.benchmarks }}"
+            for b in "${BENCHES[@]}"; do
+              ARGS="$ARGS --benchmark ${b// /}"
+            done
           fi
-          uv run --directory model python ../model/run_benchmarks.py \
+          # Model filter (comma-separated → multiple --model flags)
+          if [ -n "${{ github.event.inputs.models }}" ]; then
+            IFS=',' read -ra MODELS <<< "${{ github.event.inputs.models }}"
+            for m in "${MODELS[@]}"; do
+              ARGS="$ARGS --model ${m// /}"
+            done
+          fi
+          uv run python model/run_benchmarks.py \
             --post-url "$PIRO_POST_URL" \
             --post-key "$PIRO_POST_KEY" \
             $ARGS

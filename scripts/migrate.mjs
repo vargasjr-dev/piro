@@ -102,4 +102,22 @@ console.log("✓ sync_job table");
 await sql`CREATE INDEX IF NOT EXISTS sj_integration_started ON sync_job ("integrationId", "startedAt" DESC)`;
 console.log("✓ sync_job index");
 
+// ── benchmark_suite_run table ─────────────────────────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS benchmark_suite_run (
+    id              TEXT        PRIMARY KEY,
+    "userId"        TEXT        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    status          TEXT        NOT NULL DEFAULT 'queued',
+    benchmarks      TEXT,
+    targets         TEXT,
+    "queuedAt"      TIMESTAMP   NOT NULL DEFAULT NOW(),
+    "completedAt"   TIMESTAMP,
+    error           TEXT
+  )
+`;
+console.log("✓ benchmark_suite_run table");
+
+await sql`CREATE INDEX IF NOT EXISTS bsr_user_queued ON benchmark_suite_run ("userId", "queuedAt" DESC)`;
+console.log("✓ benchmark_suite_run index");
+
 console.log("Migrations complete ✓");
