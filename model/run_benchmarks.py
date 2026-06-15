@@ -225,6 +225,12 @@ def main() -> None:
     )
     # --only is a deprecated alias for --benchmark kept for backward compat
     parser.add_argument("--only", metavar="NAME", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--model",
+        metavar="TARGET",
+        choices=["gpt-4o-mini", "gpt-4o", "piro-student"],
+        help="Run against a single target: gpt-4o-mini | gpt-4o | piro-student",
+    )
     args = parser.parse_args()
 
     filter_name = args.benchmark or args.only
@@ -239,18 +245,26 @@ def main() -> None:
 
     stub = _RandomStub()
 
-    if args.dry_run:
-        targets: list[tuple[str, Any]] = [
+    all_targets: list[tuple[str, Any]] = (
+        [
             ("gpt-4o-mini", _DryRunWrapper(GPTBaseline("gpt-4o-mini"))),
             ("gpt-4o", _DryRunWrapper(GPTBaseline("gpt-4o"))),
             ("piro-student", _DryRunWrapper(stub)),
         ]
-    else:
-        targets = [
+        if args.dry_run
+        else [
             ("gpt-4o-mini", GPTBaseline("gpt-4o-mini")),
             ("gpt-4o", GPTBaseline("gpt-4o")),
             ("piro-student", stub),
         ]
+    )
+
+    if args.model:
+        targets: list[tuple[str, Any]] = [
+            (label, model) for label, model in all_targets if label == args.model
+        ]
+    else:
+        targets = all_targets
 
     print(f"Running {len(benchmarks)} benchmark(s) against {len(targets)} target(s)…")
 
