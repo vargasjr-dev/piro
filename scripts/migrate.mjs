@@ -126,6 +126,35 @@ await sql`ALTER TABLE benchmark_run DROP COLUMN IF EXISTS passed`;
 await sql`ALTER TABLE benchmark_run ADD COLUMN IF NOT EXISTS "costUsd" REAL`;
 console.log("✓ benchmark_run schema: dropped threshold/passed, added costUsd");
 
+// ── data_source table ─────────────────────────────────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS data_source (
+    id              TEXT        PRIMARY KEY,
+    "userId"        TEXT        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    name            TEXT        NOT NULL,
+    description     TEXT,
+    type            TEXT        NOT NULL DEFAULT 'synthetic',
+    "r2Prefix"      TEXT,
+    "sampleCount"   INTEGER,
+    "createdAt"     TIMESTAMP   NOT NULL DEFAULT NOW()
+  )
+`;
+await sql`CREATE INDEX IF NOT EXISTS ds_user_created ON data_source ("userId", "createdAt" DESC)`;
+console.log("✓ data_source table");
+
+// Seed sorting-sequences for existing users
+await sql`
+  INSERT INTO data_source (id, "userId", name, description, type, "sampleCount", "createdAt")
+  SELECT 'sorting-sequences', id,
+    'Sorting Sequences',
+    'Synthetic argmin task: find the minimum element in a short integer sequence. 4-element sequences, 5 classes.',
+    'synthetic', 5000, NOW()
+  FROM "user"
+  WHERE NOT EXISTS (SELECT 1 FROM data_source WHERE id = 'sorting-sequences')
+  LIMIT 1
+`;
+console.log("✓ seeded data_source: sorting-sequences");
+
 // ── training_run table ────────────────────────────────────────────────────────
 await sql`
   CREATE TABLE IF NOT EXISTS training_run (

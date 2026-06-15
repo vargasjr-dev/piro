@@ -106,6 +106,24 @@ export function r2ProviderPrefix(userId: string, provider: string): string {
  * List all objects under a prefix. Returns keys with the userId stripped,
  * so callers see paths rooted at "data/..." (i.e. the user's virtual /data/).
  */
+export async function r2ListPrefix(userId: string, subPrefix: string): Promise<string[]> {
+  const client = getR2Client();
+  const bucket = BUCKET();
+  const prefix = `${userId}/${subPrefix}`;
+  const paths: string[] = [];
+  let continuationToken: string | undefined;
+  do {
+    const list: ListObjectsV2CommandOutput = await client.send(
+      new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: continuationToken })
+    );
+    for (const obj of list.Contents ?? []) {
+      if (obj.Key) paths.push(obj.Key.slice(`${userId}/`.length));
+    }
+    continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return paths;
+}
+
 export async function r2List(userId: string): Promise<string[]> {
   const client = getR2Client();
   const bucket = BUCKET();

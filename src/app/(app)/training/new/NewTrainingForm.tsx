@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const MODEL_TEMPLATES = [
@@ -16,19 +16,28 @@ const MODEL_TEMPLATES = [
   },
 ];
 
-const DATA_SOURCES = [
-  {
-    id: "sorting-sequences",
-    label: "Sorting Sequences",
-    description: "Argmin over short integer sequences. 4-element sequences, 5 classes.",
-  },
-];
+interface DataSourceOption {
+  id: string;
+  name: string;
+  description: string | null;
+}
 
 export default function NewTrainingForm() {
   const router = useRouter();
   const [modelTemplate, setModelTemplate] = useState("ctm");
-  const [dataSource, setDataSource] = useState("sorting-sequences");
+  const [dataSource, setDataSource] = useState("");
   const [epochs, setEpochs] = useState(10);
+  const [dataSources, setDataSources] = useState<DataSourceOption[]>([]);
+
+  useEffect(() => {
+    fetch("/api/data-sources")
+      .then((r) => r.json())
+      .then((d: { sources: DataSourceOption[] }) => {
+        setDataSources(d.sources);
+        if (d.sources.length > 0) setDataSource(d.sources[0].id);
+      })
+      .catch(() => {});
+  }, []);
   const [status, setStatus] = useState<"idle" | "loading">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -83,27 +92,38 @@ export default function NewTrainingForm() {
 
       {/* Data source */}
       <div className="space-y-3">
-        <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">
-          Data Source
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">
+            Data Source
+          </h2>
+          <a href="/sources" className="text-[11px] text-amber-600/40 hover:text-amber-400/60 transition-colors">
+            Manage sources →
+          </a>
+        </div>
         <div className="space-y-2">
-          {DATA_SOURCES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setDataSource(s.id)}
-              className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
-                dataSource === s.id
-                  ? "border-orange-500/50 bg-orange-500/10"
-                  : "border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10"
-              }`}
-            >
-              <p className={`text-sm font-semibold ${dataSource === s.id ? "text-amber-100" : "text-amber-200/60"}`}>
-                {s.label}
-              </p>
-              <p className="text-[11px] text-amber-600/40 mt-0.5">{s.description}</p>
-            </button>
-          ))}
+          {dataSources.length === 0 ? (
+            <p className="text-xs text-amber-700/30 px-1">Loading…</p>
+          ) : (
+            dataSources.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setDataSource(s.id)}
+                className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                  dataSource === s.id
+                    ? "border-orange-500/50 bg-orange-500/10"
+                    : "border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10"
+                }`}
+              >
+                <p className={`text-sm font-semibold ${dataSource === s.id ? "text-amber-100" : "text-amber-200/60"}`}>
+                  {s.name}
+                </p>
+                {s.description && (
+                  <p className="text-[11px] text-amber-600/40 mt-0.5">{s.description}</p>
+                )}
+              </button>
+            ))
+          )}
         </div>
       </div>
 
