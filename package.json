@@ -11,7 +11,8 @@
     "lint": "next lint",
     "format": "prettier --write \"**/*.tsx\"",
     "db:push": "drizzle-kit push --force",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "bench": "uv run python model/run_benchmarks.py"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1063.0",
