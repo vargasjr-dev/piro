@@ -1,0 +1,46 @@
+[project]
+name = "piro-model"
+version = "0.1.0"
+description = "Piro student model — RL-first tiny LLM training and inference code"
+requires-python = ">=3.11"
+dependencies = [
+    "torch>=2.3.0",
+    "numpy>=1.26.0",
+    "matplotlib>=3.8.0",
+    "tqdm>=4.66.0",
+]
+
+[project.optional-dependencies]
+# Mentor scoring via Anthropic API (used during GRPO reward step)
+scoring = [
+    "httpx>=0.27.0",
+]
+# Modal deployment (training + inference)
+modal = [
+    "modal>=0.63.0",
+]
+# Full dev install: all optional groups + linting/formatting
+dev = [
+    "piro-model[scoring,modal]",
+    "ruff>=0.4.0",
+    "pyright>=1.1.360",
+    "pytest>=8.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
