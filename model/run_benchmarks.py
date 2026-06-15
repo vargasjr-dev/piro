@@ -48,6 +48,7 @@ sys.path.insert(0, str(ROOT.parent))  # make `model` importable as a package
 
 from model.benchmarks.base import Benchmark, BenchmarkResult  # noqa: E402
 from model.benchmarks.models import GPTBaseline, ModelProtocol  # noqa: E402
+from model.benchmarks.ood_generalization import default as _ood_default  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +129,7 @@ class _SanityCheck(Benchmark):
 
 
 register(_SanityCheck())
+register(_ood_default)
 
 
 # ---------------------------------------------------------------------------
