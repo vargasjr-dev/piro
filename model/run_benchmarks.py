@@ -219,19 +219,22 @@ def main() -> None:
         help="Skip live API calls — use random stub for all targets",
     )
     parser.add_argument(
-        "--only",
+        "--benchmark",
         metavar="NAME",
-        help="Run only the benchmark with this name",
+        help="Run only the benchmark with this name (e.g. --benchmark SanityCheck)",
     )
+    # --only is a deprecated alias for --benchmark kept for backward compat
+    parser.add_argument("--only", metavar="NAME", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
+    filter_name = args.benchmark or args.only
     benchmarks = (
-        [b for b in REGISTRY if b.name == args.only]
-        if args.only
+        [b for b in REGISTRY if b.name == filter_name]
+        if filter_name
         else list(REGISTRY)
     )
     if not benchmarks:
-        print(f"No benchmarks found{f' named {args.only!r}' if args.only else ''}.")
+        print(f"No benchmarks found{f' named {filter_name!r}' if filter_name else ''}.")
         sys.exit(1)
 
     stub = _RandomStub()
