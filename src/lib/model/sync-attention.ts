@@ -59,6 +59,24 @@ export class SyncAttention {
   }
 
   /**
+   * Returns the attention weight for each embedding position given the sync matrix.
+   * Weights are in [0, 1] and always sum to exactly 1.0.
+   * Useful for interpretability: which input positions does the sync state attend to?
+   *
+   * @param syncMatrix  N×N pairwise correlation matrix
+   * @param embeddings  Sequence of embedding vectors (shape: seqLen × embedDim)
+   * @returns           Weight vector of shape (seqLen,)
+   */
+  computeWeights(syncMatrix: number[][], embeddings: number[][]): number[] {
+    const { queryDim } = this.config;
+    const syncFlat = flatten(syncMatrix);
+    const query = matVec(this.Wq, syncFlat);
+    const scale_factor = 1 / Math.sqrt(queryDim);
+    const scores = embeddings.map((emb) => dot(query, matVec(this.Wk, emb)) * scale_factor);
+    return softmax(scores);
+  }
+
+  /**
    * Forward pass.
    *
    * @param syncMatrix  N×N pairwise correlation matrix (each entry in [-1, 1])

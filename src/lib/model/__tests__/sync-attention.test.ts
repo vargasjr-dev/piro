@@ -100,14 +100,90 @@ describe("SyncAttention — sync matrix sensitivity", () => {
   });
 
   test("forward_SingleVsWrappedEmbedding_SameResult", () => {
-    // Passing a flat vector vs [[...]] should produce the same output
-    const attn = new SyncAttention({
-      nNeurons: 2, embedDim: 4, queryDim: 4, valueDim: 4,
+      // Passing a flat vector vs [[...]] should produce the same output
+      const attn = new SyncAttention({
+        nNeurons: 2, embedDim: 4, queryDim: 4, valueDim: 4,
+      });
+      const sync = identitySync(2);
+      const emb = [1, 2, 3, 4];
+      const flat   = attn.forward(sync, emb);
+      const nested = attn.forward(sync, [emb]);
+      expect(flat).toEqual(nested);
     });
-    const sync = identitySync(2);
-    const emb = [1, 2, 3, 4];
-    const flat   = attn.forward(sync, emb);
-    const nested = attn.forward(sync, [emb]);
-    expect(flat).toEqual(nested);
+});
+
+// ── Attention weights sum to 1.0 ──────────────────────────────────────────────
+
+describe("SyncAttention — attention weights sum to 1.0", () => {
+  test("computeWeights_TwoPositions_SumToOne", () => {
+    const attn = new SyncAttention({
+      nNeurons: 3, embedDim: 4, queryDim: 4, valueDim: 4,
+    });
+    const weights = attn.computeWeights(identitySync(3), [
+      [1, 0, 0, 0],
+      [0, 1, 0, 0],
+    ]);
+    const sum = weights.reduce((s, w) => s + w, 0);
+    expect(sum).toBeCloseTo(1.0, 10);
+  });
+
+  test("computeWeights_FivePositions_SumToOne", () => {
+    const attn = new SyncAttention({
+      nNeurons: 4, embedDim: 4, queryDim: 4, valueDim: 4,
+    });
+    const embeddings = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[1,1,0,0]];
+    const weights = attn.computeWeights(identitySync(4), embeddings);
+    expect(weights).toHaveLength(5);
+    const sum = weights.reduce((s, w) => s + w, 0);
+    expect(sum).toBeCloseTo(1.0, 10);
+  });
+
+  test("computeWeights_SinglePosition_WeightIsOne", () => {
+    const attn = new SyncAttention({
+      nNeurons: 2, embedDim: 3, queryDim: 3, valueDim: 3,
+    });
+    const weights = attn.computeWeights(identitySync(2), [[1, 2, 3]]);
+    expect(weights).toHaveLength(1);
+    expect(weights[0]).toBeCloseTo(1.0, 10);
+  });
+
+  test("computeWeights_AllWeightsNonNegative", () => {
+    const attn = new SyncAttention({
+      nNeurons: 3, embedDim: 4, queryDim: 4, valueDim: 4,
+    });
+    const weights = attn.computeWeights(uniformSync(3), [
+      [1, -2, 0.5, 3],
+      [-1, 0, 2, -0.5],
+      [0.1, 0.2, 0.3, 0.4],
+    ]);
+    for (const w of weights) {
+      expect(w).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
+// ── Identical sync matrices → identical outputs ────────────────────────────────
+
+describe("SyncAttention — identical sync matrices produce identical outputs", () => {
+  test("forward_TwoIdenticalSyncMatrices_ProduceIdenticalContexts", () => {
+    const attn = new SyncAttention({
+      nNeurons: 3, embedDim: 4, queryDim: 4, valueDim: 4,
+    });
+    const embeddings = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]];
+    const syncA = identitySync(3);
+    const syncB = identitySync(3); // structurally identical but different object
+    const ctxA = attn.forward(syncA, embeddings);
+    const ctxB = attn.forward(syncB, embeddings);
+    expect(ctxA).toEqual(ctxB);
+  });
+
+  test("computeWeights_TwoIdenticalSyncMatrices_ProduceIdenticalWeights", () => {
+    const attn = new SyncAttention({
+      nNeurons: 3, embedDim: 4, queryDim: 4, valueDim: 4,
+    });
+    const embeddings = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]];
+    const wA = attn.computeWeights(identitySync(3), embeddings);
+    const wB = attn.computeWeights(identitySync(3), embeddings);
+    expect(wA).toEqual(wB);
   });
 });
