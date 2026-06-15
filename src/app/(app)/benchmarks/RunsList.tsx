@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -50,18 +50,6 @@ function parseTags(json: string | null): string {
   }
 }
 
-function ScorePill({ score, passed }: { score: number; passed: boolean }) {
-  return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-md ${
-      passed
-        ? "bg-emerald-900/30 text-emerald-400/80 border border-emerald-800/30"
-        : "bg-red-900/25 text-red-400/70 border border-red-800/25"
-    }`}>
-      {passed ? "✓" : "✗"} {score.toFixed(3)}
-    </span>
-  );
-}
-
 // ── Status badge ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: SuiteRun["status"] }) {
@@ -96,118 +84,63 @@ function StatusBadge({ status }: { status: SuiteRun["status"] }) {
   );
 }
 
-// ── Results grid for a completed suite ────────────────────────────────────────
-
-function ResultsGrid({ results }: { results: BenchmarkRunRow[] }) {
-  if (results.length === 0) return null;
-
-  const benchmarks = [...new Set(results.map((r) => r.benchmarkName))];
-  const targets = [...new Set(results.map((r) => r.target))];
-
-  return (
-    <div className="mt-3 border border-amber-900/15 rounded-xl overflow-hidden">
-      {/* Header row */}
-      <div className="grid bg-amber-900/10 border-b border-amber-900/15"
-        style={{ gridTemplateColumns: `1fr ${targets.map(() => "auto").join(" ")}` }}>
-        <div className="px-3 py-2 text-[9px] font-semibold uppercase tracking-widest text-amber-700/40">
-          Benchmark
-        </div>
-        {targets.map((t) => (
-          <div key={t} className="px-3 py-2 text-[9px] font-semibold uppercase tracking-widest text-amber-700/40 text-right">
-            {t}
-          </div>
-        ))}
-      </div>
-      {/* Data rows */}
-      {benchmarks.map((bname, bi) => (
-        <div
-          key={bname}
-          className={`grid border-b border-amber-900/10 last:border-0 ${bi % 2 === 1 ? "bg-amber-900/5" : ""}`}
-          style={{ gridTemplateColumns: `1fr ${targets.map(() => "auto").join(" ")}` }}
-        >
-          <div className="px-3 py-2.5 text-xs text-amber-300/60 font-medium">{bname}</div>
-          {targets.map((t) => {
-            const r = results.find((x) => x.benchmarkName === bname && x.target === t);
-            return (
-              <div key={t} className="px-3 py-2.5 flex justify-end">
-                {r ? <ScorePill score={r.score} passed={r.passed} /> : (
-                  <span className="text-[10px] text-amber-800/30">—</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Suite run card ─────────────────────────────────────────────────────────────
 
 function SuiteRunCard({ run }: { run: SuiteRun }) {
-  const [expanded, setExpanded] = useState(false);
   const queuedAt = new Date(run.queuedAt);
-
   const benchmarkTags = parseTags(run.benchmarks);
   const targetTags = parseTags(run.targets);
+  const passCount = run.results.filter((r) => r.passed).length;
+  const totalCount = run.results.length;
+
+  const inner = (
+    <div className="px-4 py-3.5 flex items-center gap-3">
+      {/* Left: status + time */}
+      <div className="flex flex-col gap-1 shrink-0 w-24">
+        <StatusBadge status={run.status} />
+        <span className="text-[10px] text-amber-700/35">{timeAgo(queuedAt)}</span>
+      </div>
+
+      {/* Middle: what was requested */}
+      <div className="flex-1 min-w-0 space-y-0.5">
+        <p className="text-xs text-amber-300/60">
+          <span className="text-amber-600/40 mr-1">benchmarks:</span>{benchmarkTags}
+        </p>
+        <p className="text-xs text-amber-300/60">
+          <span className="text-amber-600/40 mr-1">models:</span>{targetTags}
+        </p>
+        {run.status === "error" && run.error && (
+          <p className="text-[10px] text-red-400/50 mt-1 truncate">{run.error}</p>
+        )}
+      </div>
+
+      {/* Right: pass count or chevron */}
+      <div className="flex items-center gap-2 shrink-0">
+        {run.status === "complete" && totalCount > 0 && (
+          <span className={`text-[10px] font-medium ${passCount === totalCount ? "text-emerald-400/60" : "text-red-400/50"}`}>
+            {passCount}/{totalCount}
+          </span>
+        )}
+        <svg className="w-4 h-4 text-amber-800/30" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        </svg>
+      </div>
+    </div>
+  );
+
+  const borderCls = run.status === "queued"
+    ? "border-amber-700/25 bg-amber-900/8"
+    : run.status === "error"
+    ? "border-red-900/20 bg-red-900/5"
+    : "border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10";
 
   return (
-    <div className={`border rounded-xl overflow-hidden transition-colors ${
-      run.status === "queued"
-        ? "border-amber-700/25 bg-amber-900/8"
-        : run.status === "error"
-        ? "border-red-900/20 bg-red-900/5"
-        : "border-amber-900/20 bg-amber-900/5"
-    }`}>
-      <button
-        type="button"
-        onClick={() => run.status === "complete" && setExpanded((p) => !p)}
-        className={`w-full text-left px-4 py-3.5 flex items-start gap-3 ${run.status === "complete" ? "cursor-pointer hover:bg-amber-900/10" : "cursor-default"}`}
-      >
-        {/* Left: status + time */}
-        <div className="flex flex-col gap-1 shrink-0 w-24">
-          <StatusBadge status={run.status} />
-          <span className="text-[10px] text-amber-700/35">{timeAgo(queuedAt)}</span>
-        </div>
-
-        {/* Middle: what was requested */}
-        <div className="flex-1 min-w-0 space-y-0.5">
-          <p className="text-xs text-amber-300/60">
-            <span className="text-amber-600/40 mr-1">benchmarks:</span>
-            {benchmarkTags}
-          </p>
-          <p className="text-xs text-amber-300/60">
-            <span className="text-amber-600/40 mr-1">models:</span>
-            {targetTags}
-          </p>
-          {run.status === "complete" && run.results.length > 0 && (
-            <p className="text-[10px] text-amber-700/30">
-              {run.results.filter((r) => r.passed).length}/{run.results.length} passed
-            </p>
-          )}
-          {run.status === "error" && run.error && (
-            <p className="text-[10px] text-red-400/50 mt-1">{run.error}</p>
-          )}
-        </div>
-
-        {/* Right: expand chevron for completed runs */}
-        {run.status === "complete" && run.results.length > 0 && (
-          <svg
-            className={`w-4 h-4 text-amber-700/30 shrink-0 mt-0.5 transition-transform ${expanded ? "rotate-180" : ""}`}
-            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-          </svg>
-        )}
-      </button>
-
-      {/* Expanded results */}
-      {expanded && run.status === "complete" && (
-        <div className="px-4 pb-4 border-t border-amber-900/15">
-          <ResultsGrid results={run.results} />
-        </div>
-      )}
-    </div>
+    <Link
+      href={`/benchmarks/${run.id}`}
+      className={`block border rounded-xl overflow-hidden transition-colors ${borderCls}`}
+    >
+      {inner}
+    </Link>
   );
 }
 
