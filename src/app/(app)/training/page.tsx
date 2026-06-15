@@ -27,6 +27,7 @@ export default async function TrainingPage() {
     finalTrainLoss: r.finalTrainLoss,
     finalValLoss: r.finalValLoss,
     finalValAccuracy: r.finalValAccuracy,
+    epochHistoryJson: r.epochHistoryJson ?? null,
     error: r.error,
     queuedAt: r.queuedAt.toISOString(),
     completedAt: r.completedAt?.toISOString() ?? null,

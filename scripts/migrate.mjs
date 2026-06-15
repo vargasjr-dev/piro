@@ -247,4 +247,19 @@ await sql`
 `;
 console.log("✓ seeded model: gpt-4o");
 
+// ── training_run: add epochHistoryJson column ─────────────────────────────────
+await sql`ALTER TABLE training_run ADD COLUMN IF NOT EXISTS "epochHistoryJson" TEXT`;
+console.log("✓ training_run: added epochHistoryJson");
+
+// ── training_run: fix stale queued runs (no worker exists pre-engine) ─────────
+await sql`
+  UPDATE training_run
+  SET
+    status = 'error',
+    error  = 'Run predates the training execution engine and was never executed. Please create a new run.',
+    "completedAt" = NOW()
+  WHERE status = 'queued'
+`;
+console.log("✓ training_run: marked stale queued runs as error");
+
 console.log("Migrations complete ✓");

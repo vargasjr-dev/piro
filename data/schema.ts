@@ -218,6 +218,7 @@ export const trainingRun = pgTable(
     finalTrainLoss: real("finalTrainLoss"),
     finalValLoss: real("finalValLoss"),
     finalValAccuracy: real("finalValAccuracy"),
+    epochHistoryJson: text("epochHistoryJson"), // JSON array of { epoch, trainLoss, valLoss, valAccuracy }
     error: text("error"),
     queuedAt: timestamp("queuedAt").notNull().defaultNow(),
     completedAt: timestamp("completedAt"),

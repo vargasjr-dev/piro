@@ -4,6 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { TrainingRunRow } from "../RunsList";
 
+interface EpochRecord {
+  epoch: number;
+  trainLoss: number;
+  valLoss: number;
+  valAccuracy: number;
+}
+
 function fmt(date: Date): string {
   return date.toLocaleString(undefined, {
     month: "short", day: "numeric",
@@ -30,7 +37,7 @@ function StatusBadge({ status }: { status: TrainingRunRow["status"] }) {
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
-        {status === "running" ? "Running" : "Queued — awaiting execution environment"}
+        {status === "running" ? "Running…" : "Queued"}
       </span>
     );
   }
@@ -63,6 +70,37 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   );
 }
 
+function EpochTable({ history }: { history: EpochRecord[] }) {
+  // Show every Nth row when there are many epochs
+  const stride = history.length > 20 ? Math.ceil(history.length / 20) : 1;
+  const rows = history.filter((r) => r.epoch % stride === 0 || r.epoch === history[history.length - 1].epoch);
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-amber-900/20">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-amber-900/20 bg-amber-900/10">
+            <th className="px-3 py-2 text-left text-amber-600/40 font-medium">Epoch</th>
+            <th className="px-3 py-2 text-right text-amber-600/40 font-medium">Train Loss</th>
+            <th className="px-3 py-2 text-right text-amber-600/40 font-medium">Val Loss</th>
+            <th className="px-3 py-2 text-right text-amber-600/40 font-medium">Val Acc</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.epoch} className="border-b border-amber-900/10 last:border-0">
+              <td className="px-3 py-1.5 font-mono text-amber-700/50">{r.epoch}</td>
+              <td className="px-3 py-1.5 text-right font-mono text-amber-300/60">{r.trainLoss.toFixed(4)}</td>
+              <td className="px-3 py-1.5 text-right font-mono text-amber-300/60">{r.valLoss.toFixed(4)}</td>
+              <td className="px-3 py-1.5 text-right font-mono text-amber-300/60">{(r.valAccuracy * 100).toFixed(1)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function RunDetail({ initialRun }: { initialRun: TrainingRunRow }) {
   const [run, setRun] = useState<TrainingRunRow>(initialRun);
   const router = useRouter();
@@ -90,6 +128,16 @@ export default function RunDetail({ initialRun }: { initialRun: TrainingRunRow }
   }, [isInFlight, refresh]);
 
   const queuedAt = new Date(run.queuedAt);
+
+  // Parse epoch history if present
+  let epochHistory: EpochRecord[] | null = null;
+  if (run.epochHistoryJson) {
+    try {
+      epochHistory = JSON.parse(run.epochHistoryJson) as EpochRecord[];
+    } catch {
+      // ignore malformed JSON
+    }
+  }
 
   return (
     <div className="p-6 space-y-8 max-w-lg">
@@ -144,6 +192,16 @@ export default function RunDetail({ initialRun }: { initialRun: TrainingRunRow }
         </div>
       )}
 
+      {/* Epoch history table */}
+      {epochHistory && epochHistory.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">
+            Epoch History
+          </h2>
+          <EpochTable history={epochHistory} />
+        </div>
+      )}
+
       {/* Error */}
       {run.status === "error" && run.error && (
         <div className="space-y-2">
@@ -151,16 +209,6 @@ export default function RunDetail({ initialRun }: { initialRun: TrainingRunRow }
           <pre className="text-[11px] text-red-400/60 bg-red-900/10 border border-red-900/20 rounded-xl px-4 py-3 whitespace-pre-wrap break-words font-mono">
             {run.error}
           </pre>
-        </div>
-      )}
-
-      {/* Queued notice */}
-      {run.status === "queued" && (
-        <div className="px-4 py-3 rounded-xl border border-amber-900/20 bg-amber-900/5">
-          <p className="text-xs text-amber-600/50">
-            This run is queued. Execution requires the Python environment with PyTorch.
-            Results will appear here automatically once the run completes.
-          </p>
         </div>
       )}
     </div>
