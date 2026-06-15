@@ -23,6 +23,16 @@ export interface TickLoopResult {
   ticksRun: number;
   /** true if stopped because confidence exceeded threshold, false if maxTicks reached */
   converged: boolean;
+  /** Structured log entry — suitable for appending to an audit trail or metrics system */
+  log: TickLoopLog;
+}
+
+export interface TickLoopLog {
+  ticksRun: number;
+  maxTicks: number;
+  converged: boolean;
+  confidence: number;
+  confidenceThreshold: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -118,10 +128,14 @@ export function tickLoop(
     }
   }
 
-  return {
-    context,
-    confidence,
+  const converged = confidence > threshold;
+  const log: TickLoopLog = {
     ticksRun: tick,
-    converged: confidence > threshold,
+    maxTicks,
+    converged,
+    confidence,
+    confidenceThreshold: threshold,
   };
+
+  return { context, confidence, ticksRun: tick, converged, log };
 }

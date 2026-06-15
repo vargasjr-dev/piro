@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { tickLoop, MAX_TICKS, DEFAULT_CONFIDENCE_THRESHOLD } from "../tick-loop";
+import { tickLoop, MAX_TICKS, DEFAULT_CONFIDENCE_THRESHOLD, type TickLoopLog } from "../tick-loop";
 import { SyncAttention } from "../sync-attention";
 import { ConfidenceHead } from "../confidence-head";
 
@@ -93,6 +93,51 @@ describe("tickLoop — early stopping on confidence", () => {
       confidenceThreshold: 0, // converge immediately
     });
     expect(result.ticksRun).toBeLessThan(MAX_TICKS);
+  });
+});
+
+// ── Tick count logging ─────────────────────────────────────────────────────────
+
+describe("tickLoop — tick count logging", () => {
+  test("tickLoop_Result_IncludesLogWithTicksRun", () => {
+    const { attention, confHead } = makeComponents();
+    const result = tickLoop(attention, confHead, EMBEDDINGS, N_NEURONS, { maxTicks: 5, confidenceThreshold: 1.0 });
+    expect(result.log.ticksRun).toBe(result.ticksRun);
+  });
+
+  test("tickLoop_Result_LogRecordsMaxTicks", () => {
+    const { attention, confHead } = makeComponents();
+    const maxTicks = 7;
+    const result = tickLoop(attention, confHead, EMBEDDINGS, N_NEURONS, { maxTicks, confidenceThreshold: 1.0 });
+    expect(result.log.maxTicks).toBe(maxTicks);
+  });
+
+  test("tickLoop_Result_LogRecordsConverged", () => {
+    const { attention, confHead } = makeComponents();
+    const convergedResult = tickLoop(attention, confHead, EMBEDDINGS, N_NEURONS, { confidenceThreshold: 0 });
+    expect(convergedResult.log.converged).toBe(true);
+
+    const cappedResult = tickLoop(attention, confHead, EMBEDDINGS, N_NEURONS, { maxTicks: 3, confidenceThreshold: 1.0 });
+    expect(cappedResult.log.converged).toBe(false);
+  });
+
+  test("tickLoop_Result_LogConfidenceMatchesResultConfidence", () => {
+    const { attention, confHead } = makeComponents();
+    const result = tickLoop(attention, confHead, EMBEDDINGS, N_NEURONS);
+    expect(result.log.confidence).toBe(result.confidence);
+  });
+
+  test("tickLoop_Result_LogRecordsThreshold", () => {
+    const { attention, confHead } = makeComponents();
+    const threshold = 0.75;
+    const result = tickLoop(attention, confHead, EMBEDDINGS, N_NEURONS, { confidenceThreshold: threshold });
+    expect(result.log.confidenceThreshold).toBe(threshold);
+  });
+
+  test("tickLoop_DefaultConfig_LogUsesDefaultThreshold", () => {
+    const { attention, confHead } = makeComponents();
+    const result = tickLoop(attention, confHead, EMBEDDINGS, N_NEURONS);
+    expect(result.log.confidenceThreshold).toBe(DEFAULT_CONFIDENCE_THRESHOLD);
   });
 });
 
