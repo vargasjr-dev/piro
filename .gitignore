@@ -19,3 +19,5 @@ dist/
 .uv/
 # Keep uv.lock committed (reproducible installs)
 # Keep pyproject.toml, *.py, README.md tracked
+# Benchmark result snapshots (generated — keep only .gitkeep)
+model/results/*.json
