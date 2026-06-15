@@ -1,4 +1,21 @@
-import type { ModelAdapter } from "./types";
+import type { ModelAdapter, GenerateResult } from "./types";
+
+// ── Pricing (USD per 1M tokens, as of June 2025) ──────────────────────────────
+
+const PRICING: Record<string, { input: number; output: number }> = {
+  "gpt-4o-mini": { input: 0.15, output: 0.60 },
+  "gpt-4o":      { input: 2.50, output: 10.00 },
+};
+
+export function computeCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+): number {
+  const p = PRICING[model];
+  if (!p) return 0;
+  return (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output;
+}
 
 // ── OpenAI chat completion via raw fetch (no SDK dependency) ──────────────────
 
@@ -9,13 +26,17 @@ interface ChatMessage {
 
 interface ChatCompletionResponse {
   choices: { message: { content: string | null } }[];
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+  };
 }
 
 async function chatCompletion(
   model: string,
   messages: ChatMessage[],
   apiKey: string,
-): Promise<string> {
+): Promise<GenerateResult> {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -36,7 +57,11 @@ async function chatCompletion(
   }
 
   const data = (await res.json()) as ChatCompletionResponse;
-  return data.choices[0]?.message?.content ?? "";
+  const text = data.choices[0]?.message?.content ?? "";
+  const inputTokens = data.usage?.prompt_tokens ?? 0;
+  const outputTokens = data.usage?.completion_tokens ?? 0;
+
+  return { text, inputTokens, outputTokens };
 }
 
 // ── GPT model adapter ─────────────────────────────────────────────────────────
@@ -44,7 +69,7 @@ async function chatCompletion(
 export function makeGPTAdapter(modelName: string): ModelAdapter {
   return {
     name: modelName,
-    async generate(prompt: string): Promise<string> {
+    async generate(prompt: string): Promise<GenerateResult> {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
       return chatCompletion(modelName, [{ role: "user", content: prompt }], apiKey);
@@ -57,10 +82,11 @@ export function makeGPTAdapter(modelName: string): ModelAdapter {
 export function makePiroStudentAdapter(): ModelAdapter {
   return {
     name: "piro-student",
-    async generate(_prompt: string): Promise<string> {
-      // Intentionally terrible: returns a random integer string
+    isStub: true,
+    async generate(_prompt: string): Promise<GenerateResult> {
+      // Intentionally terrible: returns a random integer string.
       // Replace with real inference once the model is trained.
-      return String(Math.floor(Math.random() * 1000));
+      return { text: String(Math.floor(Math.random() * 1000)), inputTokens: 0, outputTokens: 0 };
     },
   };
 }

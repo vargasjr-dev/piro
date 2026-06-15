@@ -1,5 +1,6 @@
 import type { BenchmarkDef, BenchmarkResult, ModelAdapter } from "./types";
 import { SeededRng, childSeed } from "./rng";
+import { computeCost } from "./openai";
 
 // ── Data generation ───────────────────────────────────────────────────────────
 
@@ -40,11 +41,6 @@ function parseSortedList(text: string): number[] | null {
 
 // ── Benchmark definition ──────────────────────────────────────────────────────
 
-/**
- * OODGeneralization — can the model sort sequences at 4× its training length?
- *
- * Default: train_length=5 → test at length 20, 20 test samples.
- */
 export function makeOODGeneralization(opts?: {
   nTest?: number;
   trainLength?: number;
@@ -64,16 +60,20 @@ export function makeOODGeneralization(opts?: {
 
   return {
     name: "OODGeneralization",
-    threshold: 0.5,
 
     async run(model: ModelAdapter): Promise<BenchmarkResult> {
       const start = Date.now();
       let nCorrect = 0;
+      let totalInputTokens = 0;
+      let totalOutputTokens = 0;
       const failureExamples: string[] = [];
 
       for (const sample of testSamples) {
-        const response = await model.generate(sample.prompt);
-        const predicted = parseSortedList(response);
+        const result = await model.generate(sample.prompt);
+        totalInputTokens += result.inputTokens;
+        totalOutputTokens += result.outputTokens;
+
+        const predicted = parseSortedList(result.text);
         const correct =
           predicted !== null &&
           predicted.length === sample.answer.length &&
@@ -83,23 +83,18 @@ export function makeOODGeneralization(opts?: {
           nCorrect++;
         } else if (failureExamples.length < 3) {
           failureExamples.push(
-            `expected [${sample.answer.join(" ")}], got "${response.slice(0, 60)}"`,
+            `expected [${sample.answer.join(" ")}], got "${result.text.slice(0, 60)}"`,
           );
         }
       }
 
-      const score = nCorrect / testSamples.length;
-
       return {
-        score,
-        passed: score >= 0.5,
-        threshold: 0.5,
+        score: nCorrect / testSamples.length,
         durationMs: Date.now() - start,
+        costUsd: computeCost(model.name, totalInputTokens, totalOutputTokens),
         metadata: {
-          n_samples: testSamples.length,
+          n_tests: testSamples.length,
           n_correct: nCorrect,
-          test_length: testLength,
-          train_length: trainLength,
           failure_examples: failureExamples,
         },
       };

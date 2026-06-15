@@ -10,8 +10,7 @@ interface BenchmarkRunRow {
   benchmarkName: string;
   target: string;
   score: number;
-  threshold: number;
-  passed: boolean;
+  costUsd: number | null;
   durationMs: number | null;
   metadata: string | null;
   ranAt: string;
@@ -31,10 +30,8 @@ interface SuiteRun {
 // ── Metadata types per benchmark ─────────────────────────────────────────────
 
 interface OODMeta {
-  n_samples: number;
+  n_tests: number;
   n_correct: number;
-  test_length: number;
-  train_length: number;
   failure_examples: string[];
 }
 
@@ -68,16 +65,19 @@ function duration(ms: number): string {
   return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
 }
 
+function fmtCost(usd: number | null): string | null {
+  if (usd === null) return null;
+  if (usd === 0) return "$0.00";
+  if (usd < 0.0001) return "<$0.0001";
+  return `$${usd.toFixed(4)}`;
+}
+
 // ── Score pill ────────────────────────────────────────────────────────────────
 
-function ScorePill({ score, passed }: { score: number; passed: boolean }) {
+function ScorePill({ score }: { score: number }) {
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-mono font-semibold px-2 py-0.5 rounded-lg ${
-      passed
-        ? "bg-emerald-900/30 text-emerald-400/90 border border-emerald-800/30"
-        : "bg-red-900/25 text-red-400/80 border border-red-800/25"
-    }`}>
-      {passed ? "✓" : "✗"} {score.toFixed(3)}
+    <span className="inline-flex items-center text-xs font-mono font-semibold px-2 py-0.5 rounded-lg bg-amber-900/20 text-amber-300/80 border border-amber-800/25">
+      {score.toFixed(3)}
     </span>
   );
 }
@@ -88,10 +88,10 @@ function OODDetail({ meta }: { meta: OODMeta }) {
   return (
     <div className="space-y-2">
       <div className="flex gap-6 text-xs">
-        <span className="text-amber-600/40">accuracy</span>
-        <span className="text-amber-300/70 font-mono">{meta.n_correct}/{meta.n_samples}</span>
-        <span className="text-amber-600/40">test length</span>
-        <span className="text-amber-300/70 font-mono">{meta.test_length} (train: {meta.train_length})</span>
+        <span className="text-amber-600/40">tests run</span>
+        <span className="text-amber-300/70 font-mono">{meta.n_tests}</span>
+        <span className="text-amber-600/40">correct</span>
+        <span className="text-amber-300/70 font-mono">{meta.n_correct}</span>
       </div>
       {meta.failure_examples.length > 0 && (
         <div>
@@ -112,7 +112,6 @@ function OODDetail({ meta }: { meta: OODMeta }) {
 function AdaptiveDetail({ meta }: { meta: AdaptiveMeta }) {
   return (
     <div className="space-y-3">
-      {/* Accuracy row */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-amber-900/10 rounded-lg px-3 py-2.5">
           <p className="text-[10px] text-amber-700/40 uppercase tracking-wider mb-1">Easy</p>
@@ -194,41 +193,35 @@ function BenchmarkSection({
   name: string;
   rows: BenchmarkRunRow[];
 }) {
-  const passed = rows.filter((r) => r.passed).length;
-  const total = rows.length;
-  const allPassed = passed === total;
-
   return (
     <div className="border border-amber-900/20 rounded-xl overflow-hidden">
       {/* Section header */}
-      <div className={`px-4 py-3 border-b border-amber-900/15 flex items-center justify-between ${
-        allPassed ? "bg-emerald-900/10" : "bg-red-900/8"
-      }`}>
+      <div className="px-4 py-3 border-b border-amber-900/15 bg-amber-900/8">
         <h2 className="text-sm font-semibold text-amber-200/80">{name}</h2>
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
-          allPassed
-            ? "text-emerald-400/70 bg-emerald-900/20 border border-emerald-800/25"
-            : "text-red-400/60 bg-red-900/15 border border-red-800/20"
-        }`}>
-          {passed}/{total} passed
-        </span>
       </div>
 
       {/* Per-target rows */}
       <div className="divide-y divide-amber-900/10">
         {rows.map((row) => (
           <div key={row.id} className="px-4 py-4 space-y-3">
-            {/* Target + score + duration */}
+            {/* Target + score + cost + duration */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <span className="text-xs font-medium text-amber-300/60">{row.target}</span>
+                {row.target === "piro-student" && (
+                  <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-600/50 border border-amber-800/20">
+                    stub
+                  </span>
+                )}
                 {row.durationMs !== null && (
                   <span className="text-[10px] text-amber-700/35">{duration(row.durationMs)}</span>
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-amber-700/35">threshold {row.threshold.toFixed(2)}</span>
-                <ScorePill score={row.score} passed={row.passed} />
+                {fmtCost(row.costUsd) && (
+                  <span className="text-[10px] text-amber-700/40 font-mono">{fmtCost(row.costUsd)}</span>
+                )}
+                <ScorePill score={row.score} />
               </div>
             </div>
             {/* Benchmark-specific metadata */}
@@ -302,8 +295,7 @@ export default function RunDetail({ run: initial }: { run: SuiteRun }) {
     ]),
   );
 
-  const totalPassed = run.results.filter((r) => r.passed).length;
-  const totalRun = run.results.length;
+  const totalCost = run.results.reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-6 space-y-6">
@@ -311,16 +303,13 @@ export default function RunDetail({ run: initial }: { run: SuiteRun }) {
       <div className="flex items-center justify-between">
         <StatusBadge status={run.status} />
         <div className="flex items-center gap-4 text-[11px] text-amber-700/40">
-          {run.completedAt && (
+          {run.completedAt ? (
             <span>{fmt(new Date(run.queuedAt))} → {fmt(new Date(run.completedAt))}</span>
-          )}
-          {!run.completedAt && (
+          ) : (
             <span>Started {fmt(new Date(run.queuedAt))}</span>
           )}
-          {totalRun > 0 && (
-            <span className={totalPassed === totalRun ? "text-emerald-500/60" : "text-red-400/50"}>
-              {totalPassed}/{totalRun} passed
-            </span>
+          {run.status === "complete" && totalCost > 0 && (
+            <span className="font-mono">${totalCost.toFixed(4)} total</span>
           )}
         </div>
       </div>

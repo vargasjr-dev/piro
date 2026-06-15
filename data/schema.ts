@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, boolean, integer, bigint, real, unique, index } from "drizzle-orm/pg-core";
+// Note: boolean kept for the user/session/account tables above
 
 // better-auth required tables
 export const user = pgTable("user", {
@@ -136,8 +137,7 @@ export const benchmarkRun = pgTable(
     benchmarkName: text("benchmarkName").notNull(), // e.g. "OODGeneralization"
     target: text("target").notNull(),           // "gpt-4o-mini" | "gpt-4o" | "piro-student"
     score: real("score").notNull(),             // 0.0 → 1.0
-    threshold: real("threshold").notNull(),
-    passed: boolean("passed").notNull(),
+    costUsd: real("costUsd"),                   // total API cost for this benchmark × target
     durationMs: integer("durationMs"),
     metadata: text("metadata"),                 // JSON blob from BenchmarkResult.metadata
     ranAt: timestamp("ranAt").notNull().defaultNow(),

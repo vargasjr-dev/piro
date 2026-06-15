@@ -1,10 +1,15 @@
 // ── Core types shared across all benchmarks ───────────────────────────────────
 
+export interface GenerateResult {
+  text: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface BenchmarkResult {
   score: number;                        // 0.0 → 1.0
-  passed: boolean;                      // score >= threshold
-  threshold: number;
   durationMs: number;
+  costUsd: number;                      // total $ spent on API calls for this benchmark × target
   metadata: Record<string, unknown>;
 }
 
@@ -12,11 +17,12 @@ export interface BenchmarkResult {
 export interface ModelAdapter {
   /** "gpt-4o-mini" | "gpt-4o" | "piro-student" */
   name: string;
-  generate(prompt: string): Promise<string>;
+  /** true = not a real model, results are noise */
+  isStub?: boolean;
+  generate(prompt: string): Promise<GenerateResult>;
 }
 
 export interface BenchmarkDef {
   name: string;
-  threshold: number;
   run(model: ModelAdapter): Promise<BenchmarkResult>;
 }

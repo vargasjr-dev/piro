@@ -6,14 +6,13 @@ import { db } from "../../../../data/db";
 import { benchmarkRun, benchmarkSuiteRun } from "../../../../data/schema";
 import { z } from "zod/v4";
 
-// ── Ingest schema — matches what run_benchmarks.py POSTs ─────────────────────
+// ── Ingest schema ─────────────────────────────────────────────────────────────
 
 const RunResultSchema = z.object({
   benchmarkName: z.string().min(1),
   target: z.string().min(1),
   score: z.number().min(0).max(1),
-  threshold: z.number().min(0).max(1),
-  passed: z.boolean(),
+  costUsd: z.number().min(0).optional(),
   durationMs: z.number().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
@@ -49,28 +48,23 @@ export async function GET() {
     }
   }
 
-  // Also return the list of distinct benchmark names (for the sidebar list)
   const benchmarkNames = [...new Set(rows.map((r) => r.benchmarkName))];
 
   return NextResponse.json({ latest, benchmarkNames });
 }
 
-// ── POST /api/benchmark-runs — ingest results from run_benchmarks.py ─────────
+// ── POST /api/benchmark-runs — ingest results ─────────────────────────────────
 // Accepts either:
 //   a) A valid better-auth session cookie (browser / --post-token)
-//   b) Authorization: Bearer <BENCHMARK_API_KEY> (GitHub Actions / --post-key)
+//   b) Authorization: Bearer <BENCHMARK_API_KEY> (CI / --post-key)
 
 async function resolveUserId(req: NextRequest): Promise<string | null> {
-  // 1. API key auth (CI / GitHub Actions)
   const apiKey = process.env.BENCHMARK_API_KEY;
   const authHeader = req.headers.get("authorization");
   if (apiKey && authHeader === `Bearer ${apiKey}`) {
-    // API key is user-scoped: key encodes userId as <userId>:<secret>
     const userId = apiKey.split(":")[0];
     if (userId) return userId;
   }
-
-  // 2. Session cookie auth (browser)
   const session = await auth.api.getSession({ headers: await headers() });
   return session?.user.id ?? null;
 }
@@ -98,8 +92,7 @@ export async function POST(req: NextRequest) {
     benchmarkName: r.benchmarkName,
     target: r.target,
     score: r.score,
-    threshold: r.threshold,
-    passed: r.passed,
+    costUsd: r.costUsd ?? null,
     durationMs: r.durationMs ?? null,
     metadata: r.metadata ? JSON.stringify(r.metadata) : null,
     ranAt: ranAtDate,
@@ -107,7 +100,6 @@ export async function POST(req: NextRequest) {
 
   await db.insert(benchmarkRun).values(rows);
 
-  // Mark the corresponding suite run as complete if it exists
   await db
     .update(benchmarkSuiteRun)
     .set({ status: "complete", completedAt: new Date() })

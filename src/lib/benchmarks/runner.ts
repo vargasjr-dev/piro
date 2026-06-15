@@ -62,8 +62,7 @@ export async function runSuite(
             // Individual benchmark failure — record a zero score with error metadata
             result = {
               score: 0,
-              passed: false,
-              threshold: benchmark.threshold,
+              costUsd: 0,
               durationMs: 0,
               metadata: { error: String(e) },
             };
@@ -76,8 +75,7 @@ export async function runSuite(
             benchmarkName: benchmark.name,
             target: target.name,
             score: result.score,
-            threshold: result.threshold,
-            passed: result.passed,
+            costUsd: result.costUsd,
             durationMs: result.durationMs,
             metadata: JSON.stringify(result.metadata),
             ranAt,

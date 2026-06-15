@@ -1,5 +1,6 @@
 import type { BenchmarkDef, BenchmarkResult, ModelAdapter } from "./types";
 import { SeededRng } from "./rng";
+import { computeCost } from "./openai";
 
 // ── Task generation ───────────────────────────────────────────────────────────
 
@@ -25,7 +26,6 @@ function makeEasyTask(rng: SeededRng): ArithmeticTask {
   const a = rng.randint(1, 20);
   const b = rng.randint(1, 20);
   const op = rng.choice(EASY_OPS);
-  // avoid division by zero for //
   const safeB = op === "//" ? Math.max(b, 1) : b;
   const answer = applyOp(a, safeB, op);
   const expr = op === "//" ? `${a} // ${safeB}` : `${a} ${op} ${safeB}`;
@@ -89,25 +89,29 @@ export function makeAdaptiveCompute(opts?: {
 
   return {
     name: "AdaptiveCompute",
-    threshold: 0.6,
 
     async run(model: ModelAdapter): Promise<BenchmarkResult> {
       const start = Date.now();
 
       let easyCorrect = 0;
+      let totalInputTokens = 0;
+      let totalOutputTokens = 0;
       const easyLatencies: number[] = [];
       const failureExamples: string[] = [];
 
       for (const task of easyTasks) {
         const t0 = Date.now();
-        const response = await model.generate(task.prompt);
+        const result = await model.generate(task.prompt);
         easyLatencies.push(Date.now() - t0);
-        const predicted = parseIntAnswer(response);
+        totalInputTokens += result.inputTokens;
+        totalOutputTokens += result.outputTokens;
+
+        const predicted = parseIntAnswer(result.text);
         if (predicted === task.answer) {
           easyCorrect++;
         } else if (failureExamples.length < 2) {
           failureExamples.push(
-            `[easy] expected ${task.answer}, got "${response.slice(0, 40)}"`,
+            `[easy] expected ${task.answer}, got "${result.text.slice(0, 40)}"`,
           );
         }
       }
@@ -117,14 +121,17 @@ export function makeAdaptiveCompute(opts?: {
 
       for (const task of hardTasks) {
         const t0 = Date.now();
-        const response = await model.generate(task.prompt);
+        const result = await model.generate(task.prompt);
         hardLatencies.push(Date.now() - t0);
-        const predicted = parseIntAnswer(response);
+        totalInputTokens += result.inputTokens;
+        totalOutputTokens += result.outputTokens;
+
+        const predicted = parseIntAnswer(result.text);
         if (predicted === task.answer) {
           hardCorrect++;
         } else if (failureExamples.length < 3) {
           failureExamples.push(
-            `[hard] expected ${task.answer}, got "${response.slice(0, 40)}"`,
+            `[hard] expected ${task.answer}, got "${result.text.slice(0, 40)}"`,
           );
         }
       }
@@ -141,9 +148,8 @@ export function makeAdaptiveCompute(opts?: {
 
       return {
         score,
-        passed: score >= 0.6,
-        threshold: 0.6,
         durationMs: Date.now() - start,
+        costUsd: computeCost(model.name, totalInputTokens, totalOutputTokens),
         metadata: {
           easy_correct: easyCorrect,
           easy_total: easyTasks.length,
@@ -151,7 +157,8 @@ export function makeAdaptiveCompute(opts?: {
           hard_total: hardTasks.length,
           avg_easy_ms: Math.round(avgEasy),
           avg_hard_ms: Math.round(avgHard),
-          latency_ratio: latencyRatio !== null ? Math.round(latencyRatio * 100) / 100 : null,
+          latency_ratio:
+            latencyRatio !== null ? Math.round(latencyRatio * 100) / 100 : null,
           failure_examples: failureExamples,
         },
       };

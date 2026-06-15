@@ -10,8 +10,7 @@ interface BenchmarkRunRow {
   benchmarkName: string;
   target: string;
   score: number;
-  threshold: number;
-  passed: boolean;
+  costUsd: number | null;
   durationMs: number | null;
   metadata: string | null;
   ranAt: string;
@@ -90,8 +89,6 @@ function SuiteRunCard({ run }: { run: SuiteRun }) {
   const queuedAt = new Date(run.queuedAt);
   const benchmarkTags = parseTags(run.benchmarks);
   const targetTags = parseTags(run.targets);
-  const passCount = run.results.filter((r) => r.passed).length;
-  const totalCount = run.results.length;
 
   const inner = (
     <div className="px-4 py-3.5 flex items-center gap-3">
@@ -114,13 +111,8 @@ function SuiteRunCard({ run }: { run: SuiteRun }) {
         )}
       </div>
 
-      {/* Right: pass count or chevron */}
+      {/* Right: chevron */}
       <div className="flex items-center gap-2 shrink-0">
-        {run.status === "complete" && totalCount > 0 && (
-          <span className={`text-[10px] font-medium ${passCount === totalCount ? "text-emerald-400/60" : "text-red-400/50"}`}>
-            {passCount}/{totalCount}
-          </span>
-        )}
         <svg className="w-4 h-4 text-amber-800/30" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>

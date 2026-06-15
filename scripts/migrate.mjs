@@ -120,4 +120,10 @@ console.log("✓ benchmark_suite_run table");
 await sql`CREATE INDEX IF NOT EXISTS bsr_user_queued ON benchmark_suite_run ("userId", "queuedAt" DESC)`;
 console.log("✓ benchmark_suite_run index");
 
+// ── benchmark_run: drop threshold/passed, add costUsd ────────────────────────
+await sql`ALTER TABLE benchmark_run DROP COLUMN IF EXISTS threshold`;
+await sql`ALTER TABLE benchmark_run DROP COLUMN IF EXISTS passed`;
+await sql`ALTER TABLE benchmark_run ADD COLUMN IF NOT EXISTS "costUsd" REAL`;
+console.log("✓ benchmark_run schema: dropped threshold/passed, added costUsd");
+
 console.log("Migrations complete ✓");
