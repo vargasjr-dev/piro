@@ -85,9 +85,7 @@ const SOURCE_CONFIGS = {
   "sorting-sequences": {
     scriptPath: "model/data/sequences.py",
     trainArgs: ["--split", "train", "--n", "5000", "--seed", "42"],
-    testArgs:  ["--split", "test",  "--n", "1000", "--seed", "42"],
     trainCount: 5000,
-    testCount: 1000,
   },
 };
 
@@ -134,18 +132,14 @@ console.log("  Generating train split (5000 samples)…");
 const trainJsonl = runPython(config.trainArgs);
 console.log(`  ✓ ${trainJsonl.split("\n").filter(Boolean).length} train samples`);
 
-console.log("  Generating test split (1000 samples)…");
-const testJsonl = runPython(config.testArgs);
-console.log(`  ✓ ${testJsonl.split("\n").filter(Boolean).length} test samples`);
-
 // ── Build metadata.json ───────────────────────────────────────────────────────
 
 const metadata = {
   id: sourceIdArg,
   generatedAt: new Date().toISOString(),
   trainCount: config.trainCount,
-  testCount: config.testCount,
   seed: 42,
+  note: "No test split — benchmarks define their own eval datasets.",
   scriptPath: config.scriptPath,
 };
 
@@ -157,9 +151,6 @@ const dataPrefix = `${userId}/${r2Prefix}data/`;
 
 await r2Upload(`${dataPrefix}train.jsonl`, trainJsonl, "application/x-ndjson");
 console.log(`  ✓ ${userId}/${r2Prefix}data/train.jsonl`);
-
-await r2Upload(`${dataPrefix}test.jsonl`, testJsonl, "application/x-ndjson");
-console.log(`  ✓ ${userId}/${r2Prefix}data/test.jsonl`);
 
 await r2Upload(`${dataPrefix}metadata.json`, JSON.stringify(metadata, null, 2), "application/json");
 console.log(`  ✓ ${userId}/${r2Prefix}data/metadata.json`);
@@ -175,11 +166,11 @@ await sql`
   SET
     "r2Prefix"    = ${r2Prefix},
     "scriptR2Key" = ${scriptR2Key},
-    "sampleCount" = ${config.trainCount + config.testCount},
+    "sampleCount" = ${config.trainCount},
     "generatedAt" = NOW()
   WHERE id = ${sourceIdArg}
 `;
 
 console.log(`\n✅ Done. DB updated for '${sourceIdArg}'.`);
 console.log(`   R2 prefix: ${userId}/${r2Prefix}`);
-console.log(`   Total samples: ${config.trainCount + config.testCount}`);
+console.log(`   Total samples: ${config.trainCount}`);

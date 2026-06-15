@@ -41,7 +41,6 @@ export async function POST(
   // ── Generate sorting-sequences inline ────────────────────────────────────────
 
   const TRAIN_N = 5000;
-  const TEST_N = 1000;
   const SEQ_LEN = 4;
   const SEED = 42;
 
@@ -73,7 +72,6 @@ export async function POST(
   }
 
   const trainJsonl = generateDataset(TRAIN_N, SEED, "train");
-  const testJsonl = generateDataset(TEST_N, SEED, "test");
 
   const r2Prefix = `sources/${id}/`;
   const dataPrefix = `${session.user.id}/${r2Prefix}data/`;
@@ -83,16 +81,15 @@ export async function POST(
     id,
     generatedAt: new Date().toISOString(),
     trainCount: TRAIN_N,
-    testCount: TEST_N,
     seed: SEED,
     sequenceLength: SEQ_LEN,
     task: "sort-ascending",
+    note: "No test split — benchmarks define their own eval datasets.",
     scriptPath: "model/data/sequences.py",
   };
 
   // Upload data files
   await r2PutText(`${dataPrefix}train.jsonl`, trainJsonl, "application/x-ndjson");
-  await r2PutText(`${dataPrefix}test.jsonl`, testJsonl, "application/x-ndjson");
   await r2PutText(`${dataPrefix}metadata.json`, JSON.stringify(metadata, null, 2), "application/json");
 
   // Upload the Python script (the source of truth for the generation logic)
@@ -108,10 +105,10 @@ export async function POST(
     .set({
       r2Prefix,
       scriptR2Key,
-      sampleCount: TRAIN_N + TEST_N,
+      sampleCount: TRAIN_N,
       generatedAt: new Date(),
     })
     .where(eq(dataSource.id, id));
 
-  return Response.json({ ok: true, sampleCount: TRAIN_N + TEST_N });
+  return Response.json({ ok: true, sampleCount: TRAIN_N });
 }
