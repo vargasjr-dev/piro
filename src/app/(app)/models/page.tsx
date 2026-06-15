@@ -169,9 +169,6 @@ export default async function ModelsPage() {
     benchmarkRunCount: countByTarget[m.id] ?? 0,
   }));
 
-  const hostedModels = rows.filter((m) => m.hostedApi);
-  const trainedModels = rows.filter((m) => m.trainingRunId);
-
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header */}
@@ -182,42 +179,23 @@ export default async function ModelsPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-8">
-        {/* Trained models */}
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest px-1">
-            Piro Trained
-          </h2>
-          {trainedModels.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center rounded-xl border border-dashed border-amber-900/25">
-              <p className="text-xs text-amber-600/40">No trained models yet.</p>
-              <Link
-                href="/training/new"
-                className="mt-3 text-xs text-orange-400/60 hover:text-orange-300/80 transition-colors"
-              >
-                Start a training run →
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {trainedModels.map((m) => <ModelCard key={m.id} m={m} />)}
-            </div>
-          )}
-        </section>
-
-        {/* Hosted API models */}
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest px-1">
-            Hosted APIs
-          </h2>
-          {hostedModels.length === 0 ? (
-            <p className="text-xs text-amber-700/30 px-1">No hosted models configured.</p>
-          ) : (
-            <div className="space-y-3">
-              {hostedModels.map((m) => <ModelCard key={m.id} m={m} />)}
-            </div>
-          )}
-        </section>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center min-h-[280px] text-center">
+            <p className="text-sm font-semibold text-amber-200/60">No models yet</p>
+            <p className="text-xs text-amber-600/40 mt-1 mb-5 max-w-xs">
+              Start a training run or configure a hosted API.
+            </p>
+            <Link
+              href="/training/new"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-orange-500/30 bg-orange-500/10 text-sm font-semibold text-amber-100 hover:bg-orange-500/20 transition-colors"
+            >
+              Start a training run →
+            </Link>
+          </div>
+        ) : (
+          rows.map((m) => <ModelCard key={m.id} m={m} />)
+        )}
       </div>
     </div>
   );
