@@ -1,10 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "~/lib/auth.server";
 import { headers } from "next/headers";
+import { createSign } from "crypto";
 
 const REPO_OWNER = "vargasjr-dev";
 const REPO_NAME = "piro";
 const WORKFLOW_ID = "benchmark.yml";
+const INSTALLATION_ID = "97994364"; // vargasjr-dev org
+
+// ── GitHub App auth ───────────────────────────────────────────────────────────
+
+function makeJWT(appId: string, privateKey: string): string {
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(
+    JSON.stringify({ alg: "RS256", typ: "JWT" }),
+  ).toString("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({ iat: now - 60, exp: now + 600, iss: appId }),
+  ).toString("base64url");
+  const unsigned = `${header}.${payload}`;
+  const sign = createSign("RSA-SHA256");
+  sign.update(unsigned);
+  return `${unsigned}.${sign.sign(privateKey, "base64url")}`;
+}
+
+async function getInstallationToken(
+  appId: string,
+  privateKey: string,
+): Promise<string> {
+  const jwt = makeJWT(appId, privateKey);
+  const res = await fetch(
+    `https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `Failed to get installation token: ${res.status} ${await res.text()}`,
+    );
+  }
+  const data = (await res.json()) as { token: string };
+  return data.token;
+}
 
 // ── POST /api/benchmarks/trigger — dispatch a benchmark run via GitHub Actions ─
 
@@ -13,10 +56,22 @@ export async function POST(req: NextRequest) {
   if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const token = process.env.GITHUB_DISPATCH_TOKEN;
-  if (!token) {
+  const appId = process.env.GITHUB_APP_ID;
+  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+  if (!appId || !privateKey) {
     return NextResponse.json(
-      { error: "GITHUB_DISPATCH_TOKEN not configured" },
+      { error: "GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY not configured" },
+      { status: 503 },
+    );
+  }
+
+  let token: string;
+  try {
+    token = await getInstallationToken(appId, privateKey);
+  } catch (e) {
+    console.error("[benchmarks/trigger] App auth failed:", e);
+    return NextResponse.json(
+      { error: "GitHub App authentication failed" },
       { status: 503 },
     );
   }
@@ -49,7 +104,11 @@ export async function POST(req: NextRequest) {
 
   if (!res.ok) {
     const text = await res.text();
-    console.error("[benchmarks/trigger] GitHub dispatch failed:", res.status, text);
+    console.error(
+      "[benchmarks/trigger] GitHub dispatch failed:",
+      res.status,
+      text,
+    );
     return NextResponse.json(
       { error: `GitHub dispatch failed (${res.status})` },
       { status: res.status },
