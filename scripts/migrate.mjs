@@ -126,4 +126,91 @@ await sql`ALTER TABLE benchmark_run DROP COLUMN IF EXISTS passed`;
 await sql`ALTER TABLE benchmark_run ADD COLUMN IF NOT EXISTS "costUsd" REAL`;
 console.log("✓ benchmark_run schema: dropped threshold/passed, added costUsd");
 
+// ── training_run table ────────────────────────────────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS training_run (
+    id                  TEXT        PRIMARY KEY,
+    "userId"            TEXT        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    "modelTemplate"     TEXT        NOT NULL,
+    "dataSource"        TEXT        NOT NULL,
+    status              TEXT        NOT NULL DEFAULT 'queued',
+    epochs              INTEGER     NOT NULL DEFAULT 10,
+    "configJson"        TEXT,
+    "finalTrainLoss"    REAL,
+    "finalValLoss"      REAL,
+    "finalValAccuracy"  REAL,
+    error               TEXT,
+    "queuedAt"          TIMESTAMP   NOT NULL DEFAULT NOW(),
+    "completedAt"       TIMESTAMP
+  )
+`;
+await sql`CREATE INDEX IF NOT EXISTS tr_user_queued ON training_run ("userId", "queuedAt" DESC)`;
+console.log("✓ training_run table");
+
+// ── model table ───────────────────────────────────────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS model (
+    id                TEXT        PRIMARY KEY,
+    "userId"          TEXT        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    name              TEXT        NOT NULL,
+    description       TEXT,
+    "parameterCount"  INTEGER,
+    "createdAt"       TIMESTAMP   NOT NULL DEFAULT NOW()
+  )
+`;
+await sql`CREATE INDEX IF NOT EXISTS m_user_created ON model ("userId", "createdAt" DESC)`;
+console.log("✓ model table");
+
+// ── model_training_run table ──────────────────────────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS model_training_run (
+    id              TEXT  PRIMARY KEY,
+    "modelId"       TEXT  NOT NULL UNIQUE REFERENCES model(id) ON DELETE CASCADE,
+    "trainingRunId" TEXT  NOT NULL REFERENCES training_run(id) ON DELETE CASCADE
+  )
+`;
+console.log("✓ model_training_run table");
+
+// ── model_hosted_api table ────────────────────────────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS model_hosted_api (
+    id              TEXT  PRIMARY KEY,
+    "modelId"       TEXT  NOT NULL UNIQUE REFERENCES model(id) ON DELETE CASCADE,
+    provider        TEXT  NOT NULL,
+    "apiModelName"  TEXT  NOT NULL,
+    "apiKeyEnvVar"  TEXT  NOT NULL
+  )
+`;
+console.log("✓ model_hosted_api table");
+
+// ── seed hosted models for existing users ─────────────────────────────────────
+// Model IDs match benchmark_run.target values so counts join correctly.
+await sql`
+  INSERT INTO model (id, "userId", name, description, "createdAt")
+  SELECT 'gpt-4o-mini', id, 'GPT-4o Mini', 'OpenAI GPT-4o Mini — fast, cheap baseline', NOW()
+  FROM "user"
+  WHERE NOT EXISTS (SELECT 1 FROM model WHERE id = 'gpt-4o-mini')
+  LIMIT 1
+`;
+await sql`
+  INSERT INTO model_hosted_api (id, "modelId", provider, "apiModelName", "apiKeyEnvVar")
+  VALUES ('gpt-4o-mini-api', 'gpt-4o-mini', 'openai', 'gpt-4o-mini', 'OPENAI_API_KEY')
+  ON CONFLICT DO NOTHING
+`;
+console.log("✓ seeded model: gpt-4o-mini");
+
+await sql`
+  INSERT INTO model (id, "userId", name, description, "createdAt")
+  SELECT 'gpt-4o', id, 'GPT-4o', 'OpenAI GPT-4o — strongest baseline', NOW()
+  FROM "user"
+  WHERE NOT EXISTS (SELECT 1 FROM model WHERE id = 'gpt-4o')
+  LIMIT 1
+`;
+await sql`
+  INSERT INTO model_hosted_api (id, "modelId", provider, "apiModelName", "apiKeyEnvVar")
+  VALUES ('gpt-4o-api', 'gpt-4o', 'openai', 'gpt-4o', 'OPENAI_API_KEY')
+  ON CONFLICT DO NOTHING
+`;
+console.log("✓ seeded model: gpt-4o");
+
 console.log("Migrations complete ✓");

@@ -175,6 +175,85 @@ export const benchmarkSuiteRun = pgTable(
 );
 
 /**
+ * A training run: one invocation of model/trainer.py against a model template + data source.
+ * Created from the UI; execution is delegated to the Python environment.
+ */
+export const trainingRun = pgTable(
+  "training_run",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    modelTemplate: text("modelTemplate").notNull(), // 'ctm' | 'baseline-transformer'
+    dataSource: text("dataSource").notNull(),        // 'sorting-sequences'
+    status: text("status").notNull().default("queued"), // 'queued' | 'running' | 'complete' | 'error'
+    epochs: integer("epochs").notNull().default(10),
+    configJson: text("configJson"),                 // JSON snapshot of hyperparams used
+    finalTrainLoss: real("finalTrainLoss"),
+    finalValLoss: real("finalValLoss"),
+    finalValAccuracy: real("finalValAccuracy"),
+    error: text("error"),
+    queuedAt: timestamp("queuedAt").notNull().defaultNow(),
+    completedAt: timestamp("completedAt"),
+  },
+  (t) => [
+    index("tr_user_queued").on(t.userId, t.queuedAt),
+  ]
+);
+
+/**
+ * A model — either a Piro-trained model or a hosted API model.
+ * Discriminated by presence of a model_training_run or model_hosted_api row.
+ */
+export const model = pgTable(
+  "model",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    parameterCount: integer("parameterCount"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [
+    index("m_user_created").on(t.userId, t.createdAt),
+  ]
+);
+
+/**
+ * 1:1 link between a model and the training run that produced it.
+ * Presence of this row means the model is Piro-trained.
+ */
+export const modelTrainingRun = pgTable("model_training_run", {
+  id: text("id").primaryKey(),
+  modelId: text("modelId")
+    .notNull()
+    .unique()
+    .references(() => model.id, { onDelete: "cascade" }),
+  trainingRunId: text("trainingRunId")
+    .notNull()
+    .references(() => trainingRun.id, { onDelete: "cascade" }),
+});
+
+/**
+ * 1:1 link between a model and its hosted API config.
+ * Presence of this row means the model is a hosted external API.
+ */
+export const modelHostedApi = pgTable("model_hosted_api", {
+  id: text("id").primaryKey(),
+  modelId: text("modelId")
+    .notNull()
+    .unique()
+    .references(() => model.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),        // 'openai' | 'anthropic'
+  apiModelName: text("apiModelName").notNull(), // 'gpt-4o-mini' | 'gpt-4o'
+  apiKeyEnvVar: text("apiKeyEnvVar").notNull(), // 'OPENAI_API_KEY'
+});
+
+/**
  * Lightweight index of files stored in R2.
  * Content lives in R2 at `r2Key` — this table is metadata only,
  * used for "recent items" listings without hitting R2.
