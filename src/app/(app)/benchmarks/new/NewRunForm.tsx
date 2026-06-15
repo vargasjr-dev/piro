@@ -278,7 +278,7 @@ export default function NewRunForm() {
 
       {/* Info note */}
       <p className="text-[11px] text-amber-700/30 leading-relaxed">
-        Runs execute in GitHub Actions (~2 min). Results appear in the benchmarks list automatically.
+        Results appear in the benchmarks list automatically once the run completes.
       </p>
     </div>
   );
