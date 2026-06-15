@@ -121,6 +121,35 @@ export const syncJob = pgTable(
 );
 
 /**
+ * One row per (benchmark × target) result from a run_benchmarks.py invocation.
+ * Multiple rows with the same suiteRunId form one "suite run".
+ * The Python script POSTs these via /api/benchmark-runs after finishing.
+ */
+export const benchmarkRun = pgTable(
+  "benchmark_run",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    suiteRunId: text("suiteRunId").notNull(),   // groups all rows from one script invocation
+    benchmarkName: text("benchmarkName").notNull(), // e.g. "OODGeneralization"
+    target: text("target").notNull(),           // "gpt-4o-mini" | "gpt-4o" | "piro-student"
+    score: real("score").notNull(),             // 0.0 → 1.0
+    threshold: real("threshold").notNull(),
+    passed: boolean("passed").notNull(),
+    durationMs: integer("durationMs"),
+    metadata: text("metadata"),                 // JSON blob from BenchmarkResult.metadata
+    ranAt: timestamp("ranAt").notNull().defaultNow(),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [
+    index("br_user_bench_ran").on(t.userId, t.benchmarkName, t.ranAt),
+    index("br_suite").on(t.suiteRunId),
+  ],
+);
+
+/**
  * Lightweight index of files stored in R2.
  * Content lives in R2 at `r2Key` — this table is metadata only,
  * used for "recent items" listings without hitting R2.

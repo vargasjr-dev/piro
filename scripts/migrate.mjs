@@ -41,6 +41,29 @@ await sql`CREATE UNIQUE INDEX IF NOT EXISTS fi_r2key ON file_index ("r2Key")`;
 await sql`CREATE INDEX IF NOT EXISTS fi_user_created ON file_index ("userId", "createdAt")`;
 console.log("✓ file_index indexes");
 
+// ── benchmark_run table ───────────────────────────────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS benchmark_run (
+    id                TEXT        PRIMARY KEY,
+    "userId"          TEXT        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    "suiteRunId"      TEXT        NOT NULL,
+    "benchmarkName"   TEXT        NOT NULL,
+    target            TEXT        NOT NULL,
+    score             REAL        NOT NULL,
+    threshold         REAL        NOT NULL,
+    passed            BOOLEAN     NOT NULL,
+    "durationMs"      INTEGER,
+    metadata          TEXT,
+    "ranAt"           TIMESTAMP   NOT NULL DEFAULT NOW(),
+    "createdAt"       TIMESTAMP   NOT NULL DEFAULT NOW()
+  )
+`;
+console.log("✓ benchmark_run table");
+
+await sql`CREATE INDEX IF NOT EXISTS br_user_bench_ran ON benchmark_run ("userId", "benchmarkName", "ranAt" DESC)`;
+await sql`CREATE INDEX IF NOT EXISTS br_suite ON benchmark_run ("suiteRunId")`;
+console.log("✓ benchmark_run indexes");
+
 // ── mentor table ─────────────────────────────────────────────────────────────
 await sql`
   CREATE TABLE IF NOT EXISTS mentor (

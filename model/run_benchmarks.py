@@ -18,11 +18,16 @@ Usage
     python model/run_benchmarks.py --dry-run
 
     # Run only specific benchmarks by name:
-    python model/run_benchmarks.py --only SanityCheck
+    python model/run_benchmarks.py --benchmark SanityCheck
+
+    # POST results to the Piro web app after running:
+    python model/run_benchmarks.py --post-url https://piro-henna.vercel.app --post-token <session-token>
 
 Environment variables
 ---------------------
 OPENAI_API_KEY   Required for GPT baselines (skipped automatically in --dry-run)
+PIRO_POST_URL    Default base URL for --post-url (overridden by flag)
+PIRO_POST_TOKEN  Default session token for --post-token (overridden by flag)
 """
 
 from __future__ import annotations
@@ -287,6 +292,18 @@ def main() -> None:
         choices=["gpt-4o-mini", "gpt-4o", "piro-student"],
         help="Run against a single target: gpt-4o-mini | gpt-4o | piro-student",
     )
+    parser.add_argument(
+        "--post-url",
+        metavar="URL",
+        default=os.environ.get("PIRO_POST_URL"),
+        help="Base URL of the Piro web app — results are POSTed to <URL>/api/benchmark-runs",
+    )
+    parser.add_argument(
+        "--post-token",
+        metavar="TOKEN",
+        default=os.environ.get("PIRO_POST_TOKEN"),
+        help="better-auth session token (value of 'better-auth.session_token' cookie)",
+    )
     args = parser.parse_args()
 
     filter_name = args.benchmark or args.only
@@ -350,6 +367,68 @@ def main() -> None:
     latest.write_text(payload)
 
     print(f"Results saved to {latest.relative_to(ROOT.parent)}")
+
+    # ── Optional: POST results to Piro web app ────────────────────────────────
+    if args.post_url and args.post_token:
+        _post_results(
+            base_url=args.post_url.rstrip("/"),
+            token=args.post_token,
+            suite_run_id=ts,
+            ran_at=all_results["run_at"],
+            target_rows=target_rows,
+            benchmarks=benchmarks,
+        )
+    elif args.post_url and not args.post_token:
+        print("⚠  --post-url set but --post-token missing — skipping POST")
+
+
+def _post_results(
+    base_url: str,
+    token: str,
+    suite_run_id: str,
+    ran_at: str,
+    target_rows: list[tuple[str, list[dict[str, Any]]]],
+    benchmarks: list[Benchmark],
+) -> None:
+    """POST benchmark results to /api/benchmark-runs on the Piro web app."""
+    # Flatten target_rows into a list of result dicts
+    threshold_map = {b.name: b.threshold for b in benchmarks}
+
+    results: list[dict[str, Any]] = []
+    for target_label, rows in target_rows:
+        for row in rows:
+            results.append(
+                {
+                    "benchmarkName": row["benchmark"],
+                    "target": target_label,
+                    "score": row["score"],
+                    "threshold": threshold_map.get(row["benchmark"], row["threshold"]),
+                    "passed": row["passed"],
+                    "durationMs": int(row["duration_s"] * 1000),
+                    "metadata": row["metadata"],
+                }
+            )
+
+    payload = json.dumps(
+        {"suiteRunId": suite_run_id, "ranAt": ran_at, "results": results}
+    ).encode()
+
+    req = urllib.request.Request(
+        f"{base_url}/api/benchmark-runs",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Cookie": f"better-auth.session_token={token}",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read())
+        print(f"✓ Posted {body.get('inserted', '?')} result(s) to {base_url}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"⚠  Failed to POST results: {exc}")
 
 
 if __name__ == "__main__":

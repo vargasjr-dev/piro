@@ -31,23 +31,25 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: "Students",
-    shortLabel: "Students",
-    href: "/students",
+    label: "Models",
+    shortLabel: "Models",
+    href: "/models",
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-        <path d="M6 12v5c3 3 9 3 12 0v-5" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
       </svg>
     ),
   },
   {
-    label: "Mentors",
-    shortLabel: "Mentors",
-    href: "/mentors",
+    label: "Benchmarks",
+    shortLabel: "Benchmarks",
+    href: "/benchmarks",
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
       </svg>
     ),
   },

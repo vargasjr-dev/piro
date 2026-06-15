@@ -38,9 +38,8 @@ export default async function HomePage() {
         </h1>
 
         <p className="text-amber-200/60 text-lg mb-12 leading-relaxed">
-          Train a tiny, RL-first model from scratch using your own knowledge as
-          the reward signal. It learns your preferences, grows over time, and
-          never forgets.
+          A personal model that thinks continuously, learns from your knowledge,
+          and compounds over time — without ever forgetting.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">

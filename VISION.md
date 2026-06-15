@@ -118,6 +118,57 @@ Scoped out of personal OS — standalone web app first. Core primitives:
 
 ---
 
+## Benchmarks
+
+Eight benchmarks that validate the CTM-style architectural thesis and tell a coherent story about personal intelligence. Built to prove that a small, architecturally honest model beats a large, brute-force one.
+
+| # | Name | Question | Why It Matters for Piro |
+|---|---|---|---|
+| 1 | **Adaptive Compute Efficiency** | Does the model think as hard as the problem requires — no more, no less? | Personal devices can't waste compute. Adaptive ticks = economic advantage. |
+| 2 | **OOD Generalization to Scale** | Trained on size N, tested on 4–10× N — did the model learn the rule or memorize examples? | Personal data is sparse by definition. Generalization from few examples is everything. |
+| 3 | **Calibration Accuracy** | When the model says 70% confident, is it right 70% of the time? | A personal AI that hallucinates with full confidence is dangerous. Trustworthiness requires calibration. |
+| 4 | **Constraint Satisfaction Under Backtracking** | Jones's Sudoku Bench — handcrafted variant Sudokus from Cracking the Cryptic. Current LLMs: ~15%. Humans: routine. | Tests genuine iterative reasoning. Transformers fail because one forward pass = no backtracking. CTMs iterate. |
+| 5 | **Personalization Flywheel** | How fast does the model get useful on YOUR data? Accuracy at 10/50/500 personal facts vs. a frozen pretrained baseline. | This is the core Piro thesis operationalized. |
+| 6 | **Sequential Procedure Following** | Multi-step instructions present in context — can the model execute the right step at the right time without losing the thread? | Real personal intelligence is "help me do this." Working memory and internal state maintenance across time. |
+| 7 | **Catastrophic Forgetting Resistance** | Teach Corpus A, then Corpus B — how much of A survives? | If Piro learns your new job and forgets your wife's food allergies, it's broken. |
+| 8 | **LLM Head-to-Head** | ARC-Challenge slice: can a 10M-param CTM get within 10–15 points of a 7B transformer at 1/700th the parameter count? | The press release benchmark. The headline: *"Piro matches GPT-4o performance-per-parameter by 5×."* |
+
+---
+
+## Architecture Research Roadmap
+
+The Piro model is not a transformer fine-tune. It is a ground-up architecture built on what neuroscience actually tells us neurons do — implemented incrementally as each translation from biology to code becomes scientifically feasible.
+
+**The thesis:** Biological intelligence doesn't correlate with raw neuron count (research shows r ≈ 0). AI intelligence shouldn't require raw parameter count either. What matters is *how* units are organized and *how* they communicate. That's the architecture bet.
+
+### The Seven Behaviors — Research Phases
+
+| Phase | Neuron Behavior | What We Build | Status |
+|---|---|---|---|
+| 0 | **Firing rate + Spike timing** | CTM from scratch: per-neuron history + synchronization matrix as representation + adaptive ticks | 🎯 Current |
+| 1 | **Burst patterns** | Variable output sequence per neuron per step — neuron emits a short sequence shape, not just one float | Next |
+| 2 | **Hebbian plasticity** | Local weight update rules alongside backprop — prevents catastrophic forgetting, enables the personalization flywheel | Critical for Piro moat |
+| 3 | **Dendritic spikes** | Multi-compartment neurons: internal branches vote before the neuron produces output — one neuron = small network | Medium-term |
+| 4 | **Oscillatory entrainment** | Global rhythm vectors that gate neuron participation — dynamic network reorganization by task type | Hard |
+| 5 | **Neuromodulation** | Dynamic meta-parameters controlling plasticity — the model learns to control its own learning rate | Hard |
+
+### Build Principles
+- **From scratch, not a fork.** We borrow from Sakana's CTM paper conceptually. We write every line ourselves. This is how we learn the architecture deeply enough to evolve it beyond what Sakana published.
+- **Benchmarks are the only proof.** The only valid evidence of progress beyond the transformer is benchmark results. Every phase ships with before/after scores. No benchmark score = no phase complete.
+- **Phases complete on evidence, not time.** Each phase closes when benchmarks prove the feature works. No artificial deadlines.
+
+### The Efficiency Bet
+
+The human brain runs at 20W and performs ~10¹⁵–10¹⁷ FLOP-equivalents/second. An H100 GPU runs at 700W at ~2×10¹⁵ FLOPS. The brain is roughly 1,000–2,000× more compute-efficient per watt. That gap is the prize.
+
+Closing it requires two things:
+1. **Right architecture** (what we're building in Phases 0–5) → estimated 10–100× gain on existing hardware through sparsity and adaptive compute
+2. **Right hardware** (neuromorphic chips, long-term) → the remaining 10–100× multiplier
+
+Phases 0–5 target the software gains. Hardware is the Phase 4 product milestone (Own Hardware).
+
+---
+
 ## What We're Not Doing
 
 - Not trying to out-data the big labs on pretraining corpora
@@ -129,7 +180,7 @@ Scoped out of personal OS — standalone web app first. Core primitives:
 
 ## The One-Sentence Version
 
-> A tiny model trained from scratch via RL, using the owner's own knowledge base as the reward signal, that builds compounding personal intelligence over time — eventually running as the kernel of a sovereign personal OS.
+> A tiny model built from scratch on a new architecture — biologically honest, not transformer-derived — trained via RL on the owner's own knowledge, that builds compounding personal intelligence at a fraction of the compute cost of any frontier model.
 
 ---
 
@@ -188,4 +239,5 @@ Modal A100/H100 (on-demand)
 ---
 
 *Started: May 30, 2026*
-*Status: Pre-naming, pre-implementation — vision locked. Compute infra decided June 6, 2026.*
+*Architecture thesis locked: June 14, 2026 — CTM-inspired, built from scratch, 7-phase neuroscience roadmap.*
+*Status: Phase 0 starting — CTM implementation + benchmark runner.*
