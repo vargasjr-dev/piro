@@ -141,6 +141,35 @@ describe("tickLoop — tick count logging", () => {
   });
 });
 
+// ── Termination conditions ─────────────────────────────────────────────────────
+
+describe("tickLoop — termination conditions", () => {
+  test("tickLoop_TrivialInput_TerminatesEarlyBelowMaxTicks", () => {
+    // A trivially simple input: threshold=0 guarantees the very first tick
+    // produces confidence > 0 (sigmoid is always positive), so we stop at tick 1.
+    const { attention, confHead } = makeComponents();
+    const result = tickLoop(attention, confHead, EMBEDDINGS, N_NEURONS, {
+      maxTicks: MAX_TICKS,
+      confidenceThreshold: 0, // any confidence suffices
+    });
+    expect(result.converged).toBe(true);
+    expect(result.ticksRun).toBeLessThan(MAX_TICKS);
+  });
+
+  test("tickLoop_UntrainedWeightsHighThreshold_RunsToMaxTicks", () => {
+    // With random (untrained) weights and an unreachable threshold (sigmoid < 1 always),
+    // the loop must run to exactly MAX_TICKS without ever converging.
+    const maxTicks = MAX_TICKS;
+    const { attention, confHead } = makeComponents(999); // different seed = "random" weights
+    const result = tickLoop(attention, confHead, EMBEDDINGS, N_NEURONS, {
+      maxTicks,
+      confidenceThreshold: 1.0, // unreachable — sigmoid output is always < 1
+    });
+    expect(result.converged).toBe(false);
+    expect(result.ticksRun).toBe(maxTicks);
+  });
+});
+
 // ── Determinism ───────────────────────────────────────────────────────────────
 
 describe("tickLoop — determinism", () => {
