@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -255,15 +255,99 @@ function RunHistoryPanel({
         )}
       </div>
 
-      {/* Footer: how to create a new run */}
-      <div className="px-5 pb-5 pt-3 shrink-0 border-t border-amber-900/20">
+      {/* Footer: kick off a new run */}
+      <div className="px-5 pb-5 pt-3 shrink-0 border-t border-amber-900/20 flex items-center justify-between">
         <p className="text-[10px] text-amber-700/35 leading-relaxed">
-          To record a new run, run the benchmark script with your session token:
+          Kick off a new run via GitHub Actions:
         </p>
-        <code className="block mt-1.5 text-[10px] text-orange-400/60 font-mono bg-amber-900/15 rounded-lg px-3 py-2 break-all">
-          bun run bench --post-url https://piro-henna.vercel.app --post-token &lt;token&gt;
-        </code>
+        <RunButton compact />
       </div>
+    </div>
+  );
+}
+
+// ── Run button ────────────────────────────────────────────────────────────────
+
+type RunStatus = "idle" | "loading" | "queued" | "error";
+
+function RunButton({ compact = false }: { compact?: boolean }) {
+  const [status, setStatus] = useState<RunStatus>("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleRun = useCallback(async () => {
+    if (status === "loading") return;
+    setStatus("loading");
+    setErrorMsg(null);
+    try {
+      const res = await fetch("/api/benchmarks/trigger", { method: "POST" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error((j as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+      setStatus("queued");
+      timerRef.current = setTimeout(() => setStatus("idle"), 4000);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "Unknown error");
+      setStatus("error");
+      timerRef.current = setTimeout(() => {
+        setStatus("idle");
+        setErrorMsg(null);
+      }, 6000);
+    }
+  }, [status]);
+
+  // Clean up timer on unmount
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  const label =
+    status === "loading" ? "Queuing…" :
+    status === "queued"  ? "Queued ✓" :
+    status === "error"   ? "Failed" :
+    "Run benchmarks";
+
+  const colorCls =
+    status === "queued" ? "bg-emerald-900/40 border-emerald-800/40 text-emerald-300/80" :
+    status === "error"  ? "bg-red-900/30 border-red-800/30 text-red-300/80" :
+    "bg-amber-900/20 border-amber-800/30 text-amber-300/70 hover:bg-amber-900/35 hover:text-amber-200/90";
+
+  return (
+    <div className={compact ? "flex items-center gap-2" : "flex flex-col items-center gap-2"}>
+      <button
+        onClick={handleRun}
+        disabled={status === "loading" || status === "queued"}
+        className={`
+          flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium
+          transition-colors disabled:cursor-not-allowed
+          ${colorCls}
+        `}
+      >
+        {status === "loading" ? (
+          <svg className="animate-spin w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        ) : status === "queued" ? (
+          <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        ) : (
+          <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 0 1 0 1.971l-11.54 6.347a1.125 1.125 0 0 1-1.667-.985V5.653z" />
+          </svg>
+        )}
+        {label}
+      </button>
+      {status === "queued" && (
+        <p className={`text-[10px] text-amber-600/40 ${compact ? "" : "text-center"}`}>
+          Results appear in ~2 min
+        </p>
+      )}
+      {status === "error" && errorMsg && (
+        <p className={`text-[10px] text-red-400/60 max-w-xs ${compact ? "" : "text-center"}`}>
+          {errorMsg}
+        </p>
+      )}
     </div>
   );
 }
@@ -280,14 +364,10 @@ function EmptyState() {
       </svg>
       <p className="text-sm font-semibold text-amber-200/60">No benchmark data yet</p>
       <p className="text-xs text-amber-600/40 mt-1 max-w-xs">
-        Run the benchmark script with <code className="font-mono text-orange-400/60">--post-url</code> to
-        start recording results here.
+        Kick off a run to start recording results here.
       </p>
-      <div className="mt-4 bg-amber-900/15 border border-amber-900/25 rounded-xl px-4 py-3 text-left max-w-sm">
-        <p className="text-[10px] text-amber-600/40 mb-1.5">Quick start:</p>
-        <code className="text-[10px] text-orange-400/60 font-mono leading-relaxed">
-          bun run bench --dry-run --post-url https://piro-henna.vercel.app --post-token &lt;token&gt;
-        </code>
+      <div className="mt-5">
+        <RunButton />
       </div>
     </div>
   );
@@ -326,10 +406,11 @@ export default function BenchmarkDashboard({
           ${showPanel ? "w-72 shrink-0 hidden lg:flex" : "flex-1"}
         `}
       >
-        <div className="px-5 py-3.5 border-b border-amber-900/15 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-amber-900/15 shrink-0">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-600/40">
             {benchmarkNames.length} benchmark{benchmarkNames.length === 1 ? "" : "s"}
           </span>
+          <RunButton compact />
         </div>
         <div className="flex-1 p-4 space-y-2 overflow-y-auto">
           {benchmarkNames.map((name) => (

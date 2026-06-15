@@ -56,10 +56,28 @@ export async function GET() {
 }
 
 // ── POST /api/benchmark-runs — ingest results from run_benchmarks.py ─────────
+// Accepts either:
+//   a) A valid better-auth session cookie (browser / --post-token)
+//   b) Authorization: Bearer <BENCHMARK_API_KEY> (GitHub Actions / --post-key)
+
+async function resolveUserId(req: NextRequest): Promise<string | null> {
+  // 1. API key auth (CI / GitHub Actions)
+  const apiKey = process.env.BENCHMARK_API_KEY;
+  const authHeader = req.headers.get("authorization");
+  if (apiKey && authHeader === `Bearer ${apiKey}`) {
+    // API key is user-scoped: key encodes userId as <userId>:<secret>
+    const userId = apiKey.split(":")[0];
+    if (userId) return userId;
+  }
+
+  // 2. Session cookie auth (browser)
+  const session = await auth.api.getSession({ headers: await headers() });
+  return session?.user.id ?? null;
+}
 
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session)
+  const userId = await resolveUserId(req);
+  if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
@@ -75,7 +93,7 @@ export async function POST(req: NextRequest) {
 
   const rows = results.map((r) => ({
     id: crypto.randomUUID(),
-    userId: session.user.id,
+    userId,
     suiteRunId,
     benchmarkName: r.benchmarkName,
     target: r.target,

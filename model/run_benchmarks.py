@@ -306,6 +306,12 @@ def main() -> None:
         default=os.environ.get("PIRO_POST_TOKEN"),
         help="better-auth session token (value of 'better-auth.session_token' cookie)",
     )
+    parser.add_argument(
+        "--post-key",
+        metavar="KEY",
+        default=os.environ.get("PIRO_POST_KEY"),
+        help="BENCHMARK_API_KEY for CI/GitHub Actions (sent as Authorization: Bearer header)",
+    )
     args = parser.parse_args()
 
     filter_name = args.benchmark or args.only
@@ -371,22 +377,24 @@ def main() -> None:
     print(f"Results saved to {latest.relative_to(ROOT.parent)}")
 
     # ── Optional: POST results to Piro web app ────────────────────────────────
-    if args.post_url and args.post_token:
+    if args.post_url and (args.post_token or args.post_key):
         _post_results(
             base_url=args.post_url.rstrip("/"),
             token=args.post_token,
+            api_key=args.post_key,
             suite_run_id=ts,
             ran_at=all_results["run_at"],
             target_rows=target_rows,
             benchmarks=benchmarks,
         )
-    elif args.post_url and not args.post_token:
-        print("⚠  --post-url set but --post-token missing — skipping POST")
+    elif args.post_url:
+        print("⚠  --post-url set but neither --post-token nor --post-key provided — skipping POST")
 
 
 def _post_results(
     base_url: str,
-    token: str,
+    token: str | None,
+    api_key: str | None,
     suite_run_id: str,
     ran_at: str,
     target_rows: list[tuple[str, list[dict[str, Any]]]],
@@ -415,13 +423,16 @@ def _post_results(
         {"suiteRunId": suite_run_id, "ranAt": ran_at, "results": results}
     ).encode()
 
+    request_headers: dict[str, str] = {"Content-Type": "application/json"}
+    if api_key:
+        request_headers["Authorization"] = f"Bearer {api_key}"
+    elif token:
+        request_headers["Cookie"] = f"better-auth.session_token={token}"
+
     req = urllib.request.Request(
         f"{base_url}/api/benchmark-runs",
         data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Cookie": f"better-auth.session_token={token}",
-        },
+        headers=request_headers,
         method="POST",
     )
 

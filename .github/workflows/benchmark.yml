@@ -1,0 +1,53 @@
+name: Run Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      benchmark:
+        description: "Benchmark name to run (leave blank for all)"
+        required: false
+        default: ""
+      model:
+        description: "Target model to run against (leave blank for all three)"
+        required: false
+        default: ""
+
+jobs:
+  benchmark:
+    name: Run benchmarks and post results
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install model dependencies
+        working-directory: model
+        run: uv sync --extra scoring
+
+      - name: Run benchmarks
+        working-directory: ${{ github.workspace }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PIRO_POST_URL: ${{ secrets.PIRO_POST_URL }}
+          PIRO_POST_KEY: ${{ secrets.PIRO_POST_KEY }}
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.benchmark }}" ]; then
+            ARGS="$ARGS --benchmark ${{ github.event.inputs.benchmark }}"
+          fi
+          if [ -n "${{ github.event.inputs.model }}" ]; then
+            ARGS="$ARGS --model ${{ github.event.inputs.model }}"
+          fi
+          uv run --directory model python ../model/run_benchmarks.py \
+            --post-url "$PIRO_POST_URL" \
+            --post-key "$PIRO_POST_KEY" \
+            $ARGS
