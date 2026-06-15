@@ -33,38 +33,20 @@ picks it up automatically on import:
 
 from __future__ import annotations
 
-import random
 import re
 from typing import Any
 
 from .base import Benchmark, BenchmarkResult
+from model.data.sequences import generate_sorting_dataset, SequenceSample
 
 __all__ = ["OODGeneralization"]
 
+
 # ---------------------------------------------------------------------------
-# Helpers
+# Helper (kept here for metadata — re-parses model output)
 # ---------------------------------------------------------------------------
-
-def _make_sequence(length: int, rng: random.Random) -> list[int]:
-    """Return a list of ``length`` distinct integers in [1, 999]."""
-    return rng.sample(range(1, 1000), length)
-
-
-def _prompt(seq: list[int]) -> str:
-    return (
-        "Sort the following numbers in ascending order. "
-        "Reply with only the sorted numbers separated by spaces, nothing else.\n\n"
-        + " ".join(str(n) for n in seq)
-    )
-
 
 def _parse_reply(reply: str) -> list[int] | None:
-    """
-    Extract integers from the model reply.
-
-    Accepts space- or comma-separated integers, ignoring surrounding prose.
-    Returns None if no integers could be parsed.
-    """
     tokens = re.findall(r"\d+", reply)
     if not tokens:
         return None
@@ -72,14 +54,6 @@ def _parse_reply(reply: str) -> list[int] | None:
         return [int(t) for t in tokens]
     except ValueError:
         return None
-
-
-def _is_correct(reply: str, ground_truth: list[int]) -> bool:
-    parsed = _parse_reply(reply)
-    if parsed is None:
-        return False
-    # Must contain exactly the right integers in sorted order
-    return parsed == ground_truth
 
 
 # ---------------------------------------------------------------------------
@@ -120,34 +94,33 @@ class OODGeneralization(Benchmark):
         self.n_test_samples = n_test_samples
         self.seed = seed
 
-    def _build_test_set(self) -> list[tuple[list[int], list[int]]]:
-        """Return list of (unsorted, sorted) pairs for the test regime."""
-        rng = random.Random(self.seed)
-        problems = []
-        for _ in range(self.n_test_samples):
-            seq = _make_sequence(self.test_length, rng)
-            problems.append((seq, sorted(seq)))
-        return problems
+    def _build_test_set(self) -> list[SequenceSample]:
+        """Return reproducible test samples for the OOD (4×N) regime."""
+        return generate_sorting_dataset(
+            self.n_test_samples,
+            length=self.test_length,
+            seed=self.seed,
+            split="test",
+        )
 
     def run(self, model: Any) -> BenchmarkResult:
         test_set = self._build_test_set()
         correct = 0
         errors: list[str] = []
 
-        for unsorted, ground_truth in test_set:
-            prompt = _prompt(unsorted)
+        for sample in test_set:
             try:
                 reply = model.generate(
-                    prompt,
+                    sample.prompt,
                     max_tokens=self.test_length * 6,  # ~5 chars per number + spaces
                     temperature=0.0,
                 )
-                if _is_correct(reply, ground_truth):
+                if sample.is_correct(reply):
                     correct += 1
                 elif len(errors) < 3:
-                    # Keep a few failure examples for the metadata
                     errors.append(
-                        f"expected={ground_truth[:4]}… got={(_parse_reply(reply) or [])[:4]}…"
+                        f"expected={list(sample.sorted_sequence[:4])}… "
+                        f"got={(_parse_reply(reply) or [])[:4]}…"
                     )
             except Exception as exc:  # noqa: BLE001
                 if len(errors) < 3:
