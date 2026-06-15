@@ -93,6 +93,21 @@ export class ContinuousThoughtModel {
   }
 
   /**
+   * Count all trainable scalar parameters across all sub-components.
+   */
+  countParameters(): number {
+    const { nNeurons, embedDim, queryDim, valueDim, hiddenDim, nClasses } = this.config;
+    const syncFlat = nNeurons * nNeurons;
+    // SyncAttention (no bias)
+    const attn = queryDim * syncFlat + queryDim * embedDim + valueDim * embedDim;
+    // ConfidenceHead (with bias)
+    const conf = hiddenDim * syncFlat + hiddenDim + 1 * hiddenDim + 1;
+    // OutputHead (with bias)
+    const out  = hiddenDim * syncFlat + hiddenDim + nClasses * hiddenDim + nClasses;
+    return attn + conf + out;
+  }
+
+  /**
    * Run a full forward pass.
    *
    * @param embeddings  (seqLen × embedDim) or flat (embedDim,) vector
