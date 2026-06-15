@@ -1,6 +1,7 @@
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
   type ListObjectsV2CommandOutput,
@@ -49,6 +50,38 @@ export async function r2Put(key: string, content: string): Promise<void> {
       ContentType: "text/markdown; charset=utf-8",
     })
   );
+}
+
+/**
+ * Write any text file to R2 with a specified content type.
+ * Use this for .py, .jsonl, .json, etc.
+ */
+export async function r2PutText(key: string, content: string, contentType: string): Promise<void> {
+  const client = getR2Client();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: BUCKET(),
+      Key: key,
+      Body: content,
+      ContentType: contentType,
+    })
+  );
+}
+
+/**
+ * Read a single file from R2 and return its text content.
+ * Returns null if the object does not exist.
+ */
+export async function r2Get(key: string): Promise<string | null> {
+  const client = getR2Client();
+  try {
+    const res = await client.send(new GetObjectCommand({ Bucket: BUCKET(), Key: key }));
+    if (!res.Body) return null;
+    return await res.Body.transformToString("utf-8");
+  } catch (e: unknown) {
+    if (e && typeof e === "object" && "name" in e && e.name === "NoSuchKey") return null;
+    throw e;
+  }
 }
 
 /**

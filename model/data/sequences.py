@@ -13,6 +13,12 @@ are reproducible across runs and machines.
 
 Public API
 ----------
+CLI
+---
+    # Emit JSONL to stdout (used by scripts/generate-source.mjs)
+    uv run python -m model.data.sequences --split train --n 5000 --seed 42
+    uv run python -m model.data.sequences --split test  --n 1000 --seed 42
+
 SequenceSample      — dataclass holding one (prompt, label, metadata) triple
 generate_sorting_sample  — single sample from explicit inputs
 generate_sorting_dataset — list of samples with configurable length + split
@@ -232,3 +238,21 @@ def generate_sorting_dataset(
         )
 
     return samples
+
+
+if __name__ == "__main__":
+    import argparse
+    import json
+    import sys
+
+    parser = argparse.ArgumentParser(description="Generate sorting sequence samples as JSONL")
+    parser.add_argument("--split", default="train", choices=["train", "test"])
+    parser.add_argument("--n", type=int, default=5000)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--length", type=int, default=4)
+    parser.add_argument("--n-classes", type=int, default=5)
+    args = parser.parse_args()
+
+    samples = generate_sorting_dataset(n=args.n, length=args.length, seed=args.seed, split=args.split)
+    for s in samples:
+        print(json.dumps({"prompt": s.prompt, "label": s.label, "metadata": s.metadata}))

@@ -155,6 +155,11 @@ await sql`
 `;
 console.log("✓ seeded data_source: sorting-sequences");
 
+// ── data_source: add scriptR2Key and generatedAt columns ─────────────────────
+await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "scriptR2Key" TEXT`;
+await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "generatedAt" TIMESTAMP`;
+console.log("✓ data_source: added scriptR2Key, generatedAt");
+
 // ── training_run table ────────────────────────────────────────────────────────
 await sql`
   CREATE TABLE IF NOT EXISTS training_run (

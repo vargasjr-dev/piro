@@ -188,8 +188,10 @@ export const dataSource = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     type: text("type").notNull().default("synthetic"), // 'synthetic' | 'uploaded'
-    r2Prefix: text("r2Prefix"),   // set for 'uploaded' sources; R2 object key prefix
+    r2Prefix: text("r2Prefix"),     // R2 prefix for all source files: sources/{id}/
+    scriptR2Key: text("scriptR2Key"), // R2 key of the generation script: sources/{id}/script.py
     sampleCount: integer("sampleCount"),
+    generatedAt: timestamp("generatedAt"), // last time data was generated + uploaded
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
   (t) => [
