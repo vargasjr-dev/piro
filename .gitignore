@@ -1,4 +1,21 @@
+# ── Environment ──────────────────────────────────────────────
 .env
 .env.local
+
+# ── Next.js / Node ───────────────────────────────────────────
 .next/
 node_modules/
+
+# ── Python (model/) ──────────────────────────────────────────
+# model/ source is intentionally tracked alongside the app.
+# Exclude generated artifacts only.
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+model/.venv/
+dist/
+*.egg-info/
+.uv/
+# Keep uv.lock committed (reproducible installs)
+# Keep pyproject.toml, *.py, README.md tracked
