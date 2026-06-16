@@ -45,6 +45,36 @@ function sourceLabel(s: string): string {
   return s;
 }
 
+// Modal CPU-only rate: $0.000027/s per vCPU (1 vCPU default)
+const MODAL_CPU_RATE = 0.000027;
+
+function formatRuntime(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
+function formatCost(seconds: number): string {
+  const cost = seconds * MODAL_CPU_RATE;
+  if (cost < 0.0001) return "< $0.0001";
+  return `$${cost.toFixed(4)}`;
+}
+
+function useElapsed(queuedAt: Date, active: boolean): number {
+  const [elapsed, setElapsed] = useState(() =>
+    Math.floor((Date.now() - queuedAt.getTime()) / 1000)
+  );
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() =>
+      setElapsed(Math.floor((Date.now() - queuedAt.getTime()) / 1000)), 1000
+    );
+    return () => clearInterval(id);
+  }, [queuedAt, active]);
+  return elapsed;
+}
+
 // ── Status badge ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: TrainingRunRow["status"] }) {
@@ -84,6 +114,13 @@ function StatusBadge({ status }: { status: TrainingRunRow["status"] }) {
 function RunCard({ run }: { run: TrainingRunRow }) {
   const queuedAt = new Date(run.queuedAt);
   const isInFlight = run.status === "queued" || run.status === "running";
+  const elapsed = useElapsed(queuedAt, isInFlight);
+
+  // For complete/error runs use wall-clock diff; for in-flight use live counter
+  const runtimeSeconds =
+    run.completedAt
+      ? Math.floor((new Date(run.completedAt).getTime() - queuedAt.getTime()) / 1000)
+      : elapsed;
 
   const borderCls = isInFlight
     ? "border-amber-700/25 bg-amber-900/8"
@@ -106,25 +143,22 @@ function RunCard({ run }: { run: TrainingRunRow }) {
         {/* Middle: config */}
         <div className="flex-1 min-w-0 space-y-0.5">
           <p className="text-xs text-amber-300/60">
-            <span className="text-amber-600/40 mr-1">model:</span>
+            <span className="text-amber-600/40 mr-1">template:</span>
             {templateLabel(run.modelTemplate)}
           </p>
           <p className="text-xs text-amber-300/60">
             <span className="text-amber-600/40 mr-1">data:</span>
             {sourceLabel(run.dataSource)}
-            <span className="text-amber-700/30 mx-1.5">·</span>
-            <span className="text-amber-600/40 mr-1">epochs:</span>
-            {run.epochs}
           </p>
-          {run.status === "complete" && run.finalValAccuracy !== null && (
+          {(isInFlight || run.status === "complete") && (
             <p className="text-xs text-amber-300/60">
-              <span className="text-amber-600/40 mr-1">val acc:</span>
-              <span className="font-mono">{(run.finalValAccuracy * 100).toFixed(1)}%</span>
-              {run.finalValLoss !== null && (
+              <span className="text-amber-600/40 mr-1">runtime:</span>
+              <span className="font-mono">{formatRuntime(runtimeSeconds)}</span>
+              {run.status === "complete" && (
                 <>
                   <span className="text-amber-700/30 mx-1.5">·</span>
-                  <span className="text-amber-600/40 mr-1">val loss:</span>
-                  <span className="font-mono">{run.finalValLoss.toFixed(4)}</span>
+                  <span className="text-amber-600/40 mr-1">cost:</span>
+                  <span className="font-mono">{formatCost(runtimeSeconds)}</span>
                 </>
               )}
             </p>
