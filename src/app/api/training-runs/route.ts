@@ -29,6 +29,7 @@ export async function GET() {
       finalTrainLoss: r.finalTrainLoss,
       finalValLoss: r.finalValLoss,
       finalValAccuracy: r.finalValAccuracy,
+      epochHistoryJson: r.epochHistoryJson,
       error: r.error,
       queuedAt: r.queuedAt.toISOString(),
       completedAt: r.completedAt?.toISOString() ?? null,
@@ -89,6 +90,35 @@ export async function POST(request: Request) {
     epochs,
     configJson,
   });
+
+  // ── Trigger Modal training worker ─────────────────────────────────────────
+  // Modal's web endpoint spawns async and returns 200 immediately, so this
+  // await is fast (< 500 ms). If MODAL_TRAINING_ENDPOINT is not set the run
+  // stays "queued" and can be re-triggered once Modal is deployed.
+  const modalEndpoint = process.env.MODAL_TRAINING_ENDPOINT;
+  if (modalEndpoint) {
+    try {
+      const res = await fetch(modalEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          runId: id,
+          modelTemplate,
+          dataSource,
+          epochs,
+          seed: 42,
+          secret: process.env.MODAL_WEBHOOK_SECRET ?? "",
+        }),
+      });
+      if (!res.ok) {
+        console.error(`[training] Modal trigger returned ${res.status}`);
+      }
+    } catch (err) {
+      console.error("[training] Modal trigger failed:", err);
+    }
+  } else {
+    console.warn("[training] MODAL_TRAINING_ENDPOINT not set — run will stay queued");
+  }
 
   return Response.json({ id }, { status: 201 });
 }
