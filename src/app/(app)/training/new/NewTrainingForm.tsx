@@ -24,6 +24,7 @@ interface DataSourceOption {
 
 export default function NewTrainingForm() {
   const router = useRouter();
+  const [modelName, setModelName] = useState("");
   const [modelTemplate, setModelTemplate] = useState("ctm");
   const [dataSource, setDataSource] = useState("");
   const [epochs, setEpochs] = useState(10);
@@ -48,7 +49,7 @@ export default function NewTrainingForm() {
       const res = await fetch("/api/training-runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modelTemplate, dataSource, epochs }),
+        body: JSON.stringify({ modelName: modelName.trim() || undefined, modelTemplate, dataSource, epochs }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
@@ -64,6 +65,23 @@ export default function NewTrainingForm() {
 
   return (
     <div className="p-6 space-y-8 max-w-lg">
+      {/* Model name */}
+      <div className="space-y-3">
+        <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">
+          Model Name
+        </h2>
+        <input
+          type="text"
+          value={modelName}
+          onChange={(e) => setModelName(e.target.value)}
+          placeholder="e.g. my-ctm-v1 (optional)"
+          className="w-full px-4 py-2.5 rounded-xl border border-amber-900/20 bg-amber-900/5 text-sm text-amber-100 placeholder:text-amber-700/30 focus:outline-none focus:border-orange-500/50 focus:bg-orange-500/5 transition-colors"
+        />
+        <p className="text-[11px] text-amber-700/30">
+          A label for the model row created when training completes.
+        </p>
+      </div>
+
       {/* Model template */}
       <div className="space-y-3">
         <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">

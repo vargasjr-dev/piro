@@ -210,6 +210,7 @@ export const trainingRun = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    modelName: text("modelName"),                    // user-specified label for the resulting model
     modelTemplate: text("modelTemplate").notNull(), // 'ctm' | 'baseline-transformer'
     dataSource: text("dataSource").notNull(),        // 'sorting-sequences'
     status: text("status").notNull().default("queued"), // 'queued' | 'running' | 'complete' | 'error'

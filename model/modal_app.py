@@ -52,11 +52,12 @@ piro_secrets = modal.Secret.from_name("piro-secrets")
 )
 def train_model(
     run_id: str,
+    model_name: str | None,
     model_template: str,
     data_source: str,
     epochs: int,
-    seed: int = 42,
-) -> None:
+    seed: int,
+):
     """
     Execute one training run and write results back to Neon.
 
@@ -116,6 +117,11 @@ def train_model(
     # ── DB ────────────────────────────────────────────────────────────────────
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     cur = conn.cursor()
+
+    # Fetch userId (needed to create model row on completion)
+    cur.execute('SELECT "userId" FROM training_run WHERE id = %s', (run_id,))
+    row = cur.fetchone()
+    user_id: str = row[0] if row else ""
 
     # Mark as running
     cur.execute(
@@ -208,9 +214,35 @@ def train_model(
             ),
         )
         conn.commit()
+
+        # ── Create model + model_training_run rows ────────────────────────────
+        import uuid as _uuid
+        param_count = sum(p.numel() for p in model.parameters())
+        resolved_name = (
+            model_name.strip()
+            if model_name and model_name.strip()
+            else f"{model_template}-{run_id[:8]}"
+        )
+        model_id = str(_uuid.uuid4())
+        cur.execute(
+            """
+            INSERT INTO model (id, "userId", name, "parameterCount", "createdAt")
+            VALUES (%s, %s, %s, %s, NOW())
+            """,
+            (model_id, user_id, resolved_name, param_count),
+        )
+        cur.execute(
+            """
+            INSERT INTO model_training_run (id, "modelId", "trainingRunId")
+            VALUES (%s, %s, %s)
+            """,
+            (str(_uuid.uuid4()), model_id, run_id),
+        )
+        conn.commit()
         print(
             f"[piro] run {run_id} complete — "
-            f"val_acc={last.val_accuracy:.3f}  val_loss={last.val_loss:.4f}"
+            f"val_acc={last.val_accuracy:.3f}  val_loss={last.val_loss:.4f}  "
+            f"model_id={model_id}  name={resolved_name!r}"
         )
 
     except Exception as exc:
@@ -261,6 +293,7 @@ def trigger(body: dict) -> dict:
 
     train_model.spawn(
         run_id=run_id,
+        model_name=body.get("modelName"),
         model_template=body.get("modelTemplate", "ctm"),
         data_source=body.get("dataSource", "sorting-sequences"),
         epochs=int(body.get("epochs", 10)),

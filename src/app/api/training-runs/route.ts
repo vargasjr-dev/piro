@@ -44,6 +44,7 @@ interface CreateBody {
   modelTemplate: string;
   dataSource: string;
   epochs?: number;
+  modelName?: string;
 }
 
 export async function POST(request: Request) {
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { modelTemplate, dataSource, epochs = 10 } = body;
+  const { modelTemplate, dataSource, epochs = 10, modelName } = body;
 
   if (!modelTemplate || !dataSource) {
     return Response.json({ error: "modelTemplate and dataSource are required" }, { status: 400 });
@@ -85,6 +86,7 @@ export async function POST(request: Request) {
   await db.insert(trainingRun).values({
     id,
     userId: session.user.id,
+    modelName: modelName?.trim() || null,
     modelTemplate,
     dataSource,
     status: "queued",
@@ -104,6 +106,7 @@ export async function POST(request: Request) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           runId: id,
+          modelName: modelName?.trim() || null,
           modelTemplate,
           dataSource,
           epochs,
