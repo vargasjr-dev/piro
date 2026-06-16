@@ -1,0 +1,28 @@
+name: Modal Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "model/**"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Modal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install modal
+        run: uv tool install modal
+
+      - name: Deploy
+        run: modal deploy model/modal_app.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}

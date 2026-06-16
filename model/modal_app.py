@@ -22,9 +22,6 @@ Vercel env vars needed:
   MODAL_WEBHOOK_SECRET     — same value as in the Modal secret
 """
 
-import sys
-from pathlib import Path
-
 import modal
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -38,22 +35,9 @@ image = (
         "torch>=2.3.0",
         "numpy>=1.26.0",
         "psycopg2-binary>=2.9",
+        "fastapi[standard]>=0.110.0",
     )
-)
-
-# Mount model/ source so train_model can import model.*
-# Resolved relative to this file at deploy time.
-_HERE = Path(__file__).parent  # .../piro/model/
-
-model_mount = modal.Mount.from_local_dir(
-    str(_HERE),
-    remote_path="/piro/model",
-    condition=lambda path: (
-        path.endswith(".py")
-        and "__pycache__" not in path
-        and "/tests/" not in path
-        and "/benchmarks/" not in path
-    ),
+    .add_local_python_source("model")
 )
 
 piro_secrets = modal.Secret.from_name("piro-secrets")
@@ -64,7 +48,6 @@ piro_secrets = modal.Secret.from_name("piro-secrets")
 @app.function(
     image=image,
     secrets=[piro_secrets],
-    mounts=[model_mount],
     timeout=600,  # 10 min max per run
 )
 def train_model(
@@ -91,9 +74,6 @@ def train_model(
 
     import psycopg2
     import torch
-
-    # Make model.* importable from the mounted /piro/model dir
-    sys.path.insert(0, "/piro")
 
     from model.baseline_transformer import BaselineTransformer, TransformerConfig
     from model.ctm import ContinuousThoughtModel, CTMConfig
@@ -226,7 +206,7 @@ def train_model(
 # ── Web endpoint ──────────────────────────────────────────────────────────────
 
 @app.function(image=image, secrets=[piro_secrets])
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def trigger(body: dict) -> dict:
     """
     Accept a training request from Vercel, spawn it async, return 200 immediately.
