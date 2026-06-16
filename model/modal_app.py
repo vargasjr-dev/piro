@@ -85,7 +85,7 @@ def train_model(
         n_neurons=4,
         embed_dim=8,
         query_dim=8,
-        value_dim=4,
+        value_dim=8,  # must equal embed_dim — tick loop feeds output back as next input
         hidden_dim=16,
         n_classes=5,
     )

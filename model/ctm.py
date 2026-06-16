@@ -39,11 +39,19 @@ class CTMConfig:
     n_neurons: int = 4
     embed_dim: int = 8
     query_dim: int = 8
-    value_dim: int = 4
+    value_dim: int = 8  # must equal embed_dim — tick loop reuses output as next context
     hidden_dim: int = 16
     n_classes: int = 5
     max_ticks: int = MAX_TICKS
     confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD
+
+    def __post_init__(self) -> None:
+        if self.value_dim != self.embed_dim:
+            raise ValueError(
+                f"CTMConfig: value_dim ({self.value_dim}) must equal embed_dim "
+                f"({self.embed_dim}) — the tick loop feeds attention output back "
+                "as the next context, so their shapes must match."
+            )
 
 
 @dataclass
