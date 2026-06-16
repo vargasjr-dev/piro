@@ -16,6 +16,7 @@ export interface TrainingRunRow {
   finalValLoss: number | null;
   finalValAccuracy: number | null;
   epochHistoryJson: string | null;
+  currentEpoch: number | null;
   error: string | null;
   queuedAt: string;
   completedAt: string | null;

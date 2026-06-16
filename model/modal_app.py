@@ -140,24 +140,53 @@ def train_model(
         train_data = _build_dataset(500, "train")
         val_data = _build_dataset(100, "val")
 
-        # ── Train ─────────────────────────────────────────────────────────────
-        cfg = TrainerConfig(epochs=epochs, seed=seed, log_every=1)
-        history = Trainer(model, cfg).fit(train_data, val_data)
+        # ── Train with per-epoch progress writes ──────────────────────────────
+        cfg = TrainerConfig(epochs=epochs, seed=seed, log_every=0)  # we handle logging
+        trainer = Trainer(model, cfg)
+        history = []
 
-        # ── Persist ───────────────────────────────────────────────────────────
-        last = history[-1]
-        epoch_history_json = json.dumps(
-            [
+        for epoch in range(1, epochs + 1):
+            # Run one epoch manually using the trainer internals
+            train_data_copy = list(train_data)
+            train_loss = trainer._train_epoch(train_data_copy)
+            val_loss, val_acc = trainer._eval_epoch(val_data)
+
+            from model.trainer import EpochMetrics
+            m = EpochMetrics(
+                epoch=epoch,
+                train_loss=train_loss,
+                val_loss=val_loss,
+                val_accuracy=val_acc,
+            )
+            history.append(m)
+
+            print(
+                f"[piro] run {run_id} epoch {epoch}/{epochs} — "
+                f"train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  val_acc={val_acc:.3f}"
+            )
+
+            # Write incremental progress to DB after each epoch
+            partial_history_json = json.dumps([
                 {
-                    "epoch": m.epoch,
-                    "trainLoss": m.train_loss,
-                    "valLoss": m.val_loss,
-                    "valAccuracy": m.val_accuracy,
+                    "epoch": h.epoch,
+                    "trainLoss": h.train_loss,
+                    "valLoss": h.val_loss,
+                    "valAccuracy": h.val_accuracy,
                 }
-                for m in history
-            ]
-        )
+                for h in history
+            ])
+            cur.execute(
+                """
+                UPDATE training_run
+                SET "currentEpoch" = %s, "epochHistoryJson" = %s
+                WHERE id = %s
+                """,
+                (epoch, partial_history_json, run_id),
+            )
+            conn.commit()
 
+        # ── Final update ──────────────────────────────────────────────────────
+        last = history[-1]
         cur.execute(
             """
             UPDATE training_run
@@ -166,7 +195,6 @@ def train_model(
                 "finalTrainLoss"   = %s,
                 "finalValLoss"     = %s,
                 "finalValAccuracy" = %s,
-                "epochHistoryJson" = %s,
                 "completedAt"      = %s
             WHERE id = %s
             """,
@@ -175,7 +203,6 @@ def train_model(
                 float(last.train_loss),
                 float(last.val_loss),
                 float(last.val_accuracy),
-                epoch_history_json,
                 datetime.now(timezone.utc),
                 run_id,
             ),

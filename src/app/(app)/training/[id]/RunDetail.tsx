@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
 import type { TrainingRunRow } from "../RunsList";
 
 interface EpochRecord {
@@ -30,14 +29,25 @@ function sourceLabel(s: string): string {
 }
 
 function StatusBadge({ status }: { status: TrainingRunRow["status"] }) {
-  if (status === "queued" || status === "running") {
+  if (status === "running") {
     return (
       <span className="flex items-center gap-1.5 text-xs font-medium text-amber-400/70">
         <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
-        {status === "running" ? "Running…" : "Queued — waiting for training worker"}
+        Running…
+      </span>
+    );
+  }
+  if (status === "queued") {
+    return (
+      <span className="flex items-center gap-1.5 text-xs font-medium text-amber-400/50">
+        <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        Queued — waiting for worker
       </span>
     );
   }
@@ -70,13 +80,29 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ProgressBar({ current, total }: { current: number; total: number }) {
+  const pct = Math.round((current / total) * 100);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex justify-between text-[11px]">
+        <span className="text-amber-600/40">Epoch {current} / {total}</span>
+        <span className="text-amber-500/50 font-mono">{pct}%</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-amber-900/20 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-orange-500/60 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function EpochTable({ history }: { history: EpochRecord[] }) {
-  // Show every Nth row when there are many epochs to avoid huge tables
   const stride = history.length > 20 ? Math.ceil(history.length / 20) : 1;
   const rows = history.filter(
     (r) => r.epoch % stride === 0 || r.epoch === history[history.length - 1].epoch,
   );
-
   return (
     <div className="overflow-x-auto rounded-xl border border-amber-900/20">
       <table className="w-full text-xs">
@@ -92,15 +118,9 @@ function EpochTable({ history }: { history: EpochRecord[] }) {
           {rows.map((r) => (
             <tr key={r.epoch} className="border-b border-amber-900/10 last:border-0">
               <td className="px-3 py-1.5 font-mono text-amber-700/50">{r.epoch}</td>
-              <td className="px-3 py-1.5 text-right font-mono text-amber-300/60">
-                {r.trainLoss.toFixed(4)}
-              </td>
-              <td className="px-3 py-1.5 text-right font-mono text-amber-300/60">
-                {r.valLoss.toFixed(4)}
-              </td>
-              <td className="px-3 py-1.5 text-right font-mono text-amber-300/60">
-                {(r.valAccuracy * 100).toFixed(1)}%
-              </td>
+              <td className="px-3 py-1.5 text-right font-mono text-amber-300/60">{r.trainLoss.toFixed(4)}</td>
+              <td className="px-3 py-1.5 text-right font-mono text-amber-300/60">{r.valLoss.toFixed(4)}</td>
+              <td className="px-3 py-1.5 text-right font-mono text-amber-300/60">{(r.valAccuracy * 100).toFixed(1)}%</td>
             </tr>
           ))}
         </tbody>
@@ -111,40 +131,79 @@ function EpochTable({ history }: { history: EpochRecord[] }) {
 
 export default function RunDetail({ initialRun }: { initialRun: TrainingRunRow }) {
   const [run, setRun] = useState<TrainingRunRow>(initialRun);
-  const router = useRouter();
+  const [liveHistory, setLiveHistory] = useState<EpochRecord[]>(() => {
+    if (initialRun.epochHistoryJson) {
+      try { return JSON.parse(initialRun.epochHistoryJson) as EpochRecord[]; } catch { /* ignore */ }
+    }
+    return [];
+  });
+  const esRef = useRef<EventSource | null>(null);
 
   const isInFlight = run.status === "queued" || run.status === "running";
 
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/training-runs/${run.id}`);
-      if (!res.ok) return;
-      const data = (await res.json()) as { run: TrainingRunRow };
-      setRun(data.run);
-      if (data.run.status === "complete" || data.run.status === "error") {
-        router.refresh();
-      }
-    } catch {
-      // silent
-    }
-  }, [run.id, router]);
-
   useEffect(() => {
     if (!isInFlight) return;
-    const id = setInterval(refresh, 5000);
-    return () => clearInterval(id);
-  }, [isInFlight, refresh]);
+
+    const es = new EventSource(`/api/training-runs/${run.id}/stream`);
+    esRef.current = es;
+
+    es.addEventListener("progress", (e) => {
+      const data = JSON.parse(e.data) as {
+        currentEpoch: number;
+        epochs: number;
+        history: EpochRecord[];
+        status: string;
+      };
+      setLiveHistory(data.history);
+      setRun((r) => ({
+        ...r,
+        currentEpoch: data.currentEpoch,
+        status: data.status as TrainingRunRow["status"],
+      }));
+    });
+
+    es.addEventListener("complete", (e) => {
+      const data = JSON.parse(e.data) as {
+        finalTrainLoss: number;
+        finalValLoss: number;
+        finalValAccuracy: number;
+        epochHistoryJson: string;
+        completedAt: string;
+      };
+      setRun((r) => ({
+        ...r,
+        status: "complete",
+        finalTrainLoss: data.finalTrainLoss,
+        finalValLoss: data.finalValLoss,
+        finalValAccuracy: data.finalValAccuracy,
+        epochHistoryJson: data.epochHistoryJson,
+        completedAt: data.completedAt,
+      }));
+      if (data.epochHistoryJson) {
+        try { setLiveHistory(JSON.parse(data.epochHistoryJson) as EpochRecord[]); } catch { /* ignore */ }
+      }
+      es.close();
+    });
+
+    es.addEventListener("error", (e) => {
+      // EventSource fires this both for stream errors AND SSE error events —
+      // only parse data if it looks like our error event
+      if ("data" in e && typeof (e as MessageEvent).data === "string") {
+        try {
+          const data = JSON.parse((e as MessageEvent).data) as { message: string };
+          setRun((r) => ({ ...r, status: "error", error: data.message }));
+        } catch { /* ignore */ }
+      }
+      es.close();
+    });
+
+    return () => {
+      es.close();
+      esRef.current = null;
+    };
+  }, [run.id, isInFlight]);
 
   const queuedAt = new Date(run.queuedAt);
-
-  let epochHistory: EpochRecord[] | null = null;
-  if (run.epochHistoryJson) {
-    try {
-      epochHistory = JSON.parse(run.epochHistoryJson) as EpochRecord[];
-    } catch {
-      // ignore
-    }
-  }
 
   return (
     <div className="p-6 space-y-8 max-w-lg">
@@ -178,16 +237,35 @@ export default function RunDetail({ initialRun }: { initialRun: TrainingRunRow }
         </div>
       </div>
 
-      {/* Metrics — only shown when complete */}
+      {/* Live progress bar — shown while running */}
+      {run.status === "running" && run.currentEpoch !== null && (
+        <div className="space-y-3">
+          <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">Progress</h2>
+          <ProgressBar current={run.currentEpoch} total={run.epochs} />
+          {liveHistory.length > 0 && (
+            <div className="flex gap-4 text-[11px]">
+              <span className="text-amber-600/40">
+                loss <span className="font-mono text-amber-300/60">
+                  {liveHistory[liveHistory.length - 1].valLoss.toFixed(4)}
+                </span>
+              </span>
+              <span className="text-amber-600/40">
+                acc <span className="font-mono text-amber-300/60">
+                  {(liveHistory[liveHistory.length - 1].valAccuracy * 100).toFixed(1)}%
+                </span>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Final metrics — only shown when complete */}
       {run.status === "complete" && (
         <div className="space-y-3">
           <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">Results</h2>
           <div className="grid grid-cols-3 gap-3">
             {run.finalValAccuracy !== null && (
-              <MetricCard
-                label="Val Acc"
-                value={`${(run.finalValAccuracy * 100).toFixed(1)}%`}
-              />
+              <MetricCard label="Val Acc" value={`${(run.finalValAccuracy * 100).toFixed(1)}%`} />
             )}
             {run.finalValLoss !== null && (
               <MetricCard label="Val Loss" value={run.finalValLoss.toFixed(4)} />
@@ -199,13 +277,16 @@ export default function RunDetail({ initialRun }: { initialRun: TrainingRunRow }
         </div>
       )}
 
-      {/* Epoch history table */}
-      {epochHistory && epochHistory.length > 0 && (
+      {/* Epoch history table — fills in live while running, full when complete */}
+      {liveHistory.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">
             Epoch History
+            {run.status === "running" && (
+              <span className="ml-2 normal-case font-normal text-amber-700/40">live</span>
+            )}
           </h2>
-          <EpochTable history={epochHistory} />
+          <EpochTable history={liveHistory} />
         </div>
       )}
 

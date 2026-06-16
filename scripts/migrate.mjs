@@ -251,6 +251,10 @@ console.log("✓ seeded model: gpt-4o");
 await sql`ALTER TABLE training_run ADD COLUMN IF NOT EXISTS "epochHistoryJson" TEXT`;
 console.log("✓ training_run: added epochHistoryJson");
 
+// ── training_run: add currentEpoch column ────────────────────────────────────
+await sql`ALTER TABLE training_run ADD COLUMN IF NOT EXISTS "currentEpoch" INTEGER`;
+console.log("✓ training_run: added currentEpoch");
+
 // ── training_run: fix stale queued runs (no worker exists pre-engine) ─────────
 await sql`
   UPDATE training_run

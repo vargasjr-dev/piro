@@ -30,6 +30,7 @@ export async function GET() {
       finalValLoss: r.finalValLoss,
       finalValAccuracy: r.finalValAccuracy,
       epochHistoryJson: r.epochHistoryJson,
+      currentEpoch: r.currentEpoch,
       error: r.error,
       queuedAt: r.queuedAt.toISOString(),
       completedAt: r.completedAt?.toISOString() ?? null,

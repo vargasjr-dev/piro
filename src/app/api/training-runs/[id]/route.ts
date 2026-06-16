@@ -32,6 +32,7 @@ export async function GET(
       finalValLoss: run.finalValLoss,
       finalValAccuracy: run.finalValAccuracy,
       epochHistoryJson: run.epochHistoryJson,
+      currentEpoch: run.currentEpoch,
       error: run.error,
       queuedAt: run.queuedAt.toISOString(),
       completedAt: run.completedAt?.toISOString() ?? null,
