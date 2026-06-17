@@ -42,7 +42,10 @@ function TypeChip({ model: m }: { model: ModelRow }) {
 
 function ModelCard({ m }: { m: ModelRow }) {
   return (
-    <div className="px-4 py-4 rounded-xl border border-amber-900/20 bg-amber-900/5 space-y-3">
+    <Link
+      href={`/models/${m.id}`}
+      className="block px-4 py-4 rounded-xl border border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10 transition-colors space-y-3"
+    >
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -96,7 +99,7 @@ function ModelCard({ m }: { m: ModelRow }) {
             : "No benchmark runs"}
         </Link>
       </div>
-    </div>
+    </Link>
   );
 }
 
