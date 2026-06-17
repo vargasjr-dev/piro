@@ -89,9 +89,10 @@ class Trainer:
             n_classes=5,
         )
         self._transformer_cfg = TransformerConfig(
-            n_neurons=4,
             embed_dim=8,
-            hidden_dim=16,
+            n_heads=2,
+            ffn_dim=6,
+            n_layers=2,
             n_classes=5,
         )
 
