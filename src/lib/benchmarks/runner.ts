@@ -1,13 +1,19 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../../../data/db";
-import { benchmarkRun, benchmarkSuiteRun } from "../../../data/schema";
+import {
+  benchmarkRun,
+  benchmarkSuiteRun,
+  model,
+  modelHostedApi,
+  modelTrainingRun,
+} from "../../../data/schema";
 import type { BenchmarkDef, ModelAdapter } from "./types";
 import { sanityCheck } from "./sanity-check";
 import { oodGeneralization } from "./ood-generalization";
 import { adaptiveCompute } from "./adaptive-compute";
 import { makeGPTAdapter, makePiroStudentAdapter } from "./openai";
 
-// ── Registry ──────────────────────────────────────────────────────────────────
+// ── Benchmark registry (static) ───────────────────────────────────────────────
 
 export const BENCHMARKS: BenchmarkDef[] = [
   sanityCheck,
@@ -15,11 +21,52 @@ export const BENCHMARKS: BenchmarkDef[] = [
   adaptiveCompute,
 ];
 
-export const TARGETS: ModelAdapter[] = [
-  makeGPTAdapter("gpt-4o-mini"),
-  makeGPTAdapter("gpt-4o"),
-  makePiroStudentAdapter(),
-];
+// ── Dynamic target resolution from DB ────────────────────────────────────────
+
+/**
+ * Build ModelAdapter instances for the given model IDs (or all models for userId
+ * if targetIds is null). Resolves each model's type from DB:
+ *  - modelHostedApi  → makeGPTAdapter(apiModelName)
+ *  - modelTrainingRun → makePiroStudentAdapter keyed by model.id
+ */
+async function resolveTargets(
+  userId: string,
+  targetIds: string[] | null,
+): Promise<ModelAdapter[]> {
+  const models = targetIds?.length
+    ? await db.select().from(model).where(inArray(model.id, targetIds))
+    : await db.select().from(model).where(eq(model.userId, userId));
+
+  if (models.length === 0) return [];
+
+  const ids = models.map((m) => m.id);
+
+  const [hostedApis, trainingLinks] = await Promise.all([
+    db.select().from(modelHostedApi).where(inArray(modelHostedApi.modelId, ids)),
+    db.select().from(modelTrainingRun).where(inArray(modelTrainingRun.modelId, ids)),
+  ]);
+
+  const hostedById = Object.fromEntries(hostedApis.map((h) => [h.modelId, h]));
+  const trainingById = Object.fromEntries(trainingLinks.map((t) => [t.modelId, t]));
+
+  return models.map((m): ModelAdapter => {
+    const hosted = hostedById[m.id];
+    if (hosted) {
+      // Hosted API model — route through provider
+      return makeGPTAdapter(hosted.apiModelName);
+    }
+    if (trainingById[m.id]) {
+      // Piro-trained model — stub until inference endpoint exists
+      return { ...makePiroStudentAdapter(), name: m.id };
+    }
+    // Fallback stub
+    return {
+      name: m.id,
+      isStub: true,
+      generate: async () => ({ text: "", inputTokens: 0, outputTokens: 0 }),
+    };
+  });
+}
 
 // ── Suite runner ──────────────────────────────────────────────────────────────
 
@@ -43,9 +90,8 @@ export async function runSuite(
     ? BENCHMARKS.filter((b) => benchmarkFilter.includes(b.name))
     : BENCHMARKS;
 
-  const targets = targetFilter?.length
-    ? TARGETS.filter((t) => targetFilter.includes(t.name))
-    : TARGETS;
+  // targetFilter is now a list of model UUIDs (or null = all)
+  const targets = await resolveTargets(userId, targetFilter?.length ? targetFilter : null);
 
   const ranAt = new Date();
 
