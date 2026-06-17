@@ -204,6 +204,16 @@ export default function RunDetail({ initialRun }: { initialRun: TrainingRunRow }
   }, [run.id, isInFlight]);
 
   const queuedAt = new Date(run.queuedAt);
+  const startedAt = run.startedAt ? new Date(run.startedAt) : null;
+  const completedAt = run.completedAt ? new Date(run.completedAt) : null;
+  const coldStartSeconds = startedAt
+    ? Math.floor((startedAt.getTime() - queuedAt.getTime()) / 1000)
+    : null;
+  const trainingSeconds = startedAt && completedAt
+    ? Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000)
+    : completedAt
+    ? Math.floor((completedAt.getTime() - queuedAt.getTime()) / 1000)
+    : null;
 
   return (
     <div className="p-6 space-y-8 max-w-lg">
@@ -234,6 +244,22 @@ export default function RunDetail({ initialRun }: { initialRun: TrainingRunRow }
             <span className="text-amber-600/40">Epochs</span>
             <span className="text-amber-200/70 font-mono">{run.epochs}</span>
           </div>
+          {coldStartSeconds !== null && (
+            <div className="flex justify-between text-xs">
+              <span className="text-amber-600/40">Cold start</span>
+              <span className={`font-mono ${coldStartSeconds > 10 ? "text-amber-500/60" : "text-emerald-400/60"}`}>
+                {coldStartSeconds > 2 ? `${coldStartSeconds}s` : "warm ⚡"}
+              </span>
+            </div>
+          )}
+          {trainingSeconds !== null && (
+            <div className="flex justify-between text-xs">
+              <span className="text-amber-600/40">Train time</span>
+              <span className="text-amber-200/70 font-mono">
+                {trainingSeconds < 60 ? `${trainingSeconds}s` : `${Math.floor(trainingSeconds / 60)}m ${trainingSeconds % 60}s`}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

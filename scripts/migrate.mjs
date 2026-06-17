@@ -259,6 +259,10 @@ console.log("✓ training_run: added currentEpoch");
 await sql`ALTER TABLE training_run ADD COLUMN IF NOT EXISTS "modelName" TEXT`;
 console.log("✓ training_run: added modelName");
 
+// ── training_run: add startedAt column ───────────────────────────────────────
+await sql`ALTER TABLE training_run ADD COLUMN IF NOT EXISTS "startedAt" TIMESTAMP`;
+console.log("✓ training_run: added startedAt");
+
 // ── training_run: fix stale queued runs (no worker exists pre-engine) ─────────
 await sql`
   UPDATE training_run

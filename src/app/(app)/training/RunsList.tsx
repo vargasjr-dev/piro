@@ -19,6 +19,7 @@ export interface TrainingRunRow {
   currentEpoch: number | null;
   error: string | null;
   queuedAt: string;
+  startedAt: string | null;
   completedAt: string | null;
 }
 
@@ -116,11 +117,20 @@ function RunCard({ run }: { run: TrainingRunRow }) {
   const isInFlight = run.status === "queued" || run.status === "running";
   const elapsed = useElapsed(queuedAt, isInFlight);
 
-  // For complete/error runs use wall-clock diff; for in-flight use live counter
-  const runtimeSeconds =
-    run.completedAt
-      ? Math.floor((new Date(run.completedAt).getTime() - queuedAt.getTime()) / 1000)
-      : elapsed;
+  const startedAt = run.startedAt ? new Date(run.startedAt) : null;
+  const completedAt = run.completedAt ? new Date(run.completedAt) : null;
+
+  // Cold start = queuedAt → startedAt (only meaningful if we have both)
+  const coldStartSeconds = startedAt
+    ? Math.floor((startedAt.getTime() - queuedAt.getTime()) / 1000)
+    : null;
+
+  // Training time = startedAt → completedAt (what Modal actually charges for)
+  const trainingSeconds = startedAt && completedAt
+    ? Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000)
+    : completedAt
+    ? Math.floor((completedAt.getTime() - queuedAt.getTime()) / 1000) // fallback: no startedAt
+    : elapsed;
 
   const borderCls = isInFlight
     ? "border-amber-700/25 bg-amber-900/8"
@@ -152,13 +162,20 @@ function RunCard({ run }: { run: TrainingRunRow }) {
           </p>
           {(isInFlight || run.status === "complete") && (
             <p className="text-xs text-amber-300/60">
-              <span className="text-amber-600/40 mr-1">runtime:</span>
-              <span className="font-mono">{formatRuntime(runtimeSeconds)}</span>
+              <span className="text-amber-600/40 mr-1">train:</span>
+              <span className="font-mono">{formatRuntime(trainingSeconds)}</span>
+              {coldStartSeconds !== null && coldStartSeconds > 2 && (
+                <>
+                  <span className="text-amber-700/30 mx-1.5">·</span>
+                  <span className="text-amber-600/40 mr-1">cold start:</span>
+                  <span className="font-mono text-amber-500/40">{formatRuntime(coldStartSeconds)}</span>
+                </>
+              )}
               {run.status === "complete" && (
                 <>
                   <span className="text-amber-700/30 mx-1.5">·</span>
                   <span className="text-amber-600/40 mr-1">cost:</span>
-                  <span className="font-mono">{formatCost(runtimeSeconds)}</span>
+                  <span className="font-mono">{formatCost(trainingSeconds)}</span>
                 </>
               )}
             </p>

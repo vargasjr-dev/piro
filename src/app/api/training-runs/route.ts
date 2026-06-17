@@ -33,6 +33,7 @@ export async function GET() {
       currentEpoch: r.currentEpoch,
       error: r.error,
       queuedAt: r.queuedAt.toISOString(),
+      startedAt: r.startedAt?.toISOString() ?? null,
       completedAt: r.completedAt?.toISOString() ?? null,
     })),
   });

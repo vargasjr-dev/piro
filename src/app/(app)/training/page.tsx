@@ -31,6 +31,7 @@ export default async function TrainingPage() {
     currentEpoch: r.currentEpoch ?? null,
     error: r.error,
     queuedAt: r.queuedAt.toISOString(),
+    startedAt: r.startedAt?.toISOString() ?? null,
     completedAt: r.completedAt?.toISOString() ?? null,
   }));
 

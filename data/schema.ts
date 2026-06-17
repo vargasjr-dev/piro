@@ -223,6 +223,7 @@ export const trainingRun = pgTable(
     currentEpoch: integer("currentEpoch"),      // updated after each epoch while running
     error: text("error"),
     queuedAt: timestamp("queuedAt").notNull().defaultNow(),
+    startedAt: timestamp("startedAt"),          // when Modal container actually began training (after cold start)
     completedAt: timestamp("completedAt"),
   },
   (t) => [

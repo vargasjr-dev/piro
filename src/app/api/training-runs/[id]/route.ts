@@ -35,6 +35,7 @@ export async function GET(
       currentEpoch: run.currentEpoch,
       error: run.error,
       queuedAt: run.queuedAt.toISOString(),
+      startedAt: run.startedAt?.toISOString() ?? null,
       completedAt: run.completedAt?.toISOString() ?? null,
     },
   });
