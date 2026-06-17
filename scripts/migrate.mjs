@@ -270,4 +270,16 @@ await sql`
 `;
 console.log("✓ training_run: marked stale queued runs as error");
 
+// ── training_run: fix orphaned running runs (Modal container died without cleanup) ──
+await sql`
+  UPDATE training_run
+  SET
+    status = 'error',
+    error  = 'Training container was cancelled or timed out before completing. Please start a new run.',
+    "completedAt" = NOW()
+  WHERE status = 'running'
+    AND "queuedAt" < NOW() - INTERVAL '30 minutes'
+`;
+console.log("✓ training_run: marked orphaned running runs as error");
+
 console.log("Migrations complete ✓");

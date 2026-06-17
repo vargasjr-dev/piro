@@ -48,7 +48,7 @@ piro_secrets = modal.Secret.from_name("piro-secrets")
 @app.function(
     image=image,
     secrets=[piro_secrets],
-    timeout=600,  # 10 min max per run
+    timeout=3600,  # 1 hr max per run
 )
 def train_model(
     run_id: str,
@@ -245,7 +245,7 @@ def train_model(
             f"model_id={model_id}  name={resolved_name!r}"
         )
 
-    except Exception as exc:
+    except BaseException as exc:
         cur.execute(
             """
             UPDATE training_run
