@@ -247,6 +247,8 @@ export const model = pgTable(
     parameterCount: integer("parameterCount"),
     /** Base64-encoded PyTorch state_dict bytes. Populated after training completes. */
     weightsB64: text("weightsB64"),
+    /** JSON-serialized state_dict: {key: number[][] | number[]}. For visualization. */
+    weightsJson: text("weightsJson"),
     /** URL of the inference endpoint for this model (e.g. Modal /infer URL). Null = no inference available. */
     inferenceEndpoint: text("inferenceEndpoint"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),

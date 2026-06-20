@@ -11,8 +11,7 @@ import {
   trainingRun,
   benchmarkRun,
 } from "../../../../../data/schema";
-import CTMDiagram from "./CTMDiagram";
-import TransformerDiagram from "./TransformerDiagram";
+import WeightGraph from "./WeightGraph";
 import DeleteModelButton from "./DeleteModelButton";
 
 function fmt(date: Date) {
@@ -69,7 +68,7 @@ export default async function ModelDetailPage({
 
   if (!m) notFound();
 
-  // Training run
+  // Training run (include weightsJson for visualization)
   const [trainingLink] = await db
     .select()
     .from(modelTrainingRun)
@@ -214,18 +213,17 @@ export default async function ModelDetailPage({
           </div>
         </div>
 
-        {/* Architecture */}
+        {/* Weights visualization */}
         {isTrainedModel && (
           <div className="space-y-3">
-            <h2 className="text-[10px] font-semibold text-amber-400/40 uppercase tracking-widest">Architecture</h2>
-            {template === "ctm" && <CTMDiagram configJson={run?.configJson ?? null} />}
-            {template === "baseline-transformer" && <TransformerDiagram configJson={run?.configJson ?? null} />}
+            <h2 className="text-[10px] font-semibold text-amber-400/40 uppercase tracking-widest">Weights</h2>
+            <WeightGraph weightsJson={m.weightsJson ?? null} />
           </div>
         )}
 
         {!isTrainedModel && hostedApi && (
           <div className="px-4 py-6 rounded-xl border border-amber-900/20 bg-amber-900/5 text-center">
-            <p className="text-xs text-amber-600/40">Hosted API — architecture not available locally</p>
+            <p className="text-xs text-amber-600/40">Hosted API — weights not stored locally</p>
             <p className="text-[10px] text-amber-700/30 mt-1">{hostedApi.provider} / {hostedApi.apiModelName}</p>
           </div>
         )}

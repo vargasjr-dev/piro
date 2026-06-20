@@ -243,8 +243,19 @@ class Trainer:
 
             # ── Serialize model weights ───────────────────────────────────────
             buf = io.BytesIO()
-            torch.save(model.state_dict(), buf)
+            state = model.state_dict()
+            torch.save(state, buf)
             weights_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+            # JSON representation for visualization: {key: [[...], ...] or [...]}
+            weights_json = json.dumps({
+                k: (
+                    [[round(float(x), 6) for x in row] for row in v.tolist()]
+                    if v.ndim == 2
+                    else [round(float(x), 6) for x in v.tolist()]
+                )
+                for k, v in state.items()
+            })
 
             # ── Final training_run update ─────────────────────────────────────
             last = history[-1]
@@ -280,10 +291,10 @@ class Trainer:
             model_id = str(_uuid.uuid4())
             cur.execute(
                 """
-                INSERT INTO model (id, "userId", name, "parameterCount", "weightsB64", "inferenceEndpoint", "createdAt")
-                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                INSERT INTO model (id, "userId", name, "parameterCount", "weightsB64", "weightsJson", "inferenceEndpoint", "createdAt")
+                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 """,
-                (model_id, user_id, resolved_name, param_count, weights_b64, INFER_ENDPOINT),
+                (model_id, user_id, resolved_name, param_count, weights_b64, weights_json, INFER_ENDPOINT),
             )
             cur.execute(
                 """
