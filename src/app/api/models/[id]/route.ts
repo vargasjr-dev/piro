@@ -9,6 +9,30 @@ import {
 } from "../../../../../data/schema";
 import { eq, and } from "drizzle-orm";
 
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const [m] = await db
+    .select({ id: model.id })
+    .from(model)
+    .where(and(eq(model.id, id), eq(model.userId, session.user.id)))
+    .limit(1);
+
+  if (!m) return Response.json({ error: "Not found" }, { status: 404 });
+
+  // Cascade: delete model_training_run + model_hosted_api links, then model
+  await db.delete(modelTrainingRun).where(eq(modelTrainingRun.modelId, id));
+  await db.delete(modelHostedApi).where(eq(modelHostedApi.modelId, id));
+  await db.delete(model).where(eq(model.id, id));
+
+  return Response.json({ ok: true });
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },

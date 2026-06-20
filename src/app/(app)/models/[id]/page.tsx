@@ -2,14 +2,54 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db } from "../../../../../data/db";
-import { model, modelTrainingRun, modelHostedApi, trainingRun } from "../../../../../data/schema";
+import {
+  model,
+  modelTrainingRun,
+  modelHostedApi,
+  trainingRun,
+  benchmarkRun,
+} from "../../../../../data/schema";
 import CTMDiagram from "./CTMDiagram";
 import TransformerDiagram from "./TransformerDiagram";
+import DeleteModelButton from "./DeleteModelButton";
 
 function fmt(date: Date) {
   return date.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function fmtRelative(date: Date) {
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  const hrs = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  if (hrs < 24) return `${hrs}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return fmt(date);
+}
+
+function fmtDuration(ms: number | null) {
+  if (ms === null) return null;
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+}
+
+function ScorePill({ score }: { score: number }) {
+  const cls =
+    score >= 0.8
+      ? "text-emerald-300/80 border-emerald-800/30 bg-emerald-900/20"
+      : score >= 0.4
+        ? "text-amber-300/80 border-amber-800/25 bg-amber-900/20"
+        : "text-red-400/70 border-red-800/25 bg-red-900/15";
+  return (
+    <span className={`inline-flex items-center text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border ${cls}`}>
+      {score.toFixed(3)}
+    </span>
+  );
 }
 
 export default async function ModelDetailPage({
@@ -53,6 +93,22 @@ export default async function ModelDetailPage({
     .where(eq(modelHostedApi.modelId, id))
     .limit(1);
 
+  // Benchmark history — all runs where this model was a target, newest first
+  const benchmarkHistory = await db
+    .select({
+      id: benchmarkRun.id,
+      suiteRunId: benchmarkRun.suiteRunId,
+      benchmarkName: benchmarkRun.benchmarkName,
+      score: benchmarkRun.score,
+      costUsd: benchmarkRun.costUsd,
+      durationMs: benchmarkRun.durationMs,
+      ranAt: benchmarkRun.ranAt,
+    })
+    .from(benchmarkRun)
+    .where(and(eq(benchmarkRun.target, m.name), eq(benchmarkRun.userId, session.user.id)))
+    .orderBy(desc(benchmarkRun.ranAt))
+    .limit(50);
+
   const isTrainedModel = !!run;
   const template = run?.modelTemplate ?? null;
 
@@ -60,7 +116,7 @@ export default async function ModelDetailPage({
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-900/20 shrink-0">
-        <Link href="/models" className="text-amber-600/40 hover:text-amber-400/70 transition-colors">
+        <Link href="/models" className="text-amber-600/40 hover:text-amber-400/70 transition-colors shrink-0">
           <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
@@ -82,11 +138,12 @@ export default async function ModelDetailPage({
             )}
           </div>
         </div>
+        <DeleteModelButton modelId={m.id} />
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-8 max-w-lg">
 
-        {/* Meta */}
+        {/* Info */}
         <div className="space-y-2">
           <h2 className="text-[10px] font-semibold text-amber-400/40 uppercase tracking-widest">Info</h2>
           <div className="space-y-1.5">
@@ -120,6 +177,17 @@ export default async function ModelDetailPage({
                     <span className="text-amber-200/60 font-mono">{run.finalValLoss.toFixed(4)}</span>
                   </div>
                 )}
+                {m.inferenceEndpoint ? (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-amber-600/40">Inference</span>
+                    <span className="text-emerald-400/60 font-mono text-[10px]">ready</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-amber-600/40">Inference</span>
+                    <span className="text-amber-700/35 text-[10px]">retrain to enable</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-xs">
                   <span className="text-amber-600/40">Training run</span>
                   <Link
@@ -146,22 +214,68 @@ export default async function ModelDetailPage({
           </div>
         </div>
 
-        {/* Architecture diagram */}
+        {/* Architecture */}
         {isTrainedModel && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <h2 className="text-[10px] font-semibold text-amber-400/40 uppercase tracking-widest">Architecture</h2>
             {template === "ctm" && <CTMDiagram configJson={run?.configJson ?? null} />}
             {template === "baseline-transformer" && <TransformerDiagram configJson={run?.configJson ?? null} />}
           </div>
         )}
 
-        {/* Hosted API — no diagram */}
         {!isTrainedModel && hostedApi && (
           <div className="px-4 py-6 rounded-xl border border-amber-900/20 bg-amber-900/5 text-center">
             <p className="text-xs text-amber-600/40">Hosted API — architecture not available locally</p>
             <p className="text-[10px] text-amber-700/30 mt-1">{hostedApi.provider} / {hostedApi.apiModelName}</p>
           </div>
         )}
+
+        {/* Benchmark history */}
+        <div className="space-y-2">
+          <h2 className="text-[10px] font-semibold text-amber-400/40 uppercase tracking-widest">
+            Benchmark History
+            {benchmarkHistory.length > 0 && (
+              <span className="ml-1.5 normal-case font-normal text-amber-700/30">
+                ({benchmarkHistory.length})
+              </span>
+            )}
+          </h2>
+
+          {benchmarkHistory.length === 0 ? (
+            <div className="px-4 py-6 rounded-xl border border-amber-900/20 bg-amber-900/5 text-center">
+              <p className="text-xs text-amber-600/40">No benchmark runs yet</p>
+              <Link href="/benchmarks" className="text-[10px] text-orange-400/50 hover:text-orange-300/70 transition-colors mt-1 block">
+                Run benchmarks →
+              </Link>
+            </div>
+          ) : (
+            <div className="border border-amber-900/20 rounded-xl overflow-hidden divide-y divide-amber-900/10">
+              {benchmarkHistory.map((row) => (
+                <Link
+                  key={row.id}
+                  href={`/benchmarks/${row.suiteRunId}`}
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-amber-900/8 transition-colors group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-amber-200/65 truncate">{row.benchmarkName}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-amber-700/35">{fmtRelative(row.ranAt)}</span>
+                      {row.durationMs !== null && (
+                        <span className="text-[10px] text-amber-800/30">{fmtDuration(row.durationMs)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <ScorePill score={row.score} />
+                  <svg className="w-3 h-3 text-amber-800/25 group-hover:text-amber-600/40 transition-colors shrink-0"
+                    fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
