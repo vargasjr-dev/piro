@@ -3,18 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const MODEL_TEMPLATES = [
-  {
-    id: "ctm",
-    label: "Continuous Thought Model",
-    description: "Iterative tick loop with sync-driven attention. 870 params.",
-  },
-  {
-    id: "baseline-transformer",
-    label: "Baseline Transformer",
-    description: "2-layer pre-norm transformer, mean-pool output. 857 params.",
-  },
-];
+interface ClassOption {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  parameterCount: number | null;
+}
 
 interface DataSourceOption {
   id: string;
@@ -25,12 +20,24 @@ interface DataSourceOption {
 export default function NewTrainingForm() {
   const router = useRouter();
   const [modelName, setModelName] = useState("");
-  const [modelTemplate, setModelTemplate] = useState("ctm");
+  const [modelTemplate, setModelTemplate] = useState("");
   const [dataSource, setDataSource] = useState("");
   const [epochs, setEpochs] = useState(10);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [classesLoading, setClassesLoading] = useState(true);
   const [dataSources, setDataSources] = useState<DataSourceOption[]>([]);
 
   useEffect(() => {
+    // Fetch model classes from DB (lazy-seeds defaults on first call)
+    fetch("/api/classes")
+      .then((r) => r.json())
+      .then((d: { classes: ClassOption[] }) => {
+        setClasses(d.classes);
+        if (d.classes.length > 0) setModelTemplate(d.classes[0].slug);
+      })
+      .catch(() => {})
+      .finally(() => setClassesLoading(false));
+
     fetch("/api/data-sources")
       .then((r) => r.json())
       .then((d: { sources: DataSourceOption[] }) => {
@@ -82,31 +89,54 @@ export default function NewTrainingForm() {
         </p>
       </div>
 
-      {/* Model template */}
-      <div className="space-y-3">
-        <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">
-          Model Template
-        </h2>
-        <div className="space-y-2">
-          {MODEL_TEMPLATES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setModelTemplate(t.id)}
-              className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
-                modelTemplate === t.id
-                  ? "border-orange-500/50 bg-orange-500/10"
-                  : "border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10"
-              }`}
-            >
-              <p className={`text-sm font-semibold ${modelTemplate === t.id ? "text-amber-100" : "text-amber-200/60"}`}>
-                {t.label}
-              </p>
-              <p className="text-[11px] text-amber-600/40 mt-0.5">{t.description}</p>
-            </button>
-          ))}
+      {/* Model class */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">
+              Class
+            </h2>
+            <a href="/classes" className="text-[11px] text-amber-600/40 hover:text-amber-400/60 transition-colors">
+              Browse classes →
+            </a>
+          </div>
+          <div className="space-y-2">
+            {classesLoading ? (
+              <>
+                <div className="h-14 rounded-xl border border-amber-900/20 bg-amber-900/5 animate-pulse" />
+                <div className="h-14 rounded-xl border border-amber-900/20 bg-amber-900/5 animate-pulse" />
+              </>
+            ) : classes.length === 0 ? (
+              <p className="text-xs text-amber-700/30 px-1">No classes found</p>
+            ) : (
+              classes.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setModelTemplate(c.slug)}
+                  className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                    modelTemplate === c.slug
+                      ? "border-orange-500/50 bg-orange-500/10"
+                      : "border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`text-sm font-semibold ${modelTemplate === c.slug ? "text-amber-100" : "text-amber-200/60"}`}>
+                      {c.name}
+                    </p>
+                    {c.parameterCount != null && (
+                      <span className="text-[10px] font-mono text-amber-700/40">
+                        {c.parameterCount.toLocaleString()} params
+                      </span>
+                    )}
+                  </div>
+                  {c.description && (
+                    <p className="text-[11px] text-amber-600/40 mt-0.5 leading-snug">{c.description}</p>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
         </div>
-      </div>
 
       {/* Data source */}
       <div className="space-y-3">

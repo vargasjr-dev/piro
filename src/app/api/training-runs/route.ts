@@ -1,9 +1,10 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../data/db";
-import { trainingRun } from "../../../../data/schema";
-import { eq, desc } from "drizzle-orm";
+import { trainingRun, modelClass } from "../../../../data/schema";
+import { eq, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { buildDefaultClasses } from "~/lib/model-classes";
 
 // ── GET /api/training-runs ────────────────────────────────────────────────────
 
@@ -65,10 +66,29 @@ export async function POST(request: Request) {
     return Response.json({ error: "modelTemplate and dataSource are required" }, { status: 400 });
   }
 
-  const validTemplates = ["ctm", "baseline-transformer"];
-  if (!validTemplates.includes(modelTemplate)) {
+  // Validate template against user's model_class table.
+  // Lazy-seed defaults if the user has no classes yet (e.g. first training run
+  // attempted without visiting /classes first).
+  let existingClasses = await db
+    .select({ id: modelClass.id })
+    .from(modelClass)
+    .where(eq(modelClass.userId, session.user.id))
+    .limit(1);
+
+  if (existingClasses.length === 0) {
+    const defaults = buildDefaultClasses(session.user.id);
+    await db.insert(modelClass).values(defaults);
+  }
+
+  const [matchedClass] = await db
+    .select({ id: modelClass.id })
+    .from(modelClass)
+    .where(and(eq(modelClass.userId, session.user.id), eq(modelClass.slug, modelTemplate)))
+    .limit(1);
+
+  if (!matchedClass) {
     return Response.json(
-      { error: `modelTemplate must be one of: ${validTemplates.join(", ")}` },
+      { error: `Unknown class: ${modelTemplate}` },
       { status: 400 },
     );
   }

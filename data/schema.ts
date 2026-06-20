@@ -200,6 +200,35 @@ export const dataSource = pgTable(
 );
 
 /**
+ * A model class (architecture template) the user can train instances of.
+ * The two built-in classes (CTM, Baseline Transformer) are lazy-seeded on
+ * first visit to /classes. Future user-defined classes will live here too.
+ *
+ * `slug` maps to the `modelTemplate` string consumed by modal_app.py
+ * (e.g. "ctm" | "baseline-transformer").
+ * `configJson` stores the default hyperparams shown on the class card.
+ */
+export const modelClass = pgTable(
+  "model_class",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),             // maps to modal_app.py modelTemplate key
+    description: text("description"),
+    parameterCount: integer("parameterCount"),
+    configJson: text("configJson"),           // JSON of default hyperparams for display
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [
+    index("mc_user_created").on(t.userId, t.createdAt),
+    unique("mc_user_slug").on(t.userId, t.slug),
+  ]
+);
+
+/**
  * A training run: one invocation of model/trainer.py against a model template + data source.
  * Created from the UI; execution is delegated to the Python environment.
  */
