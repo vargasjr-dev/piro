@@ -68,6 +68,13 @@ function parseIntAnswer(text: string): number | null {
 
 // ── Benchmark definition ──────────────────────────────────────────────────────
 
+export interface AdaptiveFailure {
+  prompt: string;
+  expected: number;
+  got: string;
+  difficulty: "easy" | "hard";
+}
+
 /**
  * AdaptiveCompute — easy (single-step arithmetic) vs hard (chained ops).
  *
@@ -97,7 +104,7 @@ export function makeAdaptiveCompute(opts?: {
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
       const easyLatencies: number[] = [];
-      const failureExamples: string[] = [];
+      const failures: AdaptiveFailure[] = [];
 
       for (const task of easyTasks) {
         const t0 = Date.now();
@@ -109,10 +116,13 @@ export function makeAdaptiveCompute(opts?: {
         const predicted = parseIntAnswer(result.text);
         if (predicted === task.answer) {
           easyCorrect++;
-        } else if (failureExamples.length < 2) {
-          failureExamples.push(
-            `[easy] expected ${task.answer}, got "${result.text.slice(0, 40)}"`,
-          );
+        } else {
+          failures.push({
+            prompt: task.prompt,
+            expected: task.answer,
+            got: result.text.slice(0, 200),
+            difficulty: "easy",
+          });
         }
       }
 
@@ -129,10 +139,13 @@ export function makeAdaptiveCompute(opts?: {
         const predicted = parseIntAnswer(result.text);
         if (predicted === task.answer) {
           hardCorrect++;
-        } else if (failureExamples.length < 3) {
-          failureExamples.push(
-            `[hard] expected ${task.answer}, got "${result.text.slice(0, 40)}"`,
-          );
+        } else {
+          failures.push({
+            prompt: task.prompt,
+            expected: task.answer,
+            got: result.text.slice(0, 200),
+            difficulty: "hard",
+          });
         }
       }
 
@@ -159,7 +172,7 @@ export function makeAdaptiveCompute(opts?: {
           avg_hard_ms: Math.round(avgHard),
           latency_ratio:
             latencyRatio !== null ? Math.round(latencyRatio * 100) / 100 : null,
-          failure_examples: failureExamples,
+          failures,
         },
       };
     },
