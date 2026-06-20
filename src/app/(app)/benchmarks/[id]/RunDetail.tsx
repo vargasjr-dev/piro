@@ -20,7 +20,8 @@ interface SuiteRun {
   id: string;
   status: "queued" | "complete" | "error";
   benchmarks: string | null;
-  targets: string | null;
+  targets: string[];   // resolved model names (server resolves UUIDs)
+  stubs: string[];     // target names that are Piro-trained stubs
   queuedAt: string;
   completedAt: string | null;
   error: string | null;
@@ -189,9 +190,11 @@ function MetadataDetail({ benchmarkName, metadata }: { benchmarkName: string; me
 function BenchmarkSection({
   name,
   rows,
+  stubs,
 }: {
   name: string;
   rows: BenchmarkRunRow[];
+  stubs: Set<string>;
 }) {
   return (
     <div className="border border-amber-900/20 rounded-xl overflow-hidden">
@@ -208,7 +211,7 @@ function BenchmarkSection({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <span className="text-xs font-medium text-amber-300/60">{row.target}</span>
-                {row.target === "piro-student" && (
+                {stubs.has(row.target) && (
                   <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-600/50 border border-amber-800/20">
                     stub
                   </span>
@@ -294,6 +297,7 @@ export default function RunDetail({ run: initial }: { run: SuiteRun }) {
       run.results.filter((r) => r.benchmarkName === name),
     ]),
   );
+  const stubSet = new Set(run.stubs);
 
   const totalCost = run.results.reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
 
@@ -331,7 +335,7 @@ export default function RunDetail({ run: initial }: { run: SuiteRun }) {
 
       {/* Benchmark sections */}
       {benchmarkNames.map((name) => (
-        <BenchmarkSection key={name} name={name} rows={byBenchmark[name]} />
+        <BenchmarkSection key={name} name={name} rows={byBenchmark[name]} stubs={stubSet} />
       ))}
     </div>
   );

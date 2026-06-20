@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { eq, desc, inArray } from "drizzle-orm";
 import { db } from "../../../../../data/db";
 import { benchmarkSuiteRun, benchmarkRun } from "../../../../../data/schema";
+import { resolveModelTargets } from "~/lib/benchmarks/resolve-models";
 
 // ── GET /api/benchmarks/suite-runs — list recent suite runs with result counts ─
 
@@ -38,10 +39,42 @@ export async function GET() {
     }
   }
 
+  // Resolve any UUID targets → model names (handles runs created before the fix)
+  const allResults = Object.values(resultsBySuite).flat();
+  const allRawTargets = [
+    ...suites.flatMap((s) =>
+      s.targets ? (JSON.parse(s.targets) as string[]) : [],
+    ),
+    ...allResults.map((r) => r.target),
+  ];
+  const { nameMap, stubNames } = await resolveModelTargets(allRawTargets);
+
   return NextResponse.json({
-    suites: suites.map((s) => ({
-      ...s,
-      results: resultsBySuite[s.id] ?? [],
-    })),
+    suites: suites.map((s) => {
+      const suiteTargetIds: string[] = s.targets
+        ? (JSON.parse(s.targets) as string[])
+        : [];
+      const results = resultsBySuite[s.id] ?? [];
+      return {
+        id: s.id,
+        status: s.status,
+        benchmarks: s.benchmarks,
+        targets: suiteTargetIds.map((id) => nameMap[id] ?? id),
+        stubs: [...stubNames],
+        queuedAt: s.queuedAt.toISOString(),
+        completedAt: s.completedAt?.toISOString() ?? null,
+        error: s.error,
+        results: results.map((r) => ({
+          id: r.id,
+          benchmarkName: r.benchmarkName,
+          target: nameMap[r.target] ?? r.target,
+          score: r.score,
+          costUsd: r.costUsd,
+          durationMs: r.durationMs,
+          metadata: r.metadata,
+          ranAt: r.ranAt.toISOString(),
+        })),
+      };
+    }),
   });
 }

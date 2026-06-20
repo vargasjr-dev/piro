@@ -57,11 +57,11 @@ async function resolveTargets(
     }
     if (trainingById[m.id]) {
       // Piro-trained model — stub until inference endpoint exists
-      return { ...makePiroStudentAdapter(), name: m.id };
+      return { ...makePiroStudentAdapter(), name: m.name };
     }
     // Fallback stub
     return {
-      name: m.id,
+      name: m.name,
       isStub: true,
       generate: async () => ({ text: "", inputTokens: 0, outputTokens: 0 }),
     };

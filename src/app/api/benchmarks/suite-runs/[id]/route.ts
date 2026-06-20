@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "../../../../../../data/db";
 import { benchmarkSuiteRun, benchmarkRun } from "../../../../../../data/schema";
+import { resolveModelTargets } from "~/lib/benchmarks/resolve-models";
 
 // ── GET /api/benchmarks/suite-runs/[id] ──────────────────────────────────────
 
@@ -36,19 +37,27 @@ export async function GET(
     .where(eq(benchmarkRun.suiteRunId, id))
     .orderBy(desc(benchmarkRun.ranAt));
 
+  // Resolve any UUID targets → model names (handles runs created before the fix)
+  const suiteTargetIds: string[] = suite.targets
+    ? (JSON.parse(suite.targets) as string[])
+    : [];
+  const allRawTargets = [...suiteTargetIds, ...results.map((r) => r.target)];
+  const { nameMap, stubNames } = await resolveModelTargets(allRawTargets);
+
   return NextResponse.json({
     suite: {
       id: suite.id,
       status: suite.status,
       benchmarks: suite.benchmarks,
-      targets: suite.targets,
+      targets: suiteTargetIds.map((id) => nameMap[id] ?? id),
+      stubs: [...stubNames],
       queuedAt: suite.queuedAt.toISOString(),
       completedAt: suite.completedAt?.toISOString() ?? null,
       error: suite.error,
       results: results.map((r) => ({
         id: r.id,
         benchmarkName: r.benchmarkName,
-        target: r.target,
+        target: nameMap[r.target] ?? r.target,
         score: r.score,
         costUsd: r.costUsd,
         durationMs: r.durationMs,

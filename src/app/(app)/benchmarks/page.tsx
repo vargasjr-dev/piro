@@ -4,6 +4,7 @@ import { auth } from "~/lib/auth.server";
 import { eq, desc, inArray } from "drizzle-orm";
 import { db } from "../../../../data/db";
 import { benchmarkSuiteRun, benchmarkRun } from "../../../../data/schema";
+import { resolveModelTargets } from "~/lib/benchmarks/resolve-models";
 import RunsList from "./RunsList";
 
 export default async function BenchmarksPage() {
@@ -32,25 +33,40 @@ export default async function BenchmarksPage() {
     }
   }
 
-  const initialSuites = suites.map((s) => ({
-    id: s.id,
-    status: s.status as "queued" | "complete" | "error",
-    benchmarks: s.benchmarks,
-    targets: s.targets,
-    queuedAt: s.queuedAt.toISOString(),
-    completedAt: s.completedAt?.toISOString() ?? null,
-    error: s.error,
-    results: (resultsBySuite[s.id] ?? []).map((r) => ({
-      id: r.id,
-      benchmarkName: r.benchmarkName,
-      target: r.target,
-      score: r.score,
-      costUsd: r.costUsd,
-      durationMs: r.durationMs,
-      metadata: r.metadata,
-      ranAt: r.ranAt.toISOString(),
-    })),
-  }));
+  // Resolve any UUID targets → model names (handles runs created before the fix)
+  const allRawTargets = [
+    ...suites.flatMap((s) =>
+      s.targets ? (JSON.parse(s.targets) as string[]) : [],
+    ),
+    ...Object.values(resultsBySuite).flat().map((r) => r.target),
+  ];
+  const { nameMap, stubNames } = await resolveModelTargets(allRawTargets);
+
+  const initialSuites = suites.map((s) => {
+    const suiteTargetIds: string[] = s.targets
+      ? (JSON.parse(s.targets) as string[])
+      : [];
+    return {
+      id: s.id,
+      status: s.status as "queued" | "complete" | "error",
+      benchmarks: s.benchmarks,
+      targets: suiteTargetIds.map((id) => nameMap[id] ?? id),
+      stubs: [...stubNames],
+      queuedAt: s.queuedAt.toISOString(),
+      completedAt: s.completedAt?.toISOString() ?? null,
+      error: s.error,
+      results: (resultsBySuite[s.id] ?? []).map((r) => ({
+        id: r.id,
+        benchmarkName: r.benchmarkName,
+        target: nameMap[r.target] ?? r.target,
+        score: r.score,
+        costUsd: r.costUsd,
+        durationMs: r.durationMs,
+        metadata: r.metadata,
+        ranAt: r.ranAt.toISOString(),
+      })),
+    };
+  });
 
   return (
     <div className="flex flex-col min-h-screen">
