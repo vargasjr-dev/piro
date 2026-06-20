@@ -294,8 +294,12 @@ console.log("✓ model: added weightsB64");
 await sql`ALTER TABLE model ADD COLUMN IF NOT EXISTS "inferenceEndpoint" TEXT`;
 console.log("✓ model: added inferenceEndpoint");
 
-// ── model: add weightsJson column ─────────────────────────────────────────────
-await sql`ALTER TABLE model ADD COLUMN IF NOT EXISTS "weightsJson" TEXT`;
-console.log("✓ model: added weightsJson");
+// ── model: add weightsR2Key, drop weightsB64 + weightsJson ───────────────────
+await sql`ALTER TABLE model ADD COLUMN IF NOT EXISTS "weightsR2Key" TEXT`;
+console.log("✓ model: added weightsR2Key");
+await sql`ALTER TABLE model DROP COLUMN IF EXISTS "weightsB64"`;
+console.log("✓ model: dropped weightsB64");
+await sql`ALTER TABLE model DROP COLUMN IF EXISTS "weightsJson"`;
+console.log("✓ model: dropped weightsJson");
 
 console.log("Migrations complete ✓");

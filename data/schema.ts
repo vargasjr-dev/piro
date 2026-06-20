@@ -245,10 +245,14 @@ export const model = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     parameterCount: integer("parameterCount"),
-    /** Base64-encoded PyTorch state_dict bytes. Populated after training completes. */
-    weightsB64: text("weightsB64"),
-    /** JSON-serialized state_dict: {key: number[][] | number[]}. For visualization. */
-    weightsJson: text("weightsJson"),
+    /**
+     * R2 key prefix for stored model weights. e.g. "models/{id}".
+     * Two objects live under this prefix:
+     *   {weightsR2Key}/weights.pt   — PyTorch state_dict (binary, for inference)
+     *   {weightsR2Key}/weights.json — JSON tensor map (for visualization)
+     * Null = weights not yet stored (model predates R2 storage or hasn't finished training).
+     */
+    weightsR2Key: text("weightsR2Key"),
     /** URL of the inference endpoint for this model (e.g. Modal /infer URL). Null = no inference available. */
     inferenceEndpoint: text("inferenceEndpoint"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),

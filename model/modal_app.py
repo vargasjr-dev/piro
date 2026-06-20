@@ -33,6 +33,24 @@ app = modal.App("piro")
 # Update this if the Modal username or app name ever changes.
 INFER_ENDPOINT = "https://dvargasfuertes--piro-infer.modal.run"
 
+# R2 bucket name — must match BUCKET() in src/lib/r2.ts
+R2_BUCKET = "piro-kb"
+
+
+def _r2_client(os_module):
+    """Build a boto3 S3 client pointed at the B2/R2 bucket."""
+    import boto3
+    endpoint = os_module.environ["BUCKET_ENDPOINT_URL"]
+    if not endpoint.startswith("http"):
+        endpoint = f"https://{endpoint}"
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=os_module.environ["BUCKET_KEY_ID"],
+        aws_secret_access_key=os_module.environ["BUCKET_APPLICATION_SECRET"],
+        region_name="auto",
+    )
+
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
@@ -40,6 +58,7 @@ image = (
         "numpy>=1.26.0",
         "psycopg2-binary>=2.9",
         "fastapi[standard]>=0.110.0",
+        "boto3>=1.34.0",
     )
     .add_local_python_source("model")
 )
@@ -105,7 +124,6 @@ class Trainer:
         epochs: int,
         seed: int,
     ) -> None:
-        import base64
         import io
         import json
         import os
@@ -241,14 +259,16 @@ class Trainer:
                 )
                 conn.commit()
 
-            # ── Serialize model weights ───────────────────────────────────────
-            buf = io.BytesIO()
+            # ── Serialize + upload model weights to R2 ───────────────────────
             state = model.state_dict()
-            torch.save(state, buf)
-            weights_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
 
-            # JSON representation for visualization: {key: [[...], ...] or [...]}
-            weights_json = json.dumps({
+            # Binary .pt file for inference
+            pt_buf = io.BytesIO()
+            torch.save(state, pt_buf)
+            pt_bytes = pt_buf.getvalue()
+
+            # JSON file for visualization: {key: [[...], ...] or [...]}
+            weights_json_str = json.dumps({
                 k: (
                     [[round(float(x), 6) for x in row] for row in v.tolist()]
                     if v.ndim == 2
@@ -256,6 +276,22 @@ class Trainer:
                 )
                 for k, v in state.items()
             })
+
+            r2_prefix = f"models/{model_id}"
+            r2 = _r2_client(os)
+            r2.put_object(
+                Bucket=R2_BUCKET,
+                Key=f"{r2_prefix}/weights.pt",
+                Body=pt_bytes,
+                ContentType="application/octet-stream",
+            )
+            r2.put_object(
+                Bucket=R2_BUCKET,
+                Key=f"{r2_prefix}/weights.json",
+                Body=weights_json_str.encode("utf-8"),
+                ContentType="application/json",
+            )
+            print(f"[piro] uploaded weights to R2: {r2_prefix}/ ({len(pt_bytes)} bytes .pt, {len(weights_json_str)} bytes .json)")
 
             # ── Final training_run update ─────────────────────────────────────
             last = history[-1]
@@ -291,10 +327,10 @@ class Trainer:
             model_id = str(_uuid.uuid4())
             cur.execute(
                 """
-                INSERT INTO model (id, "userId", name, "parameterCount", "weightsB64", "weightsJson", "inferenceEndpoint", "createdAt")
-                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                INSERT INTO model (id, "userId", name, "parameterCount", "weightsR2Key", "inferenceEndpoint", "createdAt")
+                VALUES (%s, %s, %s, %s, %s, %s, NOW())
                 """,
-                (model_id, user_id, resolved_name, param_count, weights_b64, weights_json, INFER_ENDPOINT),
+                (model_id, user_id, resolved_name, param_count, r2_prefix, INFER_ENDPOINT),
             )
             cur.execute(
                 """
@@ -338,7 +374,6 @@ class Trainer:
 class Infer:
     @modal.enter()
     def setup(self):
-        import base64
         import io
         import json
         import os
@@ -350,7 +385,6 @@ class Infer:
         from model.baseline_transformer import BaselineTransformer, TransformerConfig
         from model.ctm import ContinuousThoughtModel, CTMConfig
 
-        self._base64 = base64
         self._io = io
         self._json = json
         self._os = os
@@ -368,15 +402,16 @@ class Infer:
         print("[piro-infer] container ready")
 
     def _load(self, model_id: str):
-        """Load model from DB weights and cache it."""
+        """Load model from R2 weights and cache it."""
         if model_id in self._cache:
             return self._cache[model_id]
 
+        # Fetch R2 key prefix + configJson from DB
         conn = self._psycopg2.connect(self._os.environ["DATABASE_URL"])
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT m."weightsB64", tr."configJson"
+            SELECT m."weightsR2Key", tr."configJson"
             FROM model m
             JOIN model_training_run mtr ON mtr."modelId" = m.id
             JOIN training_run tr ON tr.id = mtr."trainingRunId"
@@ -389,11 +424,11 @@ class Infer:
         conn.close()
 
         if not row or not row[0]:
-            raise ValueError(f"No weights stored for model {model_id!r}")
+            raise ValueError(f"No weights stored for model {model_id!r} — retrain to populate")
         if not row[1]:
-            raise ValueError(f"No configJson for model {model_id!r} — re-train to populate")
+            raise ValueError(f"No configJson for model {model_id!r} — retrain to populate")
 
-        weights_b64, config_json_str = row
+        r2_prefix, config_json_str = row
         cfg = self._json.loads(config_json_str)
         template = cfg.get("template")
         torch = self._torch
@@ -420,13 +455,17 @@ class Infer:
         else:
             raise ValueError(f"Unknown template: {template!r}")
 
-        buf = self._io.BytesIO(self._base64.b64decode(weights_b64))
+        # Download weights.pt from R2
+        r2 = _r2_client(self._os)
+        resp = r2.get_object(Bucket=R2_BUCKET, Key=f"{r2_prefix}/weights.pt")
+        pt_bytes = resp["Body"].read()
+        buf = self._io.BytesIO(pt_bytes)
         state = torch.load(buf, map_location="cpu", weights_only=True)
         model.load_state_dict(state)
         model.eval()
 
         self._cache[model_id] = (model, cfg)
-        print(f"[piro-infer] loaded {model_id} ({template}, {sum(p.numel() for p in model.parameters())} params)")
+        print(f"[piro-infer] loaded {model_id} ({template}, {sum(p.numel() for p in model.parameters())} params) from R2 {r2_prefix}/")
         return self._cache[model_id]
 
     def _build_emb(self, seq: list[int], embed_dim: int) -> "torch.Tensor":

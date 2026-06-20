@@ -13,6 +13,7 @@ import {
 } from "../../../../../data/schema";
 import WeightGraph from "./WeightGraph";
 import DeleteModelButton from "./DeleteModelButton";
+import { r2Get } from "~/lib/r2";
 
 function fmt(date: Date) {
   return date.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -110,6 +111,11 @@ export default async function ModelDetailPage({
 
   const isTrainedModel = !!run;
   const template = run?.modelTemplate ?? null;
+
+  // Fetch weights JSON from R2 for visualization (null if not yet trained / uploaded)
+  const weightsJson = m.weightsR2Key
+    ? await r2Get(`${m.weightsR2Key}/weights.json`).catch(() => null)
+    : null;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -217,7 +223,7 @@ export default async function ModelDetailPage({
         {isTrainedModel && (
           <div className="space-y-3">
             <h2 className="text-[10px] font-semibold text-amber-400/40 uppercase tracking-widest">Weights</h2>
-            <WeightGraph weightsJson={m.weightsJson ?? null} />
+            <WeightGraph weightsJson={weightsJson} />
           </div>
         )}
 

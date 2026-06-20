@@ -8,6 +8,7 @@ import {
   trainingRun,
 } from "../../../../../data/schema";
 import { eq, and } from "drizzle-orm";
+import { r2DeletePrefix } from "~/lib/r2";
 
 export async function DELETE(
   _request: Request,
@@ -18,7 +19,7 @@ export async function DELETE(
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const [m] = await db
-    .select({ id: model.id })
+    .select({ id: model.id, weightsR2Key: model.weightsR2Key })
     .from(model)
     .where(and(eq(model.id, id), eq(model.userId, session.user.id)))
     .limit(1);
@@ -29,6 +30,13 @@ export async function DELETE(
   await db.delete(modelTrainingRun).where(eq(modelTrainingRun.modelId, id));
   await db.delete(modelHostedApi).where(eq(modelHostedApi.modelId, id));
   await db.delete(model).where(eq(model.id, id));
+
+  // Clean up R2 weights if stored (fire-and-forget — don't fail the delete if R2 is unreachable)
+  if (m.weightsR2Key) {
+    r2DeletePrefix(m.weightsR2Key + "/").catch((e) =>
+      console.error(`[delete-model] R2 cleanup failed for ${m.weightsR2Key}:`, e),
+    );
+  }
 
   return Response.json({ ok: true });
 }
