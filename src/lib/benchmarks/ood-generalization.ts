@@ -41,6 +41,12 @@ function parseSortedList(text: string): number[] | null {
 
 // ── Benchmark definition ──────────────────────────────────────────────────────
 
+export interface OODFailure {
+  prompt: string;
+  expected: number[];
+  got: string;
+}
+
 export function makeOODGeneralization(opts?: {
   nTest?: number;
   trainLength?: number;
@@ -66,7 +72,7 @@ export function makeOODGeneralization(opts?: {
       let nCorrect = 0;
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
-      const failureExamples: string[] = [];
+      const failures: OODFailure[] = [];
 
       for (const sample of testSamples) {
         const result = await model.generate(sample.prompt);
@@ -81,10 +87,12 @@ export function makeOODGeneralization(opts?: {
 
         if (correct) {
           nCorrect++;
-        } else if (failureExamples.length < 3) {
-          failureExamples.push(
-            `expected [${sample.answer.join(" ")}], got "${result.text.slice(0, 60)}"`,
-          );
+        } else {
+          failures.push({
+            prompt: sample.prompt,
+            expected: sample.answer,
+            got: result.text.slice(0, 200),
+          });
         }
       }
 
@@ -95,7 +103,7 @@ export function makeOODGeneralization(opts?: {
         metadata: {
           n_tests: testSamples.length,
           n_correct: nCorrect,
-          failure_examples: failureExamples,
+          failures,
         },
       };
     },
