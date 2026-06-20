@@ -11,7 +11,7 @@ import type { BenchmarkDef, ModelAdapter } from "./types";
 import { sanityCheck } from "./sanity-check";
 import { oodGeneralization } from "./ood-generalization";
 import { adaptiveCompute } from "./adaptive-compute";
-import { makeGPTAdapter, makePiroStudentAdapter } from "./openai";
+import { makeGPTAdapter, makePiroModelAdapter } from "./openai";
 
 // ── Benchmark registry (static) ───────────────────────────────────────────────
 
@@ -56,8 +56,8 @@ async function resolveTargets(
       return makeGPTAdapter(hosted.apiModelName);
     }
     if (trainingById[m.id]) {
-      // Piro-trained model — stub until inference endpoint exists
-      return { ...makePiroStudentAdapter(), name: m.name };
+      // Piro-trained model — real inference via Modal endpoint
+      return makePiroModelAdapter(m.id, m.name);
     }
     // Fallback stub
     return {

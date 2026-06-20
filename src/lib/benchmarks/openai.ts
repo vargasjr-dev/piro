@@ -77,16 +77,55 @@ export function makeGPTAdapter(modelName: string): ModelAdapter {
   };
 }
 
-// ── Piro student stub (random noise — real model not yet implemented) ─────────
+// ── Piro trained model adapter — calls Modal inference endpoint ───────────────
 
-export function makePiroStudentAdapter(): ModelAdapter {
+interface ModalInferResponse {
+  text: string;
+  durationMs: number;
+  error?: string;
+}
+
+/**
+ * Adapter for a Piro-trained model hosted on Modal.
+ *
+ * Calls MODAL_INFERENCE_ENDPOINT with { model_id, prompt, secret }.
+ * Returns text from Modal; inputTokens/outputTokens are 0 (these models
+ * don't use token-based pricing — cost is essentially $0 for tiny CPU inference).
+ *
+ * If MODAL_INFERENCE_ENDPOINT is not set, throws so the benchmark records an error
+ * rather than silently returning noise.
+ */
+export function makePiroModelAdapter(modelId: string, modelName: string): ModelAdapter {
   return {
-    name: "piro-student",
-    isStub: true,
-    async generate(_prompt: string): Promise<GenerateResult> {
-      // Intentionally terrible: returns a random integer string.
-      // Replace with real inference once the model is trained.
-      return { text: String(Math.floor(Math.random() * 1000)), inputTokens: 0, outputTokens: 0 };
+    name: modelName,
+    async generate(prompt: string): Promise<GenerateResult> {
+      const endpoint = process.env.MODAL_INFERENCE_ENDPOINT;
+      const secret = process.env.MODAL_WEBHOOK_SECRET ?? "";
+
+      if (!endpoint) {
+        throw new Error(
+          "MODAL_INFERENCE_ENDPOINT is not set — deploy Modal app and add the infer URL to Vercel env",
+        );
+      }
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model_id: modelId, prompt, secret }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Piro inference error ${res.status}: ${body}`);
+      }
+
+      const data = (await res.json()) as ModalInferResponse;
+
+      if (data.error) {
+        throw new Error(`Piro inference error: ${data.error}`);
+      }
+
+      return { text: data.text ?? "", inputTokens: 0, outputTokens: 0 };
     },
   };
 }

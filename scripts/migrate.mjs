@@ -286,4 +286,8 @@ await sql`
 `;
 console.log("✓ training_run: marked orphaned running runs as error");
 
+// ── model: add weightsB64 column ──────────────────────────────────────────────
+await sql`ALTER TABLE model ADD COLUMN IF NOT EXISTS "weightsB64" TEXT`;
+console.log("✓ model: added weightsB64");
+
 console.log("Migrations complete ✓");

@@ -1,21 +1,17 @@
 """
 model/modal_app.py
 
-Modal app for Piro training (and eventually inference).
+Modal app for Piro training and inference.
 
 Deploy
 ------
     modal deploy model/modal_app.py
 
-This registers two Modal endpoints:
+This registers three Modal endpoints:
   - Trainer (cls)  : .run() called by spawn() — heavy imports in @enter()
-  - trigger        : web endpoint called by Vercel POST /api/training-runs
-
-Cold start mitigation
----------------------
-All heavy imports (torch, model code) live in @modal.enter(), which runs
-once per container lifetime and is snapshotted. Warm container reuse means
-subsequent calls skip the import overhead entirely.
+  - Infer   (cls)  : .generate() called by spawn() from the infer endpoint
+  - trigger        : POST web endpoint called by Vercel /api/training-runs
+  - infer          : POST web endpoint called by Vercel benchmark runner
 
 Environment
 -----------
@@ -25,6 +21,7 @@ Modal secret named "piro-secrets" must contain:
 
 Vercel env vars needed:
   MODAL_TRAINING_ENDPOINT  — the /trigger URL printed after `modal deploy`
+  MODAL_INFERENCE_ENDPOINT — the /infer URL printed after `modal deploy`
 """
 
 import modal
@@ -43,11 +40,6 @@ image = (
 )
 
 piro_secrets = modal.Secret.from_name("piro-secrets")
-
-# ── Hyperparameter config (kept in sync with model/train.py) ─────────────────
-
-CTM_CFG = None      # set in enter()
-TRANSFORMER_CFG = None
 
 
 # ── Trainer class — heavy imports snapshotted per container via @enter() ──────
@@ -108,6 +100,8 @@ class Trainer:
         epochs: int,
         seed: int,
     ) -> None:
+        import base64
+        import io
         import json
         import os
         import random
@@ -156,19 +150,46 @@ class Trainer:
             torch.manual_seed(seed)
 
             if model_template == "ctm":
-                model = self._ContinuousThoughtModel(self._ctm_cfg)
+                cfg = self._ctm_cfg
+                model = self._ContinuousThoughtModel(cfg)
+                config_dict = {
+                    "template": "ctm",
+                    "n_neurons": cfg.n_neurons,
+                    "embed_dim": cfg.embed_dim,
+                    "query_dim": cfg.query_dim,
+                    "value_dim": cfg.value_dim,
+                    "hidden_dim": cfg.hidden_dim,
+                    "n_classes": cfg.n_classes,
+                }
             elif model_template == "baseline-transformer":
-                model = self._BaselineTransformer(self._transformer_cfg)
+                cfg = self._transformer_cfg
+                model = self._BaselineTransformer(cfg)
+                config_dict = {
+                    "template": "baseline-transformer",
+                    "embed_dim": cfg.embed_dim,
+                    "n_heads": cfg.n_heads,
+                    "ffn_dim": cfg.ffn_dim,
+                    "n_layers": cfg.n_layers,
+                    "n_classes": cfg.n_classes,
+                }
             else:
                 raise ValueError(f"Unknown model_template: {model_template!r}")
+
+            # Persist arch config to training_run immediately
+            config_json = json.dumps(config_dict)
+            cur.execute(
+                'UPDATE training_run SET "configJson" = %s WHERE id = %s',
+                (config_json, run_id),
+            )
+            conn.commit()
 
             # ── Build dataset ─────────────────────────────────────────────────
             train_data = _build_dataset(500, "train")
             val_data = _build_dataset(100, "val")
 
             # ── Train with per-epoch progress + timing writes ─────────────────
-            cfg = self._TrainerConfig(epochs=epochs, seed=seed, log_every=0)
-            trainer = self._Trainer(model, cfg)
+            trainer_cfg = self._TrainerConfig(epochs=epochs, seed=seed, log_every=0)
+            trainer = self._Trainer(model, trainer_cfg)
             history = []
 
             for epoch in range(1, epochs + 1):
@@ -215,7 +236,12 @@ class Trainer:
                 )
                 conn.commit()
 
-            # ── Final update ──────────────────────────────────────────────────
+            # ── Serialize model weights ───────────────────────────────────────
+            buf = io.BytesIO()
+            torch.save(model.state_dict(), buf)
+            weights_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+            # ── Final training_run update ─────────────────────────────────────
             last = history[-1]
             cur.execute(
                 """
@@ -239,7 +265,7 @@ class Trainer:
             )
             conn.commit()
 
-            # ── Create model + model_training_run rows ────────────────────────
+            # ── Create model + model_training_run rows (with weights) ─────────
             param_count = sum(p.numel() for p in model.parameters())
             resolved_name = (
                 model_name.strip()
@@ -249,10 +275,10 @@ class Trainer:
             model_id = str(_uuid.uuid4())
             cur.execute(
                 """
-                INSERT INTO model (id, "userId", name, "parameterCount", "createdAt")
-                VALUES (%s, %s, %s, %s, NOW())
+                INSERT INTO model (id, "userId", name, "parameterCount", "weightsB64", "createdAt")
+                VALUES (%s, %s, %s, %s, %s, NOW())
                 """,
-                (model_id, user_id, resolved_name, param_count),
+                (model_id, user_id, resolved_name, param_count, weights_b64),
             )
             cur.execute(
                 """
@@ -265,7 +291,8 @@ class Trainer:
             print(
                 f"[piro] run {run_id} complete — "
                 f"val_acc={last.val_accuracy:.3f}  val_loss={last.val_loss:.4f}  "
-                f"model_id={model_id}  name={resolved_name!r}"
+                f"model_id={model_id}  name={resolved_name!r}  "
+                f"weights_b64_len={len(weights_b64)}"
             )
 
         except BaseException as exc:
@@ -285,7 +312,197 @@ class Trainer:
             conn.close()
 
 
-# ── Web endpoint ──────────────────────────────────────────────────────────────
+# ── Infer class — loads model weights on first call, caches per container ──────
+
+@app.cls(
+    image=image,
+    secrets=[piro_secrets],
+    timeout=120,
+)
+class Infer:
+    @modal.enter()
+    def setup(self):
+        import base64
+        import io
+        import json
+        import os
+        import re
+
+        import psycopg2
+        import torch
+
+        from model.baseline_transformer import BaselineTransformer, TransformerConfig
+        from model.ctm import ContinuousThoughtModel, CTMConfig
+
+        self._base64 = base64
+        self._io = io
+        self._json = json
+        self._os = os
+        self._re = re
+        self._psycopg2 = psycopg2
+        self._torch = torch
+        self._CTM = ContinuousThoughtModel
+        self._CTMConfig = CTMConfig
+        self._Transformer = BaselineTransformer
+        self._TransformerConfig = TransformerConfig
+
+        # model_id → (model, cfg_dict) — persists across warm calls
+        self._cache: dict = {}
+
+        print("[piro-infer] container ready")
+
+    def _load(self, model_id: str):
+        """Load model from DB weights and cache it."""
+        if model_id in self._cache:
+            return self._cache[model_id]
+
+        conn = self._psycopg2.connect(self._os.environ["DATABASE_URL"])
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT m."weightsB64", tr."configJson"
+            FROM model m
+            JOIN model_training_run mtr ON mtr."modelId" = m.id
+            JOIN training_run tr ON tr.id = mtr."trainingRunId"
+            WHERE m.id = %s
+            """,
+            (model_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not row or not row[0]:
+            raise ValueError(f"No weights stored for model {model_id!r}")
+        if not row[1]:
+            raise ValueError(f"No configJson for model {model_id!r} — re-train to populate")
+
+        weights_b64, config_json_str = row
+        cfg = self._json.loads(config_json_str)
+        template = cfg.get("template")
+        torch = self._torch
+
+        if template == "ctm":
+            model_cfg = self._CTMConfig(
+                n_neurons=cfg["n_neurons"],
+                embed_dim=cfg["embed_dim"],
+                query_dim=cfg["query_dim"],
+                value_dim=cfg["value_dim"],
+                hidden_dim=cfg["hidden_dim"],
+                n_classes=cfg["n_classes"],
+            )
+            model = self._CTM(model_cfg)
+        elif template == "baseline-transformer":
+            model_cfg = self._TransformerConfig(
+                embed_dim=cfg["embed_dim"],
+                n_heads=cfg["n_heads"],
+                ffn_dim=cfg["ffn_dim"],
+                n_layers=cfg["n_layers"],
+                n_classes=cfg["n_classes"],
+            )
+            model = self._Transformer(model_cfg)
+        else:
+            raise ValueError(f"Unknown template: {template!r}")
+
+        buf = self._io.BytesIO(self._base64.b64decode(weights_b64))
+        state = torch.load(buf, map_location="cpu", weights_only=True)
+        model.load_state_dict(state)
+        model.eval()
+
+        self._cache[model_id] = (model, cfg)
+        print(f"[piro-infer] loaded {model_id} ({template}, {sum(p.numel() for p in model.parameters())} params)")
+        return self._cache[model_id]
+
+    def _build_emb(self, seq: list[int], embed_dim: int) -> "torch.Tensor":
+        """One-hot-ish embedding: position i gets a 1 at min(value, embed_dim-1)."""
+        torch = self._torch
+        emb = torch.zeros(len(seq), embed_dim)
+        for i, val in enumerate(seq):
+            emb[i, min(int(val), embed_dim - 1)] = 1.0
+        return emb
+
+    def _argmin_chunk(self, model, template: str, chunk: list[int], n_neurons: int, embed_dim: int) -> int:
+        """Run one model forward pass; return the value at the predicted argmin position."""
+        torch = self._torch
+        actual = len(chunk)
+        # Pad with embed_dim-1 sentinel (largest encodable value) to fill n_neurons slots
+        padded = chunk + [embed_dim - 1] * (n_neurons - actual)
+        emb = self._build_emb(padded, embed_dim)
+        with torch.no_grad():
+            out = model(emb)
+            logits = out.logits if hasattr(out, "logits") else out
+        # Only consider logits for actual (non-padded) positions
+        idx = int(logits[:actual].argmax().item())
+        return chunk[idx]
+
+    def _find_min(self, model, template: str, numbers: list[int], n_neurons: int, embed_dim: int) -> int:
+        """Recursively find the minimum using model as an argmin oracle."""
+        if len(numbers) <= n_neurons:
+            return self._argmin_chunk(model, template, numbers, n_neurons, embed_dim)
+        # Divide into chunks, get min of each, then recurse
+        candidates = [
+            self._argmin_chunk(model, template, numbers[i:i + n_neurons], n_neurons, embed_dim)
+            for i in range(0, len(numbers), n_neurons)
+        ]
+        return self._find_min(model, template, candidates, n_neurons, embed_dim)
+
+    def _sort(self, model, template: str, numbers: list[int], n_neurons: int, embed_dim: int) -> list[int]:
+        """Selection sort using model as argmin oracle."""
+        remaining = list(numbers)
+        result = []
+        while remaining:
+            if len(remaining) == 1:
+                result.append(remaining[0])
+                break
+            min_val = self._find_min(model, template, remaining, n_neurons, embed_dim)
+            result.append(min_val)
+            remaining.remove(min_val)
+        return result
+
+    @modal.method()
+    def generate(self, model_id: str, prompt: str) -> dict:
+        """
+        Run inference for one benchmark prompt.
+
+        The prompt format is: "Sort these numbers from smallest to largest: [a, b, ...]\\nResponse (numbers only, space-separated):"
+        Returns: { "text": "<space-separated sorted list>", "durationMs": int }
+        """
+        import time
+        t0 = time.time()
+
+        try:
+            model, cfg = self._load(model_id)
+        except Exception as exc:
+            return {"text": "", "error": str(exc), "durationMs": 0}
+
+        template = cfg["template"]
+        n_neurons = cfg.get("n_neurons", cfg.get("embed_dim", 4))
+        # Transformer uses embed_dim for sequence length in our dataset builder
+        # but the model itself isn't constrained — we use n_neurons from CTMConfig
+        # For transformer, the natural chunk size is n_neurons from the ctm config (=4)
+        # so we hard-code the dataset's sequence length as the oracle chunk size.
+        chunk_size = cfg.get("n_neurons", 4)
+        embed_dim = cfg["embed_dim"]
+
+        # Parse list from prompt: "Sort these numbers...: [5, 6, 10, ...]"
+        match = self._re.search(r'\[([^\]]+)\]', prompt)
+        if not match:
+            # Not a sorting prompt — return empty (model only handles sorting)
+            return {"text": "", "durationMs": int((time.time() - t0) * 1000)}
+
+        try:
+            numbers = [int(x.strip()) for x in match.group(1).split(',')]
+        except ValueError:
+            return {"text": "", "durationMs": int((time.time() - t0) * 1000)}
+
+        sorted_nums = self._sort(model, template, numbers, chunk_size, embed_dim)
+        return {
+            "text": " ".join(str(x) for x in sorted_nums),
+            "durationMs": int((time.time() - t0) * 1000),
+        }
+
+
+# ── Web endpoints ─────────────────────────────────────────────────────────────
 
 @app.function(image=image, secrets=[piro_secrets])
 @modal.fastapi_endpoint(method="POST")
@@ -326,3 +543,35 @@ def trigger(body: dict) -> dict:
     )
 
     return {"ok": True, "runId": run_id}
+
+
+@app.function(image=image, secrets=[piro_secrets])
+@modal.fastapi_endpoint(method="POST")
+def infer(body: dict) -> dict:
+    """
+    Run inference on a trained Piro model.
+
+    Body:
+        {
+            "model_id": str,
+            "prompt":   str,
+            "secret":   str,
+        }
+
+    Response:
+        { "text": str, "durationMs": int }
+    """
+    import os
+    from fastapi import HTTPException
+
+    expected = os.environ.get("MODAL_WEBHOOK_SECRET", "")
+    if expected and body.get("secret") != expected:
+        raise HTTPException(status_code=401, detail="Invalid secret")
+
+    model_id = body.get("model_id")
+    prompt = body.get("prompt", "")
+    if not model_id:
+        raise HTTPException(status_code=400, detail="model_id required")
+
+    inferrer = Infer()
+    return inferrer.generate.remote(model_id=model_id, prompt=prompt)

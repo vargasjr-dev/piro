@@ -7,11 +7,15 @@ const UUID_PATTERN =
 
 /**
  * Given an array of strings that may be model UUIDs or already-resolved names,
- * resolves UUIDs → model names and identifies Piro-trained (stub) models.
+ * resolves UUIDs → model names and identifies stub models.
+ *
+ * A Piro-trained model is a stub only if it has no stored weights (weightsB64 is null) —
+ * i.e., it was trained before weight persistence was added. Once a model has weights,
+ * it's no longer a stub and will receive real inference via Modal.
  *
  * Returns:
  *  nameMap   — UUID → model.name for any UUIDs found in DB
- *  stubNames — set of model names that are Piro-trained (isStub)
+ *  stubNames — set of model names that have no stored weights (results would be noise)
  */
 export async function resolveModelTargets(rawTargets: string[]): Promise<{
   nameMap: Record<string, string>;
@@ -22,7 +26,7 @@ export async function resolveModelTargets(rawTargets: string[]): Promise<{
 
   const [models, trainingLinks] = await Promise.all([
     db
-      .select({ id: model.id, name: model.name })
+      .select({ id: model.id, name: model.name, weightsB64: model.weightsB64 })
       .from(model)
       .where(inArray(model.id, uuids)),
     db
@@ -32,12 +36,21 @@ export async function resolveModelTargets(rawTargets: string[]): Promise<{
   ]);
 
   const nameMap: Record<string, string> = {};
-  for (const m of models) nameMap[m.id] = m.name;
+  const hasWeights = new Set<string>();
+
+  for (const m of models) {
+    nameMap[m.id] = m.name;
+    if (m.weightsB64) hasWeights.add(m.id);
+  }
+
+  const trainingModelIds = new Set(trainingLinks.map((t) => t.modelId));
 
   const stubNames = new Set<string>();
-  for (const t of trainingLinks) {
-    const name = nameMap[t.modelId];
-    if (name) stubNames.add(name);
+  for (const m of models) {
+    // Only mark as stub if it's Piro-trained but has no stored weights
+    if (trainingModelIds.has(m.id) && !hasWeights.has(m.id)) {
+      stubNames.add(m.name);
+    }
   }
 
   return { nameMap, stubNames };
