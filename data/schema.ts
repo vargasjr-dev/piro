@@ -245,6 +245,8 @@ export const model = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     parameterCount: integer("parameterCount"),
+    /** Base64-encoded PyTorch state_dict bytes. Populated after training completes. */
+    weightsB64: text("weightsB64"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
   (t) => [
