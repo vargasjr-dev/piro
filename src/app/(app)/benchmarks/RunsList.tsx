@@ -20,7 +20,8 @@ interface SuiteRun {
   id: string;
   status: "queued" | "complete" | "error";
   benchmarks: string | null; // JSON string[] | null
-  targets: string | null;    // JSON string[] | null
+  targets: string[];          // resolved model names (server resolves UUIDs)
+  stubs: string[];            // target names that are Piro-trained stubs
   queuedAt: string;
   completedAt: string | null;
   error: string | null;
@@ -47,6 +48,10 @@ function parseTags(json: string | null): string {
   } catch {
     return "all";
   }
+}
+
+function formatTags(names: string[]): string {
+  return names.length === 0 ? "all" : names.join(", ");
 }
 
 // ── Status badge ─────────────────────────────────────────────────────────────
@@ -88,7 +93,7 @@ function StatusBadge({ status }: { status: SuiteRun["status"] }) {
 function SuiteRunCard({ run }: { run: SuiteRun }) {
   const queuedAt = new Date(run.queuedAt);
   const benchmarkTags = parseTags(run.benchmarks);
-  const targetTags = parseTags(run.targets);
+  const targetTags = formatTags(run.targets);
 
   const inner = (
     <div className="px-4 py-3.5 flex items-center gap-3">
