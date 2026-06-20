@@ -4,27 +4,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-// ── Static benchmark catalog ──────────────────────────────────────────────────
+// ── Dynamic benchmark catalog (fetched from DB) ───────────────────────────────
 
-const BENCHMARKS = [
-  {
-    name: "SanityCheck",
-    label: "Sanity Check",
-    description: "Does the model return a non-empty string? Trivially easy — validates the pipeline.",
-  },
-  {
-    name: "OODGeneralization",
-    label: "OOD Generalization",
-    description: "Sort sequences at 4× training length. Tests out-of-distribution generalization.",
-  },
-  {
-    name: "AdaptiveCompute",
-    label: "Adaptive Compute",
-    description: "Does the model use fewer ticks on easy examples? Measures compute efficiency.",
-  },
-] as const;
-
-type BenchmarkName = (typeof BENCHMARKS)[number]["name"];
+interface BenchmarkOption {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+}
 
 // ── Dynamic model targets (fetched from DB) ───────────────────────────────────
 
@@ -130,15 +117,27 @@ function SectionHeader({
 export default function NewRunForm() {
   const router = useRouter();
 
-  const [selectedBenchmarks, setSelectedBenchmarks] = useState<Set<BenchmarkName>>(
-    new Set(BENCHMARKS.map((b) => b.name)),
-  );
+  const [benchmarkOptions, setBenchmarkOptions] = useState<BenchmarkOption[]>([]);
+  const [benchmarksLoading, setBenchmarksLoading] = useState(true);
+  const [selectedBenchmarks, setSelectedBenchmarks] = useState<Set<string>>(new Set());
   const [selectedTargetIds, setSelectedTargetIds] = useState<Set<string>>(new Set());
   const [targets, setTargets] = useState<ModelTarget[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(true);
 
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Fetch benchmark catalog from DB (lazy-seeds defaults on first call)
+  useEffect(() => {
+    fetch("/api/benchmark-catalog")
+      .then((r) => r.json())
+      .then((d: { benchmarks: BenchmarkOption[] }) => {
+        setBenchmarkOptions(d.benchmarks);
+        setSelectedBenchmarks(new Set(d.benchmarks.map((b) => b.slug)));
+      })
+      .catch(() => {})
+      .finally(() => setBenchmarksLoading(false));
+  }, []);
 
   // Fetch models from DB
   useEffect(() => {
@@ -169,10 +168,10 @@ export default function NewRunForm() {
       .finally(() => setTargetsLoading(false));
   }, []);
 
-  const toggleBenchmark = (name: BenchmarkName, checked: boolean) => {
+  const toggleBenchmark = (slug: string, checked: boolean) => {
     setSelectedBenchmarks((prev) => {
       const next = new Set(prev);
-      checked ? next.add(name) : next.delete(name);
+      checked ? next.add(slug) : next.delete(slug);
       return next;
     });
   };
@@ -185,7 +184,7 @@ export default function NewRunForm() {
     });
   };
 
-  const allBenchmarksSelected = selectedBenchmarks.size === BENCHMARKS.length;
+  const allBenchmarksSelected = benchmarkOptions.length > 0 && selectedBenchmarks.size === benchmarkOptions.length;
   const allTargetsSelected = targets.length > 0 && selectedTargetIds.size === targets.length;
   const canSubmit =
     status !== "loading" &&
@@ -226,20 +225,28 @@ export default function NewRunForm() {
             setSelectedBenchmarks(
               allBenchmarksSelected
                 ? new Set()
-                : new Set(BENCHMARKS.map((b) => b.name)),
+                : new Set(benchmarkOptions.map((b) => b.slug)),
             )
           }
         />
         <div className="space-y-2">
-          {BENCHMARKS.map((b) => (
-            <Checkbox
-              key={b.name}
-              checked={selectedBenchmarks.has(b.name)}
-              onChange={(v) => toggleBenchmark(b.name, v)}
-              label={b.label}
-              description={b.description}
-            />
-          ))}
+          {benchmarksLoading ? (
+            [1, 2, 3].map((i) => (
+              <div key={i} className="h-14 rounded-xl border border-amber-900/20 bg-amber-900/5 animate-pulse" />
+            ))
+          ) : benchmarkOptions.length === 0 ? (
+            <p className="text-xs text-amber-700/30 px-1">No benchmarks found</p>
+          ) : (
+            benchmarkOptions.map((b) => (
+              <Checkbox
+                key={b.slug}
+                checked={selectedBenchmarks.has(b.slug)}
+                onChange={(v) => toggleBenchmark(b.slug, v)}
+                label={b.name}
+                description={b.description ?? undefined}
+              />
+            ))
+          )}
         </div>
       </div>
 

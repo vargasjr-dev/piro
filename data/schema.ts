@@ -200,6 +200,34 @@ export const dataSource = pgTable(
 );
 
 /**
+ * A benchmark definition (evaluation template) the user can run against models.
+ * The three built-in benchmarks (SanityCheck, OODGeneralization, AdaptiveCompute)
+ * are lazy-seeded on first access. Future user-defined benchmarks will live here.
+ *
+ * `slug` maps to the `benchmarkName` string consumed by runner.ts
+ * (e.g. "SanityCheck" | "OODGeneralization" | "AdaptiveCompute").
+ * `configJson` stores any display-facing hyperparams / config (e.g. sequence length).
+ */
+export const benchmark = pgTable(
+  "benchmark",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),             // display name, e.g. "OOD Generalization"
+    slug: text("slug").notNull(),             // code name used in runner, e.g. "OODGeneralization"
+    description: text("description"),
+    configJson: text("configJson"),           // JSON of display-facing config params
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [
+    index("bm_user_created").on(t.userId, t.createdAt),
+    unique("bm_user_slug").on(t.userId, t.slug),
+  ]
+);
+
+/**
  * A model class (architecture template) the user can train instances of.
  * The two built-in classes (CTM, Baseline Transformer) are lazy-seeded on
  * first visit to /classes. Future user-defined classes will live here too.

@@ -294,6 +294,21 @@ console.log("✓ model: added weightsB64");
 await sql`ALTER TABLE model ADD COLUMN IF NOT EXISTS "inferenceEndpoint" TEXT`;
 console.log("✓ model: added inferenceEndpoint");
 
+// ── benchmark table ───────────────────────────────────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS "benchmark" (
+    "id"          text PRIMARY KEY,
+    "userId"      text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+    "name"        text NOT NULL,
+    "slug"        text NOT NULL,
+    "description" text,
+    "configJson"  text,
+    "createdAt"   timestamp NOT NULL DEFAULT now(),
+    UNIQUE ("userId", "slug")
+  )
+`;
+console.log("✓ benchmark: table ensured");
+
 // ── model_class table ─────────────────────────────────────────────────────────
 await sql`
   CREATE TABLE IF NOT EXISTS "model_class" (
