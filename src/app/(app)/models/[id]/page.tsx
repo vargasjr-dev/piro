@@ -14,6 +14,7 @@ import {
 import WeightGraph from "./WeightGraph";
 import DeleteModelButton from "./DeleteModelButton";
 import { r2Get } from "~/lib/r2";
+import ScorePill from "~/components/ScorePill";
 
 function fmt(date: Date) {
   return date.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -36,20 +37,6 @@ function fmtDuration(ms: number | null) {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
   return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
-}
-
-function ScorePill({ score }: { score: number }) {
-  const cls =
-    score >= 0.8
-      ? "text-emerald-300/80 border-emerald-800/30 bg-emerald-900/20"
-      : score >= 0.4
-        ? "text-amber-300/80 border-amber-800/25 bg-amber-900/20"
-        : "text-red-400/70 border-red-800/25 bg-red-900/15";
-  return (
-    <span className={`inline-flex items-center text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border ${cls}`}>
-      {score.toFixed(3)}
-    </span>
-  );
 }
 
 export default async function ModelDetailPage({

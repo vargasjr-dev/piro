@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { OODFailure } from "~/lib/benchmarks/ood-generalization";
 import type { AdaptiveFailure } from "~/lib/benchmarks/adaptive-compute";
+import ScorePill from "~/components/ScorePill";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -137,24 +138,6 @@ function getRowFailures(row: BenchmarkRunRow): {
   }
 
   return { failures: [], total: 0, correct: 0, storedCount: 0 };
-}
-
-// ── ScorePill ─────────────────────────────────────────────────────────────────
-
-function ScorePill({ score }: { score: number }) {
-  const cls =
-    score >= 0.8
-      ? "text-emerald-300/80 border-emerald-800/30 bg-emerald-900/20"
-      : score >= 0.4
-        ? "text-amber-300/80 border-amber-800/25 bg-amber-900/20"
-        : "text-red-400/70 border-red-800/25 bg-red-900/15";
-  return (
-    <span
-      className={`inline-flex items-center text-xs font-mono font-semibold px-2 py-0.5 rounded-lg border ${cls}`}
-    >
-      {score.toFixed(3)}
-    </span>
-  );
 }
 
 // ── StatusBadge ───────────────────────────────────────────────────────────────
