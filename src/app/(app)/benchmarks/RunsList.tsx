@@ -40,6 +40,16 @@ function timeAgo(date: Date): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function parseTags(json: string | null): string {
+  if (!json) return "all";
+  try {
+    const arr = JSON.parse(json) as string[];
+    return arr.length === 0 ? "all" : arr.join(", ");
+  } catch {
+    return "all";
+  }
+}
+
 function formatTags(names: string[]): string {
   return names.length === 0 ? "all" : names.join(", ");
 }
