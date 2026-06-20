@@ -26,7 +26,7 @@ export async function resolveModelTargets(rawTargets: string[]): Promise<{
 
   const [models, trainingLinks] = await Promise.all([
     db
-      .select({ id: model.id, name: model.name, weightsB64: model.weightsB64 })
+      .select({ id: model.id, name: model.name, inferenceEndpoint: model.inferenceEndpoint })
       .from(model)
       .where(inArray(model.id, uuids)),
     db
@@ -36,19 +36,20 @@ export async function resolveModelTargets(rawTargets: string[]): Promise<{
   ]);
 
   const nameMap: Record<string, string> = {};
-  const hasWeights = new Set<string>();
+  const hasEndpoint = new Set<string>();
 
   for (const m of models) {
     nameMap[m.id] = m.name;
-    if (m.weightsB64) hasWeights.add(m.id);
+    if (m.inferenceEndpoint) hasEndpoint.add(m.id);
   }
 
   const trainingModelIds = new Set(trainingLinks.map((t) => t.modelId));
 
   const stubNames = new Set<string>();
   for (const m of models) {
-    // Only mark as stub if it's Piro-trained but has no stored weights
-    if (trainingModelIds.has(m.id) && !hasWeights.has(m.id)) {
+    // Only mark as stub if it's Piro-trained but has no inference endpoint
+    // (i.e., trained before weight/endpoint persistence was added — retrain to fix)
+    if (trainingModelIds.has(m.id) && !hasEndpoint.has(m.id)) {
       stubNames.add(m.name);
     }
   }

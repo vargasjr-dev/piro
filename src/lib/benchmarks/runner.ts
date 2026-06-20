@@ -34,8 +34,8 @@ async function resolveTargets(
   targetIds: string[] | null,
 ): Promise<ModelAdapter[]> {
   const models = targetIds?.length
-    ? await db.select().from(model).where(inArray(model.id, targetIds))
-    : await db.select().from(model).where(eq(model.userId, userId));
+    ? await db.select({ id: model.id, name: model.name, inferenceEndpoint: model.inferenceEndpoint }).from(model).where(inArray(model.id, targetIds))
+    : await db.select({ id: model.id, name: model.name, inferenceEndpoint: model.inferenceEndpoint }).from(model).where(eq(model.userId, userId));
 
   if (models.length === 0) return [];
 
@@ -56,8 +56,15 @@ async function resolveTargets(
       return makeGPTAdapter(hosted.apiModelName);
     }
     if (trainingById[m.id]) {
-      // Piro-trained model — real inference via Modal endpoint
-      return makePiroModelAdapter(m.id, m.name);
+      if (!m.inferenceEndpoint) {
+        // Trained before weight/endpoint persistence — mark as stub so results aren't shown as real
+        return {
+          name: m.name,
+          isStub: true,
+          generate: async () => { throw new Error(`No inference endpoint for model ${m.name} — retrain to enable inference`); },
+        };
+      }
+      return makePiroModelAdapter(m.id, m.name, m.inferenceEndpoint);
     }
     // Fallback stub
     return {

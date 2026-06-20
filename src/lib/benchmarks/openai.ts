@@ -88,27 +88,23 @@ interface ModalInferResponse {
 /**
  * Adapter for a Piro-trained model hosted on Modal.
  *
- * Calls MODAL_INFERENCE_ENDPOINT with { model_id, prompt, secret }.
+ * The inference endpoint URL is stored per-model in the DB (model.inferenceEndpoint)
+ * and passed in here — Vercel never needs to know the URL.
+ *
  * Returns text from Modal; inputTokens/outputTokens are 0 (these models
  * don't use token-based pricing — cost is essentially $0 for tiny CPU inference).
- *
- * If MODAL_INFERENCE_ENDPOINT is not set, throws so the benchmark records an error
- * rather than silently returning noise.
  */
-export function makePiroModelAdapter(modelId: string, modelName: string): ModelAdapter {
+export function makePiroModelAdapter(
+  modelId: string,
+  modelName: string,
+  inferenceEndpoint: string,
+): ModelAdapter {
   return {
     name: modelName,
     async generate(prompt: string): Promise<GenerateResult> {
-      const endpoint = process.env.MODAL_INFERENCE_ENDPOINT;
       const secret = process.env.MODAL_WEBHOOK_SECRET ?? "";
 
-      if (!endpoint) {
-        throw new Error(
-          "MODAL_INFERENCE_ENDPOINT is not set — deploy Modal app and add the infer URL to Vercel env",
-        );
-      }
-
-      const res = await fetch(endpoint, {
+      const res = await fetch(inferenceEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model_id: modelId, prompt, secret }),

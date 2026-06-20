@@ -290,4 +290,8 @@ console.log("✓ training_run: marked orphaned running runs as error");
 await sql`ALTER TABLE model ADD COLUMN IF NOT EXISTS "weightsB64" TEXT`;
 console.log("✓ model: added weightsB64");
 
+// ── model: add inferenceEndpoint column ───────────────────────────────────────
+await sql`ALTER TABLE model ADD COLUMN IF NOT EXISTS "inferenceEndpoint" TEXT`;
+console.log("✓ model: added inferenceEndpoint");
+
 console.log("Migrations complete ✓");

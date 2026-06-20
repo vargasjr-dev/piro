@@ -28,6 +28,11 @@ import modal
 
 app = modal.App("piro")
 
+# Deterministic URL for the infer endpoint — derived from Modal app name + function name.
+# Format: https://<modal-username>--<app-name>-<function-name>.modal.run
+# Update this if the Modal username or app name ever changes.
+INFER_ENDPOINT = "https://dvargasfuertes--piro-infer.modal.run"
+
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
@@ -275,10 +280,10 @@ class Trainer:
             model_id = str(_uuid.uuid4())
             cur.execute(
                 """
-                INSERT INTO model (id, "userId", name, "parameterCount", "weightsB64", "createdAt")
-                VALUES (%s, %s, %s, %s, %s, NOW())
+                INSERT INTO model (id, "userId", name, "parameterCount", "weightsB64", "inferenceEndpoint", "createdAt")
+                VALUES (%s, %s, %s, %s, %s, %s, NOW())
                 """,
-                (model_id, user_id, resolved_name, param_count, weights_b64),
+                (model_id, user_id, resolved_name, param_count, weights_b64, INFER_ENDPOINT),
             )
             cur.execute(
                 """
