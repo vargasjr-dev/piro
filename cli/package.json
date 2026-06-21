@@ -1,0 +1,30 @@
+{
+  "name": "piro",
+  "version": "0.1.0",
+  "description": "CLI for the Piro personal intelligence platform.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vargasjr-dev/piro",
+    "directory": "cli"
+  },
+  "bin": {
+    "piro": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
