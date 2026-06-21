@@ -240,53 +240,6 @@ export default function ClassDetailClient({
               <p className="text-sm text-amber-400/60 leading-relaxed">{description}</p>
             )}
 
-            {/* Metadata grid */}
-            {manifest && (
-              <div className="grid grid-cols-2 gap-3">
-                {manifest.modelClass && (
-                  <div className="px-4 py-3 rounded-xl border border-amber-900/20 bg-amber-900/5">
-                    <p className="text-[9px] font-semibold uppercase tracking-widest text-amber-700/40 mb-1">Class</p>
-                    <p className="text-xs font-mono text-amber-300/70">{manifest.modelClass}</p>
-                  </div>
-                )}
-                {manifest.configClass && (
-                  <div className="px-4 py-3 rounded-xl border border-amber-900/20 bg-amber-900/5">
-                    <p className="text-[9px] font-semibold uppercase tracking-widest text-amber-700/40 mb-1">Config</p>
-                    <p className="text-xs font-mono text-amber-300/70">{manifest.configClass}</p>
-                  </div>
-                )}
-                {manifest.module && (
-                  <div className="px-4 py-3 rounded-xl border border-amber-900/20 bg-amber-900/5">
-                    <p className="text-[9px] font-semibold uppercase tracking-widest text-amber-700/40 mb-1">Module</p>
-                    <p className="text-xs font-mono text-amber-300/70">{manifest.module}</p>
-                  </div>
-                )}
-                {paramCount != null && (
-                  <div className="px-4 py-3 rounded-xl border border-amber-900/20 bg-amber-900/5">
-                    <p className="text-[9px] font-semibold uppercase tracking-widest text-amber-700/40 mb-1">Parameters</p>
-                    <p className="text-xs font-mono text-amber-300/70">{paramCount.toLocaleString()}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Hyperparams */}
-            {hyperparams && Object.keys(hyperparams).length > 0 && (
-              <div>
-                <h2 className="text-[10px] font-semibold uppercase tracking-widest text-amber-600/50 mb-3">
-                  Default hyperparameters
-                </h2>
-                <div className="rounded-xl border border-amber-900/20 overflow-hidden divide-y divide-amber-900/10">
-                  {Object.entries(hyperparams).map(([key, val]) => (
-                    <div key={key} className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-xs font-mono text-amber-600/50">{key}</span>
-                      <span className="text-xs font-mono font-semibold text-amber-300/70">{String(val)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
           </div>
         </div>
       )}
