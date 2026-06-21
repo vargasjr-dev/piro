@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
-import { eq, sql } from "drizzle-orm";
+import { eq, isNull, and, sql } from "drizzle-orm";
 import { db } from "../../../../data/db";
 import { model, modelHostedApi, modelTrainingRun, benchmarkRun } from "../../../../data/schema";
 
@@ -110,7 +110,7 @@ export default async function ModelsPage() {
   const models = await db
     .select()
     .from(model)
-    .where(eq(model.userId, session.user.id))
+    .where(and(eq(model.userId, session.user.id), isNull(model.archivedAt)))
     .orderBy(model.createdAt);
 
   // Hosted API info

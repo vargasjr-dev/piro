@@ -1,16 +1,10 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../../data/db";
-import {
-  model,
-  modelHostedApi,
-  modelTrainingRun,
-  trainingRun,
-} from "../../../../../data/schema";
+import { model, modelHostedApi, modelTrainingRun, trainingRun } from "../../../../../data/schema";
 import { eq, and } from "drizzle-orm";
-import { r2DeletePrefix } from "~/lib/r2";
 
-export async function DELETE(
+export async function PATCH(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -19,24 +13,17 @@ export async function DELETE(
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const [m] = await db
-    .select({ id: model.id, weightsR2Key: model.weightsR2Key })
+    .select({ id: model.id })
     .from(model)
     .where(and(eq(model.id, id), eq(model.userId, session.user.id)))
     .limit(1);
 
   if (!m) return Response.json({ error: "Not found" }, { status: 404 });
 
-  // Cascade: delete model_training_run + model_hosted_api links, then model
-  await db.delete(modelTrainingRun).where(eq(modelTrainingRun.modelId, id));
-  await db.delete(modelHostedApi).where(eq(modelHostedApi.modelId, id));
-  await db.delete(model).where(eq(model.id, id));
-
-  // Clean up R2 weights if stored (fire-and-forget — don't fail the delete if R2 is unreachable)
-  if (m.weightsR2Key) {
-    r2DeletePrefix(m.weightsR2Key + "/").catch((e) =>
-      console.error(`[delete-model] R2 cleanup failed for ${m.weightsR2Key}:`, e),
-    );
-  }
+  await db
+    .update(model)
+    .set({ archivedAt: new Date() })
+    .where(eq(model.id, id));
 
   return Response.json({ ok: true });
 }

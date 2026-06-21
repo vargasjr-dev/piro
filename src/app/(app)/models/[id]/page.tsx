@@ -12,7 +12,7 @@ import {
   benchmarkRun,
 } from "../../../../../data/schema";
 import WeightGraph from "./WeightGraph";
-import DeleteModelButton from "./DeleteModelButton";
+import ArchiveModelButton from "./ArchiveModelButton";
 import { r2Get } from "~/lib/r2";
 import ScorePill from "~/components/ScorePill";
 
@@ -125,12 +125,17 @@ export default async function ModelDetailPage({
                 Hosted API
               </span>
             )}
+            {m.archivedAt && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/20 border border-amber-800/20 text-amber-600/50 font-medium">
+                Archived
+              </span>
+            )}
             {m.parameterCount && (
               <span className="text-[10px] text-amber-700/30 font-mono">{m.parameterCount.toLocaleString()} params</span>
             )}
           </div>
         </div>
-        <DeleteModelButton modelId={m.id} />
+        <ArchiveModelButton modelId={m.id} />
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-8 max-w-lg">
@@ -244,7 +249,7 @@ export default async function ModelDetailPage({
               {benchmarkHistory.map((row) => (
                 <Link
                   key={row.id}
-                  href={`/benchmarks/${row.suiteRunId}`}
+                  href={`/benchmarks/runs/${row.suiteRunId}`}
                   className="flex items-center gap-3 px-4 py-2.5 hover:bg-amber-900/8 transition-colors group"
                 >
                   <div className="flex-1 min-w-0">

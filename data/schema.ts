@@ -313,6 +313,12 @@ export const model = pgTable(
     /** URL of the inference endpoint for this model (e.g. Modal /infer URL). Null = no inference available. */
     inferenceEndpoint: text("inferenceEndpoint"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
+    /**
+     * Set when the model is archived. Archived models are hidden from the
+     * active list but kept in DB so benchmark_run and training_run rows that
+     * reference them remain intact.
+     */
+    archivedAt: timestamp("archivedAt"),
   },
   (t) => [
     index("m_user_created").on(t.userId, t.createdAt),
