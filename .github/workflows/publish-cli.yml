@@ -3,8 +3,20 @@ name: Publish CLI
 # Publishes the `piro` npm package whenever cli/package.json is updated on
 # main with a version that doesn't yet exist on the registry.
 #
-# Requires one GitHub secret:
-#   NPM_TOKEN — Automation-type npm token with publish access to `piro`
+# Auth strategy: npm OIDC trusted publishing (no long-lived token stored).
+#
+# One-time setup required on npmjs.com (after the initial publish claims the
+# package name):
+#   npmjs.com → Packages → piro → Settings → Trusted Publisher → GitHub Actions
+#     Owner:    vargasjr-dev
+#     Repo:     piro
+#     Workflow: publish-cli.yml
+#
+# Initial publish bootstrap:
+#   The very first publish must use NPM_TOKEN (chicken-and-egg: the package
+#   must exist before trusted publishing can be configured on npm).
+#   Once the package exists and trusted publishing is configured, remove
+#   NPM_TOKEN from GitHub secrets — all future publishes will use OIDC.
 
 on:
   push:
@@ -16,6 +28,10 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for OIDC trusted publishing
+
     defaults:
       run:
         working-directory: cli
@@ -28,6 +44,11 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
+      # OIDC trusted publishing requires npm >= 11.5.1.
+      # The version bundled with Node 20 on GHA runners is older.
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm install
 
@@ -39,7 +60,7 @@ jobs:
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
           echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
-          PUBLISHED=$(npm view piro@$PKG_VERSION version 2>/dev/null || echo "")
+          PUBLISHED=$(npm view piro@"$PKG_VERSION" version 2>/dev/null || echo "")
           if [ "$PUBLISHED" = "$PKG_VERSION" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Version $PKG_VERSION already published — skipping."
@@ -51,5 +72,8 @@ jobs:
       - name: Publish to npm
         if: steps.version_check.outputs.skip == 'false'
         run: npm publish --access public
+        # NODE_AUTH_TOKEN is only needed for the very first publish (before
+        # trusted publishing is configured on npmjs.com). Once OIDC is set up,
+        # remove NPM_TOKEN from GitHub secrets and this env block becomes a no-op.
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
