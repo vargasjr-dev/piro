@@ -79,17 +79,15 @@ class Trainer:
         """Runs once per container — imports are snapshotted, not re-run on warm reuse."""
         import torch  # noqa: F401 — imported here so warm containers skip re-import
 
-        from model.baseline_transformer import BaselineTransformer, TransformerConfig
-        from model.ctm import ContinuousThoughtModel, CTMConfig
+        # TODO: model class files (ctm.py, baseline_transformer.py) have moved to
+        # R2 (user data). This setup() must be updated to download the model.py for
+        # the requested training_run.modelTemplate from R2 and import it dynamically
+        # before training can run. For now, training runs will fail at container setup.
         from model.data.sequences import generate_sorting_dataset
         from model.trainer import Trainer as _Trainer, TrainerConfig, EpochMetrics
 
         # Expose to run()
         self._torch = torch
-        self._ContinuousThoughtModel = ContinuousThoughtModel
-        self._CTMConfig = CTMConfig
-        self._BaselineTransformer = BaselineTransformer
-        self._TransformerConfig = TransformerConfig
         self._generate_sorting_dataset = generate_sorting_dataset
         self._Trainer = _Trainer
         self._TrainerConfig = TrainerConfig
@@ -382,8 +380,10 @@ class Infer:
         import psycopg2
         import torch
 
-        from model.baseline_transformer import BaselineTransformer, TransformerConfig
-        from model.ctm import ContinuousThoughtModel, CTMConfig
+        # TODO: model class files (ctm.py, baseline_transformer.py) have moved to
+        # R2 (user data). This setup() must be updated to download model.py for each
+        # requested model_id from R2 (classes/{model_class_id}/model.py) and import
+        # it dynamically. For now, inference will fail on _load() until this is wired.
 
         self._io = io
         self._json = json
@@ -391,10 +391,6 @@ class Infer:
         self._re = re
         self._psycopg2 = psycopg2
         self._torch = torch
-        self._CTM = ContinuousThoughtModel
-        self._CTMConfig = CTMConfig
-        self._Transformer = BaselineTransformer
-        self._TransformerConfig = TransformerConfig
 
         # model_id → (model, cfg_dict) — persists across warm calls
         self._cache: dict = {}

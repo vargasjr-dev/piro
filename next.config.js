@@ -7,11 +7,7 @@ const nextConfig = {
       allowedOrigins: ["localhost:3000", "trainpiro.app", "piro.vargasjr.dev", "piro-henna.vercel.app"],
     },
   },
-  // Include Python source files in the serverless bundle so the seed endpoint
-  // can read them via readFileSync at /var/task/model/*.py
-  outputFileTracingIncludes: {
-    "/api/admin/seed-class-modules": ["./model/*.py", "./model/*.manifest.json"],
-  },
+
 };
 
 module.exports = nextConfig;
