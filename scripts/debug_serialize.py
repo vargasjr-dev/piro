@@ -15,19 +15,23 @@ for slug in ["scratch/ctm_model.py", "scratch/baseline_transformer_model.py"]:
         f.write(model_source)
         tmp_path = f.name
 
+    module_name = f"_piro_user_model_{slug.replace('/', '_')}"
     try:
-        spec = importlib.util.spec_from_file_location("_piro_user_model", tmp_path)
+        spec = importlib.util.spec_from_file_location(module_name, tmp_path)
         module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
         spec.loader.exec_module(module)
     except Exception:
         print("EXEC ERROR:")
         traceback.print_exc()
+        sys.modules.pop(module_name, None)
         try:
             os.unlink(tmp_path)
         except Exception:
             pass
         continue
     finally:
+        sys.modules.pop(module_name, None)
         try:
             os.unlink(tmp_path)
         except Exception:
@@ -56,7 +60,7 @@ for slug in ["scratch/ctm_model.py", "scratch/baseline_transformer_model.py"]:
 
     try:
         result = model_cls.serialize()
-        print(f"OK: parameterCount={result.parameterCount}")
+        print(f"OK: parameterCount={result.parameter_count}")
         print(f"graph nodes: {len(result.graph.nodes) if result.graph else 0}")
     except Exception:
         print("SERIALIZE ERROR:")

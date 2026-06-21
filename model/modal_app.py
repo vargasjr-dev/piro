@@ -689,9 +689,16 @@ def serialize(request: Request) -> dict:
         f.write(model_source)
         tmp_path = f.name
 
+    # Use a unique module name per source hash so concurrent warm-container
+    # calls don't clobber each other, and register it in sys.modules before
+    # exec_module so dataclasses can resolve forward references via
+    # sys.modules.get(cls.__module__).__dict__ (otherwise AttributeError: NoneType).
+    import sys as _sys
+    module_name = f"_piro_user_model_{cache_key[:16]}"
     try:
-        spec = importlib.util.spec_from_file_location("_piro_user_model", tmp_path)
+        spec = importlib.util.spec_from_file_location(module_name, tmp_path)
         module = importlib.util.module_from_spec(spec)
+        _sys.modules[module_name] = module
         spec.loader.exec_module(module)  # type: ignore[union-attr]
     except Exception as exc:
         import traceback as _tb
@@ -699,6 +706,7 @@ def serialize(request: Request) -> dict:
         print(f"[piro-serialize] ERROR exec'ing model.py for {class_id}:\n{tb}")
         raise HTTPException(status_code=500, detail=f"model.py exec failed — {type(exc).__name__}: {exc}\n\n{tb}")
     finally:
+        _sys.modules.pop(module_name, None)
         os.unlink(tmp_path)
 
     # New style: PiroModel subclass with .serialize() classmethod
