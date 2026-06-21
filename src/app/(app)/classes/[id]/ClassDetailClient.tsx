@@ -133,6 +133,11 @@ export default function ClassDetailClient({
   const [selectedFile, setSelectedFile] = useState<string>(
     searchParams.get("file") ?? "model.py",
   );
+  // Sidebar collapsed by default on mobile (< 768px), open on desktop
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  useEffect(() => {
+    setSidebarOpen(window.innerWidth >= 768);
+  }, []);
 
   function updateUrl(nextTab: Tab, nextFile: string) {
     const params = new URLSearchParams();
@@ -262,39 +267,55 @@ export default function ClassDetailClient({
       {tab === "code" && (
         <div className="flex-1 flex overflow-hidden min-h-0">
           {/* File tree */}
-          <div className="w-52 shrink-0 border-r border-amber-900/15 overflow-y-auto py-3">
-            <p className="px-4 pb-2 text-[9px] font-semibold uppercase tracking-widest text-amber-700/35">
-              Files
-            </p>
-            {MODULE_FILES.map((f) => (
-              <button
-                key={f.path}
-                onClick={() => switchFile(f.path)}
-                className={`w-full text-left flex items-center gap-2.5 px-4 py-1.5 text-[12px] font-mono transition-colors ${
-                  selectedFile === f.path
-                    ? "bg-amber-900/20 text-amber-200/80"
-                    : "text-amber-600/50 hover:text-amber-400/70 hover:bg-amber-900/10"
-                }`}
-              >
-                {f.path.endsWith(".py") ? (
-                  <svg className="w-3.5 h-3.5 shrink-0 text-orange-500/50" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
-                  </svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5 shrink-0 text-amber-700/40" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9z" />
-                  </svg>
-                )}
-                {f.label}
-              </button>
-            ))}
-          </div>
+          {sidebarOpen && (
+            <div className="w-44 md:w-52 shrink-0 border-r border-amber-900/15 overflow-y-auto py-3">
+              <p className="px-4 pb-2 text-[9px] font-semibold uppercase tracking-widest text-amber-700/35">
+                Files
+              </p>
+              {MODULE_FILES.map((f) => (
+                <button
+                  key={f.path}
+                  onClick={() => { switchFile(f.path); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                  className={`w-full text-left flex items-center gap-2.5 px-4 py-1.5 text-[12px] font-mono transition-colors ${
+                    selectedFile === f.path
+                      ? "bg-amber-900/20 text-amber-200/80"
+                      : "text-amber-600/50 hover:text-amber-400/70 hover:bg-amber-900/10"
+                  }`}
+                >
+                  {f.path.endsWith(".py") ? (
+                    <svg className="w-3.5 h-3.5 shrink-0 text-orange-500/50" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5 shrink-0 text-amber-700/40" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9z" />
+                    </svg>
+                  )}
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* File content */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#0a0806]">
             {/* File tab bar */}
-            <div className="flex items-center gap-1 px-4 py-2 border-b border-amber-900/10">
-              <span className="text-[11px] font-mono text-amber-600/50">{selectedFile}</span>
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-amber-900/10">
+              {/* Sidebar toggle */}
+              <button
+                onClick={() => setSidebarOpen((o) => !o)}
+                title={sidebarOpen ? "Collapse files" : "Show files"}
+                className="shrink-0 p-1 rounded text-amber-700/40 hover:text-amber-400/70 hover:bg-amber-900/15 transition-colors"
+              >
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                  {sidebarOpen ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+                  )}
+                </svg>
+              </button>
+              <span className="text-[11px] font-mono text-amber-600/50 truncate">{selectedFile}</span>
             </div>
             <FileViewer
               classId={id}
