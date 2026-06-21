@@ -39,7 +39,15 @@ export default async function ClassesPage() {
             Model architecture templates available for training
           </p>
         </div>
-
+        <Link
+          href="/classes/new"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-orange-500/30 bg-orange-500/10 text-xs font-semibold text-amber-200/80 hover:bg-orange-500/20 transition-colors"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          New class
+        </Link>
       </div>
 
       {/* ── Class cards ──────────────────────────────────────────────────────── */}
