@@ -247,7 +247,15 @@ export const modelClass = pgTable(
     slug: text("slug").notNull(),             // maps to modal_app.py modelTemplate key
     description: text("description"),
     parameterCount: integer("parameterCount"),
-    configJson: text("configJson"),           // JSON of default hyperparams for display
+    configJson: text("configJson"),           // JSON of default hyperparams for display (legacy — manifest.json in R2 is source of truth when moduleR2Key is set)
+    /**
+     * R2 key prefix for the Python module that defines this class.
+     * Two objects live under this prefix:
+     *   {moduleR2Key}/model.py       — the Python source (contains serialize())
+     *   {moduleR2Key}/manifest.json  — pre-generated output of serialize()
+     * Null = legacy row with no uploaded module (falls back to configJson).
+     */
+    moduleR2Key: text("moduleR2Key"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
   (t) => [

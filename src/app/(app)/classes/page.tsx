@@ -39,15 +39,7 @@ export default async function ClassesPage() {
             Model architecture templates available for training
           </p>
         </div>
-        <Link
-          href="/classes/new"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-orange-500/30 bg-orange-500/10 text-xs font-semibold text-amber-200/80 hover:bg-orange-500/20 transition-colors"
-        >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          New class
-        </Link>
+
       </div>
 
       {/* ── Class cards ──────────────────────────────────────────────────────── */}
@@ -58,9 +50,10 @@ export default async function ClassesPage() {
             : null;
 
           return (
-            <div
+            <Link
               key={cls.id}
-              className="border border-amber-900/20 rounded-2xl bg-amber-900/5"
+              href={`/classes/${cls.id}`}
+              className="block border border-amber-900/20 rounded-2xl bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
             >
               {/* ── Card header: name + slug badge + param count ─────────────── */}
               <div className="px-6 pt-5 pb-4 flex items-start justify-between gap-4">
@@ -79,16 +72,6 @@ export default async function ClassesPage() {
                 </div>
 
                 <div className="shrink-0 flex flex-col items-end gap-2">
-                  {/* Edit button */}
-                  <Link
-                    href={`/classes/${cls.id}/edit`}
-                    className="text-amber-700/25 hover:text-amber-500/50 transition-colors p-1 rounded-lg hover:bg-amber-900/10"
-                    title="Edit class"
-                  >
-                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                    </svg>
-                  </Link>
                   {cls.parameterCount != null && (
                     <div className="text-right">
                       <p className="text-sm font-mono font-semibold text-amber-400/60">
@@ -113,30 +96,12 @@ export default async function ClassesPage() {
                       </div>
                     ))}
                   </div>
-
-                  {/* Train link */}
-                  <Link
-                    href="/training/new"
-                    className="shrink-0 text-[11px] font-medium text-amber-500/50 hover:text-orange-400/80 transition-colors flex items-center gap-1"
-                  >
-                    Train
-                    <svg
-                      className="w-3 h-3"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
-                      />
-                    </svg>
-                  </Link>
+                  <svg className="w-4 h-4 text-amber-800/30 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
                 </div>
               )}
-            </div>
+            </Link>
           );
         })}
       </div>

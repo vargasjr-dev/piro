@@ -93,6 +93,35 @@ class BaselineTransformer(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
+def serialize() -> dict:
+    """Return a JSON-serialisable manifest describing this model class.
+
+    Called by tooling to populate the editor manifest (classes/{id}/manifest.json).
+    Fields here are the source of truth for display in the Piro UI.
+    """
+    cfg = TransformerConfig()
+    return {
+        "name": "Baseline Transformer",
+        "slug": "baseline-transformer",
+        "description": (
+            "2-layer pre-norm transformer with multi-head self-attention. "
+            "Mean-pools the final layer to produce a single classification output. "
+            "Standard baseline for sequence tasks."
+        ),
+        "hyperparams": {
+            "embed_dim": cfg.embed_dim,
+            "n_heads": cfg.n_heads,
+            "ffn_dim": cfg.ffn_dim,
+            "n_layers": cfg.n_layers,
+            "n_classes": cfg.n_classes,
+        },
+        "parameterCount": BaselineTransformer(cfg).count_parameters(),
+        "module": "model.baseline_transformer",
+        "modelClass": "BaselineTransformer",
+        "configClass": "TransformerConfig",
+    }
+
+
 class _TransformerLayer(nn.Module):
     def __init__(self, embed_dim: int, n_heads: int, ffn_dim: int) -> None:
         super().__init__()

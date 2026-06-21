@@ -128,3 +128,35 @@ class ContinuousThoughtModel(nn.Module):
     def count_parameters(self) -> int:
         """Count all trainable scalar parameters."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
+def serialize() -> dict:
+    """Return a JSON-serialisable manifest describing this model class.
+
+    Called by tooling to populate the editor manifest (classes/{id}/manifest.json).
+    Fields here are the source of truth for display in the Piro UI.
+    """
+    cfg = CTMConfig()
+    return {
+        "name": "Continuous Thought Model",
+        "slug": "ctm",
+        "description": (
+            "Iterative tick-loop architecture with sync-driven attention. "
+            "Neuron state accumulates across ticks before committing to an output — "
+            "trades parameter efficiency for internal reasoning depth."
+        ),
+        "hyperparams": {
+            "n_neurons": cfg.n_neurons,
+            "embed_dim": cfg.embed_dim,
+            "query_dim": cfg.query_dim,
+            "value_dim": cfg.value_dim,
+            "hidden_dim": cfg.hidden_dim,
+            "n_classes": cfg.n_classes,
+            "max_ticks": cfg.max_ticks,
+            "confidence_threshold": cfg.confidence_threshold,
+        },
+        "parameterCount": ContinuousThoughtModel(cfg).count_parameters(),
+        "module": "model.ctm",
+        "modelClass": "ContinuousThoughtModel",
+        "configClass": "CTMConfig",
+    }
