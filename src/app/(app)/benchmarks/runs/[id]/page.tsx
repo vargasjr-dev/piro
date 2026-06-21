@@ -10,10 +10,14 @@ import RunDetail from "./RunDetail";
 
 export default async function BenchmarkRunPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  const { from } = await searchParams;
+  const backHref = from ? `/benchmarks/${from}` : "/benchmarks";
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
 
@@ -71,7 +75,7 @@ export default async function BenchmarkRunPage({
       {/* Header */}
       <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-900/20 shrink-0">
         <Link
-          href="/benchmarks"
+          href={backHref}
           className="text-amber-600/40 hover:text-amber-400/70 transition-colors"
         >
           <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

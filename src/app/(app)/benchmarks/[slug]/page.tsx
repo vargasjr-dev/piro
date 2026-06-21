@@ -207,7 +207,7 @@ export default async function BenchmarkDetailPage({
                 {inProgressSuites.map((s) => (
                   <Link
                     key={s.id}
-                    href={`/benchmarks/runs/${s.id}`}
+                    href={`/benchmarks/runs/${s.id}?from=${encodeURIComponent(slug)}`}
                     className="flex items-center justify-between px-4 py-3 rounded-xl border border-amber-700/25 bg-amber-900/8 hover:bg-amber-900/12 transition-colors"
                   >
                     <div className="flex items-center gap-2">
@@ -229,7 +229,7 @@ export default async function BenchmarkDetailPage({
                 {suiteGroups.map((g) => (
                   <Link
                     key={g.suiteRunId}
-                    href={`/benchmarks/runs/${g.suiteRunId}`}
+                    href={`/benchmarks/runs/${g.suiteRunId}?from=${encodeURIComponent(slug)}`}
                     className="block px-4 py-3 rounded-xl border border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
                   >
                     <div className="flex items-center justify-between gap-3 mb-2">
