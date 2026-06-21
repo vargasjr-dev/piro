@@ -656,12 +656,41 @@ def serialize(request: Request) -> dict:
     import hashlib
     import importlib.util
     import os
+    import sys
     import tempfile
+    import traceback
 
-    from fastapi import HTTPException
-    from piro import PiroModel
-    from piro.schema import ModelManifest
+    try:
+        from fastapi import HTTPException
+    except Exception as _e:
+        raise RuntimeError(f"fastapi import failed: {_e}") from _e
 
+    try:
+        from piro import PiroModel
+        from piro.schema import ModelManifest
+    except Exception as _e:
+        tb = traceback.format_exc()
+        raise RuntimeError(f"piro import failed: {_e}\n\n{tb}") from _e
+
+    # Outer safety net — catches anything that slips past inner try/except
+    # blocks and surfaces it as a proper HTTPException with full traceback
+    # (instead of Modal's bare "Internal Server Error").
+    try:
+        return _serialize_inner(
+            request, hashlib, importlib, os, sys, tempfile, traceback,
+            HTTPException, PiroModel, ModelManifest,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        tb = traceback.format_exc()
+        print(f"[piro-serialize] UNCAUGHT: {tb}")
+        raise HTTPException(status_code=500, detail=f"Uncaught: {type(exc).__name__}: {exc}\n\n{tb}")
+
+
+def _serialize_inner(request, hashlib, importlib, os, sys, tempfile, traceback,
+                     HTTPException, PiroModel, ModelManifest):
+    """Inner serialize logic — called from serialize() with all imports passed in."""
     expected = os.environ.get("MODAL_WEBHOOK_SECRET", "")
     if expected and request.headers.get("X-Piro-Secret", "") != expected:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -704,20 +733,18 @@ def serialize(request: Request) -> dict:
     # calls don't clobber each other, and register it in sys.modules before
     # exec_module so dataclasses can resolve forward references via
     # sys.modules.get(cls.__module__).__dict__ (otherwise AttributeError: NoneType).
-    import sys as _sys
     module_name = f"_piro_user_model_{cache_key[:16]}"
     try:
         spec = importlib.util.spec_from_file_location(module_name, tmp_path)
         module = importlib.util.module_from_spec(spec)
-        _sys.modules[module_name] = module
+        sys.modules[module_name] = module
         spec.loader.exec_module(module)  # type: ignore[union-attr]
     except Exception as exc:
-        import traceback as _tb
-        tb = _tb.format_exc()
+        tb = traceback.format_exc()
         print(f"[piro-serialize] ERROR exec'ing model.py for {class_id}:\n{tb}")
         raise HTTPException(status_code=500, detail=f"model.py exec failed — {type(exc).__name__}: {exc}\n\n{tb}")
     finally:
-        _sys.modules.pop(module_name, None)
+        sys.modules.pop(module_name, None)
         os.unlink(tmp_path)
 
     # New style: PiroModel subclass with .serialize() classmethod
@@ -738,8 +765,7 @@ def serialize(request: Request) -> dict:
             manifest_obj: ModelManifest = model_cls.serialize()
             result = manifest_obj.model_dump(by_alias=True, mode="json")
         except Exception as exc:
-            import traceback as _tb
-            tb = _tb.format_exc()
+            tb = traceback.format_exc()
             print(f"[piro-serialize] ERROR in {model_cls.__name__}.serialize():\n{tb}")
             raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}\n\n{tb}")
     elif hasattr(module, "serialize") and callable(module.serialize):
