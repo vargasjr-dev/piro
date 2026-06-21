@@ -11,19 +11,18 @@ Output:
     logits = W_out · mean_pool(LayerNorm(final_hidden)) + b_out
 
 No positional encoding — inputs are bags of embeddings (same as CTM).
-
-Extends PiroModel (from the piro package mounted into Modal containers).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 import torch.nn as nn
 
 from piro import PiroModel
-from piro.schema import ArchitectureGraph, GraphEdge, GraphNode, ModelManifest
+from piro.schema import ArchitectureGraph, GraphEdge, GraphNode
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -32,7 +31,7 @@ from piro.schema import ArchitectureGraph, GraphEdge, GraphNode, ModelManifest
 class TransformerConfig:
     embed_dim: int = 8
     n_heads: int = 2
-    ffn_dim: int = 6       # tuned so total params ≈ CTM within 10%
+    ffn_dim: int = 6
     n_layers: int = 2
     n_classes: int = 5
 
@@ -62,73 +61,55 @@ class _TransformerLayer(nn.Module):
 # ── Model ─────────────────────────────────────────────────────────────────────
 
 class BaselineTransformer(PiroModel):
-    """Minimal 2-layer transformer baseline.
+    """Minimal 2-layer transformer baseline."""
 
-    2-layer pre-norm transformer with multi-head self-attention.
-    Mean-pools the final layer to produce a single classification output.
-    Standard baseline for sequence tasks.
-    """
+    # ── Manifest fields ────────────────────────────────────────────────────
+    name         = "Baseline Transformer"
+    slug         = "baseline-transformer"
+    description  = (
+        "2-layer pre-norm transformer with multi-head self-attention. "
+        "Mean-pools the final layer to produce a single classification output. "
+        "Standard baseline for sequence tasks."
+    )
+    module       = "baseline_transformer"
+    config_class = "TransformerConfig"
+    hyper_parameters = {
+        "embed_dim": 8,
+        "n_heads":   2,
+        "ffn_dim":   6,
+        "n_layers":  2,
+        "n_classes": 5,
+    }
 
-    def __init__(self, config: TransformerConfig) -> None:
-        super().__init__()
-        if config.embed_dim % config.n_heads != 0:
-            raise ValueError(
-                f"embed_dim ({config.embed_dim}) must be divisible by "
-                f"n_heads ({config.n_heads})"
-            )
-        self.config = config
-        cfg = config
-
-        self.layers = nn.ModuleList([
-            _TransformerLayer(cfg.embed_dim, cfg.n_heads, cfg.ffn_dim)
-            for _ in range(cfg.n_layers)
-        ])
-        self.ln_final = nn.LayerNorm(cfg.embed_dim)
-        self.out_proj = nn.Linear(cfg.embed_dim, cfg.n_classes)
-
-    def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
-        """Forward pass.
-
-        Parameters
-        ----------
-        embeddings : torch.Tensor
-            Shape (seq_len, embed_dim) or (embed_dim,).
-
-        Returns
-        -------
-        torch.Tensor
-            Shape (n_classes,) — raw logits (pre-softmax).
-        """
-        x = embeddings if embeddings.ndim == 2 else embeddings.unsqueeze(0)
-        for layer in self.layers:
-            x = layer(x)
-        x = self.ln_final(x)
-        pooled = x.mean(dim=0)
-        return self.out_proj(pooled)
-
-    def count_parameters(self) -> int:
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+    # ── PiroModel interface ────────────────────────────────────────────────
+    @classmethod
+    def build_default(cls) -> "BaselineTransformer":
+        return cls(TransformerConfig())
 
     @classmethod
-    def serialize(cls) -> ModelManifest:
-        cfg = TransformerConfig()
+    def serialize_graph(cls) -> Optional[ArchitectureGraph]:
+        hp = cls.hyper_parameters
+        embed_dim = hp["embed_dim"]
+        n_heads   = hp["n_heads"]
+        ffn_dim   = hp["ffn_dim"]
+        n_layers  = hp["n_layers"]
+        n_classes = hp["n_classes"]
 
-        # Build graph nodes dynamically from config — n_layers drives the loop
         nodes: list[GraphNode] = [
-            GraphNode(id="input", type="io", label="Input", detail=f"seq × {cfg.embed_dim}"),
+            GraphNode(id="input", type="io", label="Input", detail=f"seq × {embed_dim}"),
         ]
         edges: list[GraphEdge] = []
         prev = "input"
 
-        for i in range(cfg.n_layers):
+        for i in range(n_layers):
             group = f"Layer {i + 1}"
             layer_nodes = [
-                GraphNode(id=f"l{i}_ln1",  type="norm",      label="Layer Norm",           group=group),
-                GraphNode(id=f"l{i}_attn", type="attention", label="Multi-Head Attention",  detail=f"{cfg.n_heads} heads · dim {cfg.embed_dim}", group=group),
-                GraphNode(id=f"l{i}_res1", type="residual",  label="Residual Add",          group=group),
-                GraphNode(id=f"l{i}_ln2",  type="norm",      label="Layer Norm",            group=group),
-                GraphNode(id=f"l{i}_ffn",  type="ffn",       label="Feed-Forward",          detail=f"{cfg.embed_dim} → {cfg.ffn_dim} → {cfg.embed_dim} · ReLU", group=group),
-                GraphNode(id=f"l{i}_res2", type="residual",  label="Residual Add",          group=group),
+                GraphNode(id=f"l{i}_ln1",  type="norm",      label="Layer Norm",          group=group),
+                GraphNode(id=f"l{i}_attn", type="attention", label="Multi-Head Attention", detail=f"{n_heads} heads · dim {embed_dim}", group=group),
+                GraphNode(id=f"l{i}_res1", type="residual",  label="Residual Add",         group=group),
+                GraphNode(id=f"l{i}_ln2",  type="norm",      label="Layer Norm",           group=group),
+                GraphNode(id=f"l{i}_ffn",  type="ffn",       label="Feed-Forward",         detail=f"{embed_dim} → {ffn_dim} → {embed_dim} · ReLU", group=group),
+                GraphNode(id=f"l{i}_res2", type="residual",  label="Residual Add",         group=group),
             ]
             nodes.extend(layer_nodes)
             for node in layer_nodes:
@@ -138,31 +119,34 @@ class BaselineTransformer(PiroModel):
         for node in [
             GraphNode(id="ln_final", type="norm",   label="Layer Norm"),
             GraphNode(id="pool",     type="pool",   label="Mean Pool",  detail="seq_len → 1"),
-            GraphNode(id="out_proj", type="linear", label="Linear",     detail=f"{cfg.embed_dim} → {cfg.n_classes}"),
-            GraphNode(id="output",   type="io",     label="Output",     detail=f"{cfg.n_classes} logits"),
+            GraphNode(id="out_proj", type="linear", label="Linear",     detail=f"{embed_dim} → {n_classes}"),
+            GraphNode(id="output",   type="io",     label="Output",     detail=f"{n_classes} logits"),
         ]:
             nodes.append(node)
             edges.append(GraphEdge(**{"from": prev, "to": node.id}))
             prev = node.id
 
-        return ModelManifest(
-            name="Baseline Transformer",
-            slug="baseline-transformer",
-            description=(
-                "2-layer pre-norm transformer with multi-head self-attention. "
-                "Mean-pools the final layer to produce a single classification output. "
-                "Standard baseline for sequence tasks."
-            ),
-            hyperparams={
-                "embed_dim": cfg.embed_dim,
-                "n_heads": cfg.n_heads,
-                "ffn_dim": cfg.ffn_dim,
-                "n_layers": cfg.n_layers,
-                "n_classes": cfg.n_classes,
-            },
-            parameterCount=cls(cfg).count_parameters(),
-            module="baseline_transformer",
-            modelClass="BaselineTransformer",
-            configClass="TransformerConfig",
-            graph=ArchitectureGraph(nodes=nodes, edges=edges),
-        )
+        return ArchitectureGraph(nodes=nodes, edges=edges)
+
+    # ── nn.Module ──────────────────────────────────────────────────────────
+    def __init__(self, config: TransformerConfig) -> None:
+        super().__init__()
+        if config.embed_dim % config.n_heads != 0:
+            raise ValueError(
+                f"embed_dim ({config.embed_dim}) must be divisible by "
+                f"n_heads ({config.n_heads})"
+            )
+        self.config = config
+        self.layers = nn.ModuleList([
+            _TransformerLayer(config.embed_dim, config.n_heads, config.ffn_dim)
+            for _ in range(config.n_layers)
+        ])
+        self.ln_final = nn.LayerNorm(config.embed_dim)
+        self.out_proj = nn.Linear(config.embed_dim, config.n_classes)
+
+    def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
+        x = embeddings if embeddings.ndim == 2 else embeddings.unsqueeze(0)
+        for layer in self.layers:
+            x = layer(x)
+        x = self.ln_final(x)
+        return self.out_proj(x.mean(dim=0))
