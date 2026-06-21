@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -118,8 +119,33 @@ export default function ClassDetailClient({
   hasModule,
   source,
 }: ClassDetailProps) {
-  const [tab, setTab] = useState<Tab>("preview");
-  const [selectedFile, setSelectedFile] = useState<string>("model.py");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [tab, setTab] = useState<Tab>(
+    (searchParams.get("tab") as Tab | null) ?? "preview",
+  );
+  const [selectedFile, setSelectedFile] = useState<string>(
+    searchParams.get("file") ?? "model.py",
+  );
+
+  function updateUrl(nextTab: Tab, nextFile: string) {
+    const params = new URLSearchParams();
+    if (nextTab !== "preview") params.set("tab", nextTab);
+    if (nextTab === "code" && nextFile !== "model.py") params.set("file", nextFile);
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+  }
+
+  function switchTab(nextTab: Tab) {
+    setTab(nextTab);
+    updateUrl(nextTab, selectedFile);
+  }
+
+  function switchFile(nextFile: string) {
+    setSelectedFile(nextFile);
+    updateUrl(tab, nextFile);
+  }
 
   const paramCount = manifest?.parameterCount ?? null;
   const hyperparams = manifest?.hyperparams ?? null;
@@ -148,7 +174,7 @@ export default function ClassDetailClient({
           {hasModule && (
             <div className="flex items-center rounded-lg border border-amber-900/20 overflow-hidden">
               <button
-                onClick={() => setTab("preview")}
+                onClick={() => switchTab("preview")}
                 title="Preview"
                 className={`px-2.5 py-1.5 transition-colors ${
                   tab === "preview"
@@ -162,7 +188,7 @@ export default function ClassDetailClient({
                 </svg>
               </button>
               <button
-                onClick={() => setTab("code")}
+                onClick={() => switchTab("code")}
                 title="Source"
                 className={`px-2.5 py-1.5 border-l border-amber-900/20 transition-colors ${
                   tab === "code"
@@ -261,19 +287,6 @@ export default function ClassDetailClient({
               </div>
             )}
 
-            {/* Source inline in preview */}
-            {source && (
-              <div>
-                <h2 className="text-[10px] font-semibold uppercase tracking-widest text-amber-600/50 mb-3">
-                  Source
-                </h2>
-                <div className="rounded-xl border border-amber-900/20 bg-[#0d0a08] overflow-hidden">
-                  <pre className="p-4 text-[11px] font-mono text-amber-300/60 leading-relaxed overflow-x-auto whitespace-pre">
-                    {source}
-                  </pre>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -289,7 +302,7 @@ export default function ClassDetailClient({
             {MODULE_FILES.map((f) => (
               <button
                 key={f.path}
-                onClick={() => setSelectedFile(f.path)}
+                onClick={() => switchFile(f.path)}
                 className={`w-full text-left flex items-center gap-2.5 px-4 py-1.5 text-[12px] font-mono transition-colors ${
                   selectedFile === f.path
                     ? "bg-amber-900/20 text-amber-200/80"
