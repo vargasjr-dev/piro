@@ -6,6 +6,7 @@ on:
     paths:
         - "model/**"
         - "piro/**"
+        - ".github/workflows/modal-deploy.yml"
   workflow_dispatch:
 
 jobs:
