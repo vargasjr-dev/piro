@@ -40,16 +40,7 @@ export default async function BenchmarksPage() {
       {/* Catalog */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-3">
-          {benchmarks.map((bm) => {
-            let configParams: Record<string, unknown> = {};
-            if (bm.configJson) {
-              try {
-                configParams = JSON.parse(bm.configJson) as Record<string, unknown>;
-              } catch {
-                // ignore
-              }
-            }
-            return (
+          {benchmarks.map((bm) => (
               <Link
                 key={bm.id}
                 href={`/benchmarks/${bm.slug}`}
@@ -57,33 +48,13 @@ export default async function BenchmarksPage() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    {/* Name + slug badge */}
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-sm font-semibold text-amber-100">{bm.name}</span>
-                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-md border border-amber-900/25 bg-amber-900/10 text-amber-600/50">
-                        {bm.slug}
-                      </span>
-                    </div>
+                    <p className="text-sm font-semibold text-amber-100 mb-1">{bm.name}</p>
 
                     {/* Description */}
                     {bm.description && (
-                      <p className="text-xs text-amber-400/50 leading-relaxed mb-2">
+                      <p className="text-xs text-amber-400/50 leading-relaxed">
                         {bm.description}
                       </p>
-                    )}
-
-                    {/* Config params */}
-                    {Object.keys(configParams).length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {Object.entries(configParams).map(([k, v]) => (
-                          <span
-                            key={k}
-                            className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-amber-900/20 bg-amber-900/8 text-amber-700/50"
-                          >
-                            {k}: {String(v)}
-                          </span>
-                        ))}
-                      </div>
                     )}
                   </div>
 
@@ -99,8 +70,7 @@ export default async function BenchmarksPage() {
                   </svg>
                 </div>
               </Link>
-            );
-          })}
+          ))}
         </div>
       </div>
     </div>
