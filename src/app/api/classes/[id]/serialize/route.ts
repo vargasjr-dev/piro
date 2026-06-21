@@ -71,14 +71,19 @@ export async function GET(
     );
   }
 
-  const body: unknown = await modalRes.json().catch(() => null);
+  // Capture raw text first so we never lose the body regardless of content-type
+  const rawText = await modalRes.text().catch(() => "");
+  let body: unknown = rawText;
+  try {
+    body = JSON.parse(rawText);
+  } catch { /* keep as raw string */ }
 
   if (!modalRes.ok) {
     const detail =
-      body !== null
-        ? typeof body === "string"
-          ? body
-          : JSON.stringify(body)
+      rawText.length > 0
+        ? typeof body === "object" && body !== null
+          ? JSON.stringify(body)
+          : rawText
         : `HTTP ${modalRes.status}`;
     return Response.json(
       { error: `Serialize endpoint returned ${modalRes.status}`, detail },
