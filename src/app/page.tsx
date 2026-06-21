@@ -13,7 +13,7 @@ export default async function HomePage() {
     cookieStore.has("__Secure-better-auth.session_token");
 
   if (hasSession) {
-    redirect("/knowledge");
+    redirect("/benchmarks");
   }
 
   return (
