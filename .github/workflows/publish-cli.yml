@@ -1,0 +1,55 @@
+name: Publish CLI
+
+# Publishes the `piro` npm package whenever cli/package.json is updated on
+# main with a version that doesn't yet exist on the registry.
+#
+# Requires one GitHub secret:
+#   NPM_TOKEN — Automation-type npm token with publish access to `piro`
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cli/**"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Check if version is already published
+        id: version_check
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          PUBLISHED=$(npm view piro@$PKG_VERSION version 2>/dev/null || echo "")
+          if [ "$PUBLISHED" = "$PKG_VERSION" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Version $PKG_VERSION already published — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Version $PKG_VERSION not yet published — will publish."
+          fi
+
+      - name: Publish to npm
+        if: steps.version_check.outputs.skip == 'false'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

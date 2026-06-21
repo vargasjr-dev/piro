@@ -11,7 +11,6 @@
  */
 
 import { classesSerialize } from "./commands/classes.js";
-import { adminModalSecrets } from "./commands/admin.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -27,7 +26,6 @@ function usage(msg?: string): never {
   if (msg) console.error(`Error: ${msg}\n`);
   console.error("Usage:");
   console.error("  piro classes serialize <id> [--bust]");
-  console.error("  piro admin modal-secrets");
   process.exit(msg ? 1 : 0);
 }
 
@@ -44,16 +42,6 @@ switch (subject) {
       }
       default:
         usage(`unknown classes verb: ${verb}`);
-    }
-    break;
-
-  case "admin":
-    switch (verb) {
-      case "modal-secrets":
-        await adminModalSecrets();
-        break;
-      default:
-        usage(`unknown admin verb: ${verb}`);
     }
     break;
 
