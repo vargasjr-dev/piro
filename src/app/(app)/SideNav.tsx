@@ -153,7 +153,7 @@ export default function SideNav({ userName }: Props) {
         </div>
 
       {/* Mobile bottom nav bar */}
-      <nav className="fixed bottom-0 inset-x-0 bg-[#0d0a08] border-t border-amber-900/20 flex z-50 pb-safe">
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-[#0d0a08] border-t border-amber-900/20 flex z-50 pb-safe">
         {NAV_ITEMS.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
