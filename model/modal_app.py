@@ -98,7 +98,10 @@ serialize_image = (
 piro_secrets = modal.Secret.from_name("piro-secrets")
 
 # ── Manifest cache — keyed by sha256(model.py source) ────────────────────────
-manifest_cache = modal.Dict.from_name("piro-manifest-cache", create_if_missing=True)
+# Simple in-process dict: lives for the lifetime of the warm container.
+# modal.Dict was deprecated and removed in newer Modal SDK versions, and a
+# module-level from_name() call crashes the container before FastAPI starts.
+manifest_cache: dict = {}
 
 
 # ── Trainer class — heavy imports snapshotted per container via @enter() ──────
@@ -688,13 +691,9 @@ def serialize(request: Request) -> dict:
 
     # ── Cache check ────────────────────────────────────────────────────────
     cache_key = hashlib.sha256(model_source.encode()).hexdigest()
-    try:
-        if not bust and cache_key in manifest_cache:
-            print(f"[piro-serialize] cache hit {class_id} ({cache_key[:12]})")
-            return manifest_cache[cache_key]
-    except Exception as cache_exc:
-        # Non-fatal — just skip the cache if modal.Dict is unavailable
-        print(f"[piro-serialize] cache read error (skipping): {cache_exc}")
+    if not bust and cache_key in manifest_cache:
+        print(f"[piro-serialize] cache hit {class_id} ({cache_key[:12]})")
+        return manifest_cache[cache_key]
 
     # ── Dynamically import model.py and call serialize() ──────────────────
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
@@ -756,10 +755,7 @@ def serialize(request: Request) -> dict:
         )
 
     print(f"[piro-serialize] computed manifest for {class_id} ({cache_key[:12]})")
-    try:
-        manifest_cache[cache_key] = result
-    except Exception as cache_exc:
-        print(f"[piro-serialize] cache write error (skipping): {cache_exc}")
+    manifest_cache[cache_key] = result
     return result
 
 
