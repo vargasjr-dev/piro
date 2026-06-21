@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../../data/db";
 import { user, session, account, verification } from "../../data/schema";
+import { TRUSTED_ORIGINS } from "./domains";
 
 const socialProviders =
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -26,9 +27,7 @@ export const auth = betterAuth({
   },
   socialProviders,
   trustedOrigins: [
-    "http://localhost:3000",
-    "https://piro.vargasjr.dev",
-    "https://piro-henna.vercel.app",
+    ...TRUSTED_ORIGINS,
     ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
     ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
   ],

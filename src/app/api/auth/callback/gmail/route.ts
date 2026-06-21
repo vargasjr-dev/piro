@@ -6,7 +6,9 @@ import { db } from "../../../../../../data/db";
 import { integration } from "../../../../../../data/schema";
 import { flashError } from "~/lib/flash";
 
-const BASE = process.env.BETTER_AUTH_URL ?? "https://piro-henna.vercel.app";
+import { PRIMARY_DOMAIN } from "~/lib/domains";
+
+const BASE = process.env.BETTER_AUTH_URL ?? PRIMARY_DOMAIN;
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await nextHeaders() });

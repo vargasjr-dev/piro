@@ -1,3 +1,4 @@
+import { PRIMARY_DOMAIN } from "~/lib/domains";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "~/lib/auth.server";
 import { headers as nextHeaders } from "next/headers";
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
   }
 
   const state = crypto.randomUUID();
-  const redirectUri = `${process.env.BETTER_AUTH_URL ?? "https://piro-henna.vercel.app"}/api/auth/callback/gmail`;
+  const redirectUri = `${process.env.BETTER_AUTH_URL ?? PRIMARY_DOMAIN}/api/auth/callback/gmail`;
 
   const oauthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   oauthUrl.searchParams.set("client_id", clientId);
