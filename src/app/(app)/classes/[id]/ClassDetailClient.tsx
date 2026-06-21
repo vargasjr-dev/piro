@@ -18,7 +18,6 @@ export interface ClassManifest {
   parameterCount?: number;
   module?: string;
   modelClass?: string;
-  configClass?: string;
   graph?: ArchitectureGraphData;
 }
 

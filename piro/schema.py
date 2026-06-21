@@ -91,5 +91,4 @@ class ModelManifest(BaseModel):
     parameter_count: int = Field(alias="parameterCount")
     module: str
     model_class: str = Field(alias="modelClass")
-    config_class: str = Field(alias="configClass")
     graph: Optional[ArchitectureGraph] = None

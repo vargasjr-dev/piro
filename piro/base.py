@@ -3,55 +3,49 @@ piro/base.py
 
 PiroModel — base class for all model classes stored in R2 and run on Modal.
 
-Model authors subclass this, define a handful of class attributes, and
-implement two methods:
+Model authors subclass this, define class attributes, and implement two
+methods.  Everything else — serialize(), count_parameters() — is inherited.
 
-    build_default()    — return cls(YourConfig()) with default hyperparameters
-    serialize_graph()  — return an ArchitectureGraph describing the forward pass
+Two styles for hyperparameters
+──────────────────────────────
 
-Everything else — serialize(), count_parameters() — is inherited.
-
-Example
--------
-    from piro import PiroModel
-    from piro.schema import ArchitectureGraph, GraphNode, GraphEdge
+Style 1 — plain dict (no imports needed):
 
     class MyModel(PiroModel):
-        # ── Manifest fields ───────────────────────────────────────────────
-        name         = "My Model"
-        slug         = "my-model"
-        description  = "One-line description."
-        module       = "my_module"        # Python module name
-        config_class = "MyConfig"         # Name of the config dataclass
-        hyper_parameters = {              # Default config values (display + manifest)
-            "hidden_dim": 64,
-            "n_classes": 10,
-        }
-
-        # ── Required implementations ──────────────────────────────────────
-        @classmethod
-        def build_default(cls) -> "MyModel":
-            return cls(MyConfig())
+        hyper_parameters = {"hidden_dim": 64, "n_classes": 10}
 
         @classmethod
-        def serialize_graph(cls) -> ArchitectureGraph:
-            hp = cls.hyper_parameters
-            return ArchitectureGraph(
-                nodes=[...],
-                edges=[...],
-            )
+        def build_default(cls):
+            return cls(**cls.hyper_parameters)
 
-        # ── nn.Module interface ───────────────────────────────────────────
-        def __init__(self, config: MyConfig) -> None:
+        def __init__(self, hidden_dim=64, n_classes=10):
             super().__init__()
             ...
 
-        def forward(self, x):
+Style 2 — typed nested class (IDE-friendly, zero extra imports):
+
+    class MyModel(PiroModel):
+        class HyperParameters:
+            hidden_dim: int = 64
+            n_classes: int  = 10
+        # hyper_parameters dict is auto-derived — do not define manually
+
+        @classmethod
+        def build_default(cls):
+            return cls(cls.HyperParameters())
+
+        def __init__(self, hp: "MyModel.HyperParameters | None" = None):
+            super().__init__()
+            hp = hp or type(self).HyperParameters()
             ...
+
+In either style, serialize_graph() reads from cls.hyper_parameters — the base
+ensures this dict is always populated regardless of which style is used.
 """
 
 from __future__ import annotations
 
+import dataclasses
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
@@ -61,21 +55,34 @@ from .schema import ArchitectureGraph, ModelManifest
 
 
 class PiroModel(nn.Module, ABC):
-    """Abstract base class for Piro model classes.
-
-    Define class attributes and implement ``build_default`` +
-    ``serialize_graph``.  Everything else is inherited.
-    """
+    """Abstract base class for Piro model classes."""
 
     # ── Required class attributes ──────────────────────────────────────────────
-    # Declare these directly on your subclass (no __init__ needed for them).
-
     name: str                           # Display name, e.g. "Baseline Transformer"
     slug: str                           # URL-safe identifier, e.g. "baseline-transformer"
     description: str                    # One-paragraph description
     module: str                         # Python module name, e.g. "baseline_transformer"
-    config_class: str                   # Config dataclass name, e.g. "TransformerConfig"
-    hyper_parameters: dict[str, Any]    # Default hyperparameter values
+    hyper_parameters: dict[str, Any]    # Populated from dict literal OR auto-derived from HyperParameters
+
+    # ── Auto-setup ─────────────────────────────────────────────────────────────
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Auto-apply @dataclass to a nested HyperParameters class and derive
+        the hyper_parameters dict from its field defaults.
+
+        This runs once per subclass definition, so it's free at runtime.
+        """
+        super().__init_subclass__(**kwargs)
+        if "HyperParameters" in cls.__dict__:
+            hp_cls = cls.__dict__["HyperParameters"]
+            if not dataclasses.is_dataclass(hp_cls):
+                hp_cls = dataclasses.dataclass(hp_cls)
+                cls.HyperParameters = hp_cls
+            cls.hyper_parameters = {
+                f.name: f.default
+                for f in dataclasses.fields(hp_cls)
+                if f.default is not dataclasses.MISSING
+            }
 
     # ── Required implementations ───────────────────────────────────────────────
 
@@ -84,11 +91,8 @@ class PiroModel(nn.Module, ABC):
     def build_default(cls) -> "PiroModel":
         """Return a default-configured instance used to count parameters.
 
-        Implement as a one-liner::
-
-            @classmethod
-            def build_default(cls) -> "MyModel":
-                return cls(MyConfig())
+        Style 1 (dict):  return cls(**cls.hyper_parameters)
+        Style 2 (typed): return cls(cls.HyperParameters())
         """
         ...
 
@@ -97,8 +101,7 @@ class PiroModel(nn.Module, ABC):
     def serialize_graph(cls) -> Optional[ArchitectureGraph]:
         """Return an ArchitectureGraph describing the forward pass, or None.
 
-        Read default values from ``cls.hyper_parameters`` so the graph stays
-        in sync with the declared defaults automatically.
+        Always read defaults from cls.hyper_parameters — works in both styles.
         """
         ...
 
@@ -112,7 +115,7 @@ class PiroModel(nn.Module, ABC):
     def serialize(cls) -> ModelManifest:
         """Build and return a fully-populated ModelManifest.
 
-        Called by the Piro serialize endpoint. Result is cached by source hash
+        Called by the Piro serialize endpoint.  Result is cached by source hash
         in Modal — no need to make this fast beyond a single forward pass.
         """
         return ModelManifest(
@@ -123,6 +126,5 @@ class PiroModel(nn.Module, ABC):
             parameterCount=cls.build_default().count_parameters(),
             module=cls.module,
             modelClass=cls.__name__,
-            configClass=cls.config_class,
             graph=cls.serialize_graph(),
         )

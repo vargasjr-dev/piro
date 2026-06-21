@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       parameterCount: null,
       module: null,
       modelClass: null,
-      configClass: null,
+
     };
     await r2PutText(`${r2Key}/manifest.json`, JSON.stringify(manifest, null, 2), "application/json; charset=utf-8");
 

@@ -95,26 +95,6 @@ class _TickLoopLog:
     confidence_threshold: float
 
 
-# ── Config ────────────────────────────────────────────────────────────────────
-
-@dataclass
-class CTMConfig:
-    n_neurons: int = 4
-    embed_dim: int = 8
-    query_dim: int = 8
-    value_dim: int = 8   # must equal embed_dim
-    hidden_dim: int = 16
-    n_classes: int = 5
-    max_ticks: int = 32
-    confidence_threshold: float = 0.9
-
-    def __post_init__(self) -> None:
-        if self.value_dim != self.embed_dim:
-            raise ValueError(
-                f"value_dim ({self.value_dim}) must equal embed_dim ({self.embed_dim})"
-            )
-
-
 @dataclass
 class CTMOutput:
     logits: torch.Tensor
@@ -127,44 +107,45 @@ class CTMOutput:
 # ── Model ─────────────────────────────────────────────────────────────────────
 
 class ContinuousThoughtModel(PiroModel):
-    """Continuous Thought Model."""
+    """Continuous Thought Model — typed HyperParameters style."""
 
     # ── Manifest fields ────────────────────────────────────────────────────
-    name         = "Continuous Thought Model"
-    slug         = "ctm"
-    description  = (
+    name        = "Continuous Thought Model"
+    slug        = "ctm"
+    description = (
         "Iterative tick-loop architecture with sync-driven attention. "
         "Neuron state accumulates across ticks before committing to an output — "
         "trades parameter efficiency for internal reasoning depth."
     )
-    module       = "ctm"
-    config_class = "CTMConfig"
-    hyper_parameters = {
-        "n_neurons":            4,
-        "embed_dim":            8,
-        "query_dim":            8,
-        "value_dim":            8,
-        "hidden_dim":          16,
-        "n_classes":            5,
-        "max_ticks":           32,
-        "confidence_threshold": 0.9,
-    }
+    module = "ctm"
+
+    # Nested class → auto-converted to @dataclass by PiroModel.__init_subclass__.
+    # hyper_parameters dict is derived automatically — do not define manually.
+    class HyperParameters:
+        n_neurons:            int   = 4
+        embed_dim:            int   = 8
+        query_dim:            int   = 8
+        value_dim:            int   = 8    # must equal embed_dim
+        hidden_dim:           int   = 16
+        n_classes:            int   = 5
+        max_ticks:            int   = 32
+        confidence_threshold: float = 0.9
 
     # ── PiroModel interface ────────────────────────────────────────────────
     @classmethod
     def build_default(cls) -> "ContinuousThoughtModel":
-        return cls(CTMConfig())
+        return cls(cls.HyperParameters())
 
     @classmethod
     def serialize_graph(cls) -> Optional[ArchitectureGraph]:
-        hp = cls.hyper_parameters
-        n        = hp["n_neurons"]
-        q_dim    = hp["query_dim"]
-        hidden   = hp["hidden_dim"]
-        n_cls    = hp["n_classes"]
-        ticks    = hp["max_ticks"]
-        thresh   = hp["confidence_threshold"]
-        embed    = hp["embed_dim"]
+        hp = cls.hyper_parameters      # always a plain dict — safe to read here
+        n       = hp["n_neurons"]
+        q_dim   = hp["query_dim"]
+        hidden  = hp["hidden_dim"]
+        n_cls   = hp["n_classes"]
+        ticks   = hp["max_ticks"]
+        thresh  = hp["confidence_threshold"]
+        embed   = hp["embed_dim"]
 
         return ArchitectureGraph(
             nodes=[
@@ -192,17 +173,22 @@ class ContinuousThoughtModel(PiroModel):
         )
 
     # ── nn.Module ──────────────────────────────────────────────────────────
-    def __init__(self, config: CTMConfig) -> None:
+    def __init__(self, hp: "ContinuousThoughtModel.HyperParameters | None" = None) -> None:
         super().__init__()
-        self.config = config
+        hp = hp or type(self).HyperParameters()
+        if hp.value_dim != hp.embed_dim:
+            raise ValueError(
+                f"value_dim ({hp.value_dim}) must equal embed_dim ({hp.embed_dim})"
+            )
+        self.hp = hp
         self.attention = _SyncAttention(
-            n_neurons=config.n_neurons,
-            embed_dim=config.embed_dim,
-            query_dim=config.query_dim,
-            value_dim=config.value_dim,
+            n_neurons=hp.n_neurons,
+            embed_dim=hp.embed_dim,
+            query_dim=hp.query_dim,
+            value_dim=hp.value_dim,
         )
-        self.confidence_head = _ConfidenceHead(config.n_neurons, config.hidden_dim)
-        self.output_head = _OutputHead(config.n_neurons, config.hidden_dim, config.n_classes)
+        self.confidence_head = _ConfidenceHead(hp.n_neurons, hp.hidden_dim)
+        self.output_head = _OutputHead(hp.n_neurons, hp.hidden_dim, hp.n_classes)
 
     def forward(self, embeddings: torch.Tensor) -> CTMOutput:
         if embeddings.ndim == 1:
@@ -213,21 +199,21 @@ class ContinuousThoughtModel(PiroModel):
         confidence = torch.tensor(0.0)
         ticks_run, converged = 0, False
 
-        for tick in range(self.config.max_ticks):
+        for tick in range(self.hp.max_ticks):
             ticks_run = tick + 1
             context = self.attention(sync, context)
             sync = _compute_sync(context)
             confidence = self.confidence_head(sync)
-            if confidence.item() >= self.config.confidence_threshold:
+            if confidence.item() >= self.hp.confidence_threshold:
                 converged = True
                 break
 
         log = _TickLoopLog(
             ticks_run=ticks_run,
-            max_ticks=self.config.max_ticks,
+            max_ticks=self.hp.max_ticks,
             converged=converged,
             confidence=float(confidence.item()),
-            confidence_threshold=self.config.confidence_threshold,
+            confidence_threshold=self.hp.confidence_threshold,
         )
         return CTMOutput(
             logits=self.output_head.logits(sync),

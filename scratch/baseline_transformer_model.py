@@ -15,7 +15,6 @@ No positional encoding — inputs are bags of embeddings (same as CTM).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Optional
 
 import torch
@@ -23,17 +22,6 @@ import torch.nn as nn
 
 from piro import PiroModel
 from piro.schema import ArchitectureGraph, GraphEdge, GraphNode
-
-
-# ── Config ────────────────────────────────────────────────────────────────────
-
-@dataclass
-class TransformerConfig:
-    embed_dim: int = 8
-    n_heads: int = 2
-    ffn_dim: int = 6
-    n_layers: int = 2
-    n_classes: int = 5
 
 
 # ── Internal layer ────────────────────────────────────────────────────────────
@@ -61,18 +49,18 @@ class _TransformerLayer(nn.Module):
 # ── Model ─────────────────────────────────────────────────────────────────────
 
 class BaselineTransformer(PiroModel):
-    """Minimal 2-layer transformer baseline."""
+    """Minimal 2-layer transformer baseline — plain dict style."""
 
     # ── Manifest fields ────────────────────────────────────────────────────
-    name         = "Baseline Transformer"
-    slug         = "baseline-transformer"
-    description  = (
+    name        = "Baseline Transformer"
+    slug        = "baseline-transformer"
+    description = (
         "2-layer pre-norm transformer with multi-head self-attention. "
         "Mean-pools the final layer to produce a single classification output. "
         "Standard baseline for sequence tasks."
     )
-    module       = "baseline_transformer"
-    config_class = "TransformerConfig"
+    module = "baseline_transformer"
+
     hyper_parameters = {
         "embed_dim": 8,
         "n_heads":   2,
@@ -84,7 +72,7 @@ class BaselineTransformer(PiroModel):
     # ── PiroModel interface ────────────────────────────────────────────────
     @classmethod
     def build_default(cls) -> "BaselineTransformer":
-        return cls(TransformerConfig())
+        return cls(**cls.hyper_parameters)
 
     @classmethod
     def serialize_graph(cls) -> Optional[ArchitectureGraph]:
@@ -129,20 +117,26 @@ class BaselineTransformer(PiroModel):
         return ArchitectureGraph(nodes=nodes, edges=edges)
 
     # ── nn.Module ──────────────────────────────────────────────────────────
-    def __init__(self, config: TransformerConfig) -> None:
+    def __init__(
+        self,
+        embed_dim: int = 8,
+        n_heads:   int = 2,
+        ffn_dim:   int = 6,
+        n_layers:  int = 2,
+        n_classes: int = 5,
+    ) -> None:
         super().__init__()
-        if config.embed_dim % config.n_heads != 0:
+        if embed_dim % n_heads != 0:
             raise ValueError(
-                f"embed_dim ({config.embed_dim}) must be divisible by "
-                f"n_heads ({config.n_heads})"
+                f"embed_dim ({embed_dim}) must be divisible by n_heads ({n_heads})"
             )
-        self.config = config
         self.layers = nn.ModuleList([
-            _TransformerLayer(config.embed_dim, config.n_heads, config.ffn_dim)
-            for _ in range(config.n_layers)
+            _TransformerLayer(embed_dim, n_heads, ffn_dim)
+            for _ in range(n_layers)
         ])
-        self.ln_final = nn.LayerNorm(config.embed_dim)
-        self.out_proj = nn.Linear(config.embed_dim, config.n_classes)
+        self.ln_final = nn.LayerNorm(embed_dim)
+        self.out_proj = nn.Linear(embed_dim, n_classes)
+        self.embed_dim = embed_dim
 
     def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
         x = embeddings if embeddings.ndim == 2 else embeddings.unsqueeze(0)
