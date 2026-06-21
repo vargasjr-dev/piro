@@ -93,6 +93,48 @@ class BaselineTransformer(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
+def _build_graph(cfg: TransformerConfig) -> dict:
+    """Build a JSON-serialisable architecture graph from config.
+
+    Nodes are ordered top-to-bottom (input → layers → output).
+    Consecutive nodes sharing a ``group`` label are rendered as a
+    labelled bracket in the UI.  Edges are explicit for forward-pass order.
+    """
+    nodes: list[dict] = [
+        {"id": "input", "type": "io", "label": "Input", "detail": f"seq × {cfg.embed_dim}"},
+    ]
+    edges: list[dict] = []
+    prev = "input"
+
+    for i in range(cfg.n_layers):
+        group = f"Layer {i + 1}"
+        layer_nodes: list[dict] = [
+            {"id": f"l{i}_ln1",  "type": "norm",     "label": "Layer Norm",          "group": group},
+            {"id": f"l{i}_attn", "type": "attention", "label": "Multi-Head Attention","detail": f"{cfg.n_heads} heads · dim {cfg.embed_dim}", "group": group},
+            {"id": f"l{i}_res1", "type": "residual",  "label": "Residual Add",        "group": group},
+            {"id": f"l{i}_ln2",  "type": "norm",      "label": "Layer Norm",          "group": group},
+            {"id": f"l{i}_ffn",  "type": "ffn",       "label": "Feed-Forward",        "detail": f"{cfg.embed_dim} → {cfg.ffn_dim} → {cfg.embed_dim} · ReLU", "group": group},
+            {"id": f"l{i}_res2", "type": "residual",  "label": "Residual Add",        "group": group},
+        ]
+        nodes.extend(layer_nodes)
+        for node in layer_nodes:
+            edges.append({"from": prev, "to": node["id"]})
+            prev = node["id"]
+
+    tail: list[dict] = [
+        {"id": "ln_final", "type": "norm",   "label": "Layer Norm"},
+        {"id": "pool",     "type": "pool",   "label": "Mean Pool",  "detail": "seq_len → 1"},
+        {"id": "out_proj", "type": "linear", "label": "Linear",     "detail": f"{cfg.embed_dim} → {cfg.n_classes}"},
+        {"id": "output",   "type": "io",     "label": "Output",     "detail": f"{cfg.n_classes} logits"},
+    ]
+    nodes.extend(tail)
+    for node in tail:
+        edges.append({"from": prev, "to": node["id"]})
+        prev = node["id"]
+
+    return {"nodes": nodes, "edges": edges}
+
+
 def serialize() -> dict:
     """Return a JSON-serialisable manifest describing this model class.
 
@@ -119,6 +161,7 @@ def serialize() -> dict:
         "module": "model.baseline_transformer",
         "modelClass": "BaselineTransformer",
         "configClass": "TransformerConfig",
+        "graph": _build_graph(cfg),
     }
 
 

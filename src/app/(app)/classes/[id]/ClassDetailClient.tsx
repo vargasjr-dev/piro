@@ -3,6 +3,10 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import {
+  ArchitectureGraph,
+  type ArchitectureGraphData,
+} from "~/components/ArchitectureGraph";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -15,6 +19,7 @@ interface ClassManifest {
   module?: string;
   modelClass?: string;
   configClass?: string;
+  graph?: ArchitectureGraphData;
 }
 
 export interface ClassDetailProps {
@@ -238,6 +243,15 @@ export default function ClassDetailClient({
 
             {description && (
               <p className="text-sm text-amber-400/60 leading-relaxed">{description}</p>
+            )}
+
+            {manifest?.graph && (
+              <div>
+                <h2 className="text-[10px] font-semibold uppercase tracking-widest text-amber-600/50 mb-3">
+                  Architecture
+                </h2>
+                <ArchitectureGraph graph={manifest.graph} />
+              </div>
             )}
 
           </div>

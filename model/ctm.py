@@ -130,6 +130,74 @@ class ContinuousThoughtModel(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
+def _build_graph(cfg: CTMConfig) -> dict:
+    """Build a JSON-serialisable architecture graph for the CTM.
+
+    The tick loop is represented as a single node of ``type="loop"`` containing
+    its interior steps.  The UI renders it as a dashed-border section with a
+    back-arrow indicating iteration.
+    """
+    nodes: list[dict] = [
+        {
+            "id": "input",
+            "type": "io",
+            "label": "Input",
+            "detail": f"{cfg.n_neurons} × {cfg.embed_dim}",
+        },
+        {
+            "id": "sync_init",
+            "type": "sync",
+            "label": "Sync Matrix",
+            "detail": f"Pearson correlation · {cfg.n_neurons}×{cfg.n_neurons}",
+        },
+        {
+            "id": "tick_loop",
+            "type": "loop",
+            "label": "Tick Loop",
+            "detail": f"max {cfg.max_ticks} ticks · exits when confidence ≥ {cfg.confidence_threshold}",
+            "nodes": [
+                {
+                    "id": "tl_attn",
+                    "type": "attention",
+                    "label": "Sync Attention",
+                    "detail": f"query from sync · K/V from context · dim {cfg.query_dim}",
+                },
+                {
+                    "id": "tl_sync",
+                    "type": "sync",
+                    "label": "Recompute Sync",
+                    "detail": f"Pearson correlation · {cfg.n_neurons}×{cfg.n_neurons}",
+                },
+                {
+                    "id": "tl_conf",
+                    "type": "confidence",
+                    "label": "Confidence Gate",
+                    "detail": f"hidden {cfg.hidden_dim} · threshold {cfg.confidence_threshold}",
+                },
+            ],
+        },
+        {
+            "id": "out_head",
+            "type": "linear",
+            "label": "Output Head",
+            "detail": f"{cfg.n_neurons}×{cfg.n_neurons} sync → hidden {cfg.hidden_dim} → {cfg.n_classes}",
+        },
+        {
+            "id": "output",
+            "type": "io",
+            "label": "Output",
+            "detail": f"{cfg.n_classes} logits",
+        },
+    ]
+    edges: list[dict] = [
+        {"from": "input",     "to": "sync_init"},
+        {"from": "sync_init", "to": "tick_loop"},
+        {"from": "tick_loop", "to": "out_head"},
+        {"from": "out_head",  "to": "output"},
+    ]
+    return {"nodes": nodes, "edges": edges}
+
+
 def serialize() -> dict:
     """Return a JSON-serialisable manifest describing this model class.
 
@@ -159,4 +227,5 @@ def serialize() -> dict:
         "module": "model.ctm",
         "modelClass": "ContinuousThoughtModel",
         "configClass": "CTMConfig",
+        "graph": _build_graph(cfg),
     }
