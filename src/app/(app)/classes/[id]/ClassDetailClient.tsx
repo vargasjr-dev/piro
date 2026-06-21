@@ -27,6 +27,7 @@ export interface ClassDetailProps {
   slug: string;
   description: string | null;
   manifest: ClassManifest | null;
+  manifestError: string | null;
   hasModule: boolean;
   /** Pre-fetched source shown in preview (also in code tab as default file). */
   source: string | null;
@@ -120,6 +121,7 @@ export default function ClassDetailClient({
   slug,
   description,
   manifest,
+  manifestError,
   hasModule,
   source,
 }: ClassDetailProps) {
@@ -242,6 +244,15 @@ export default function ClassDetailClient({
                   /api/admin/seed-class-modules
                 </a>{" "}
                 to upload the Python module to R2.
+              </div>
+            )}
+
+            {/* Serialize error */}
+            {manifestError && (
+              <div className="px-4 py-3 rounded-xl border border-red-700/40 bg-red-900/15 text-xs text-red-400/80 leading-relaxed font-mono break-all">
+                <span className="font-semibold not-italic font-sans text-red-400">Serialize error</span>
+                <br />
+                {manifestError}
               </div>
             )}
 

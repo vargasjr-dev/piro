@@ -25,6 +25,7 @@ Vercel env vars needed:
 """
 
 import modal
+from fastapi import Request
 
 app = modal.App("piro")
 
@@ -622,7 +623,7 @@ def trigger(body: dict) -> dict:
 
 @app.function(image=serialize_image, secrets=[piro_secrets])
 @modal.fastapi_endpoint(method="GET")
-def serialize(request: "Request") -> dict:
+def serialize(request: Request) -> dict:
     """
     Return a ModelManifest for a model class stored in R2.
 
@@ -644,7 +645,7 @@ def serialize(request: "Request") -> dict:
     import os
     import tempfile
 
-    from fastapi import HTTPException, Request  # noqa: F401 (Request used in signature)
+    from fastapi import HTTPException
     from piro import PiroModel
     from piro.schema import ModelManifest
 
