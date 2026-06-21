@@ -693,6 +693,11 @@ def serialize(request: Request) -> dict:
         spec = importlib.util.spec_from_file_location("_piro_user_model", tmp_path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)  # type: ignore[union-attr]
+    except Exception as exc:
+        import traceback as _tb
+        tb = _tb.format_exc()
+        print(f"[piro-serialize] ERROR exec'ing model.py for {class_id}:\n{tb}")
+        raise HTTPException(status_code=500, detail=f"model.py exec failed — {type(exc).__name__}: {exc}\n\n{tb}")
     finally:
         os.unlink(tmp_path)
 
@@ -710,8 +715,14 @@ def serialize(request: Request) -> dict:
             break
 
     if model_cls is not None:
-        manifest_obj: ModelManifest = model_cls.serialize()
-        result = manifest_obj.model_dump(by_alias=True, mode="json")
+        try:
+            manifest_obj: ModelManifest = model_cls.serialize()
+            result = manifest_obj.model_dump(by_alias=True, mode="json")
+        except Exception as exc:
+            import traceback as _tb
+            tb = _tb.format_exc()
+            print(f"[piro-serialize] ERROR in {model_cls.__name__}.serialize():\n{tb}")
+            raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}\n\n{tb}")
     elif hasattr(module, "serialize") and callable(module.serialize):
         # Old style: module-level serialize() function returning a plain dict
         raw: dict = module.serialize()
