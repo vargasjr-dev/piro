@@ -53,13 +53,36 @@ export default async function BenchmarkDetailPage({
 
   if (!bm) notFound();
 
-  // Fetch completed runs for this benchmark
-  const runs = await db
+  // Fetch all benchmark_run rows for this slug (one row per model per suite)
+  const rawRuns = await db
     .select()
     .from(benchmarkRun)
     .where(and(eq(benchmarkRun.userId, userId), eq(benchmarkRun.benchmarkName, slug)))
     .orderBy(desc(benchmarkRun.ranAt))
-    .limit(50);
+    .limit(200);
+
+  // Group by suiteRunId → one entry per suite run
+  const suiteMap = new Map<
+    string,
+    { suiteRunId: string; ranAt: Date; results: { target: string; score: number }[] }
+  >();
+  for (const r of rawRuns) {
+    const existing = suiteMap.get(r.suiteRunId);
+    if (!existing) {
+      suiteMap.set(r.suiteRunId, {
+        suiteRunId: r.suiteRunId,
+        ranAt: r.ranAt,
+        results: [{ target: r.target, score: r.score }],
+      });
+    } else {
+      existing.results.push({ target: r.target, score: r.score });
+      if (r.ranAt < existing.ranAt) existing.ranAt = r.ranAt;
+    }
+  }
+  // Sorted newest-first (Map iteration order preserved from desc query, but re-sort to be safe)
+  const suiteGroups = [...suiteMap.values()].sort(
+    (a, b) => b.ranAt.getTime() - a.ranAt.getTime(),
+  );
 
   // Fetch queued suite runs, filter to those that include this benchmark
   const queuedSuites = await db
@@ -78,7 +101,8 @@ export default async function BenchmarkDetailPage({
   });
 
   // Resolve model target UUIDs → display names
-  const { nameMap } = await resolveModelTargets(runs.map((r) => r.target));
+  const allTargets = rawRuns.map((r) => r.target);
+  const { nameMap } = await resolveModelTargets(allTargets);
 
   // Parse configJson for display
   let configParams: Record<string, unknown> = {};
@@ -90,7 +114,7 @@ export default async function BenchmarkDetailPage({
     }
   }
 
-  const hasHistory = inProgressSuites.length > 0 || runs.length > 0;
+  const hasHistory = inProgressSuites.length > 0 || suiteGroups.length > 0;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -201,20 +225,29 @@ export default async function BenchmarkDetailPage({
                   </Link>
                 ))}
 
-                {/* Completed run rows — one per (model × benchmark) result */}
-                {runs.map((r) => (
+                {/* Completed suite runs — one card per suite, scores per model inline */}
+                {suiteGroups.map((g) => (
                   <Link
-                    key={r.id}
-                    href={`/benchmarks/runs/${r.suiteRunId}`}
-                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
+                    key={g.suiteRunId}
+                    href={`/benchmarks/runs/${g.suiteRunId}`}
+                    className="block px-4 py-3 rounded-xl border border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-amber-300/70 font-medium truncate">
-                        {nameMap[r.target] ?? r.target}
-                      </p>
-                      <p className="text-[10px] text-amber-700/35 mt-0.5">{timeAgo(r.ranAt)}</p>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <span className="text-[10px] text-amber-700/35">{timeAgo(g.ranAt)}</span>
+                      <svg className="w-4 h-4 text-amber-800/30 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
                     </div>
-                    <ScorePill score={r.score} />
+                    <div className="space-y-1.5">
+                      {g.results.map((r) => (
+                        <div key={r.target} className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-amber-300/60 truncate">
+                            {nameMap[r.target] ?? r.target}
+                          </span>
+                          <ScorePill score={r.score} />
+                        </div>
+                      ))}
+                    </div>
                   </Link>
                 ))}
               </div>
