@@ -32,8 +32,13 @@ async function fetchManifest(classId: string): Promise<ManifestResult> {
     if (!res.ok) {
       let detail = `Serialize endpoint returned ${res.status}`;
       try {
-        const body = await res.json() as { detail?: string };
-        if (body.detail) detail = `${detail}: ${body.detail}`;
+        const body = await res.json() as { detail?: unknown };
+        if (body.detail !== undefined) {
+          const bodyDetail = typeof body.detail === "string"
+            ? body.detail
+            : JSON.stringify(body.detail);
+          detail = `${detail}: ${bodyDetail}`;
+        }
       } catch { /* ignore parse error */ }
       console.error(`[piro] ${detail} for class ${classId}`);
       return { manifest: null, error: detail };

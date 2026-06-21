@@ -24,8 +24,18 @@ Vercel env vars needed:
   MODAL_INFERENCE_ENDPOINT — the /infer URL printed after `modal deploy`
 """
 
+from __future__ import annotations
+
 import modal
-from fastapi import Request
+
+# fastapi is available inside Modal containers but NOT in the GHA deploy
+# environment. The try/except lets modal deploy parse this file cleanly;
+# at runtime get_type_hints() resolves "Request" from module globals where
+# it will have been imported successfully.
+try:
+    from fastapi import Request
+except ImportError:
+    pass  # deploy-time only — Modal containers always have fastapi
 
 app = modal.App("piro")
 
