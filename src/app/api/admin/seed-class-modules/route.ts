@@ -18,6 +18,7 @@ import { modelClass } from "../../../../../data/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { r2PutText } from "~/lib/r2";
 import { buildDefaultClasses } from "~/lib/model-classes";
+import { extractBearer, validateApiKey } from "~/lib/api-auth";
 
 interface ClassManifest {
   name: string;
@@ -82,11 +83,22 @@ const MODULES: Array<{ slug: string; relPath: string; manifest: ClassManifest }>
   },
 ];
 
-export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(request: Request) {
+  // Accept either a session cookie or a Bearer API key
+  let userId: string | null = null;
 
-  const userId = session.user.id;
+  const bearer = extractBearer(request);
+  if (bearer) {
+    const keyAuth = await validateApiKey(bearer);
+    userId = keyAuth?.userId ?? null;
+  }
+
+  if (!userId) {
+    const session = await auth.api.getSession({ headers: await headers() });
+    userId = session?.user.id ?? null;
+  }
+
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   // Ensure built-in classes exist
   let classes = await db

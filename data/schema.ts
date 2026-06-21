@@ -337,6 +337,28 @@ export const model = pgTable(
  * 1:1 link between a model and the training run that produced it.
  * Presence of this row means the model is Piro-trained.
  */
+// ── API Keys ──────────────────────────────────────────────────────────────────
+// Keys are stored as SHA-256 hashes. The raw key is returned once at creation
+// and never stored. Format: piro_<32 hex chars>  (e.g. piro_abc123...)
+export const apiKey = pgTable(
+  "api_key",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** SHA-256 hex digest of the raw key. Never expose this. */
+    keyHash: text("keyHash").notNull(),
+    /** First 12 chars of the raw key — safe to display for identification. */
+    keyPrefix: text("keyPrefix").notNull(),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    lastUsedAt: timestamp("lastUsedAt"),
+    revokedAt: timestamp("revokedAt"),
+  },
+  (t) => [unique("ak_hash").on(t.keyHash)],
+);
+
 export const modelTrainingRun = pgTable("model_training_run", {
   id: text("id").primaryKey(),
   modelId: text("modelId")
