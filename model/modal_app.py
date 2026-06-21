@@ -670,19 +670,31 @@ def serialize(request: Request) -> dict:
     bust = request.query_params.get("bust") == "true"
 
     # ── Fetch model.py from R2 ─────────────────────────────────────────────
-    r2 = _r2_client(os)
-    r2_key = f"classes/{class_id}/model.py"
+    # _r2_client is called inside try so a missing env var surfaces as a
+    # proper 500 HTTPException with traceback, not a bare Modal "Internal
+    # Server Error".
     try:
+        r2 = _r2_client(os)
+        r2_key = f"classes/{class_id}/model.py"
         resp = r2.get_object(Bucket=R2_BUCKET, Key=r2_key)
         model_source: str = resp["Body"].read().decode("utf-8")
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(status_code=404, detail=f"{r2_key} not found: {exc}")
+        import traceback as _tb
+        tb = _tb.format_exc()
+        print(f"[piro-serialize] ERROR fetching {r2_key!r}:\n{tb}")
+        raise HTTPException(status_code=500, detail=f"R2 fetch failed — {type(exc).__name__}: {exc}\n\n{tb}")
 
     # ── Cache check ────────────────────────────────────────────────────────
     cache_key = hashlib.sha256(model_source.encode()).hexdigest()
-    if not bust and cache_key in manifest_cache:
-        print(f"[piro-serialize] cache hit {class_id} ({cache_key[:12]})")
-        return manifest_cache[cache_key]
+    try:
+        if not bust and cache_key in manifest_cache:
+            print(f"[piro-serialize] cache hit {class_id} ({cache_key[:12]})")
+            return manifest_cache[cache_key]
+    except Exception as cache_exc:
+        # Non-fatal — just skip the cache if modal.Dict is unavailable
+        print(f"[piro-serialize] cache read error (skipping): {cache_exc}")
 
     # ── Dynamically import model.py and call serialize() ──────────────────
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
@@ -744,7 +756,10 @@ def serialize(request: Request) -> dict:
         )
 
     print(f"[piro-serialize] computed manifest for {class_id} ({cache_key[:12]})")
-    manifest_cache[cache_key] = result
+    try:
+        manifest_cache[cache_key] = result
+    except Exception as cache_exc:
+        print(f"[piro-serialize] cache write error (skipping): {cache_exc}")
     return result
 
 
