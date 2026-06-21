@@ -114,7 +114,7 @@ function SectionHeader({
 
 // ── Main form ─────────────────────────────────────────────────────────────────
 
-export default function NewRunForm() {
+export default function NewRunForm({ defaultBenchmark }: { defaultBenchmark?: string }) {
   const router = useRouter();
 
   const [benchmarkOptions, setBenchmarkOptions] = useState<BenchmarkOption[]>([]);
@@ -133,11 +133,16 @@ export default function NewRunForm() {
       .then((r) => r.json())
       .then((d: { benchmarks: BenchmarkOption[] }) => {
         setBenchmarkOptions(d.benchmarks);
-        setSelectedBenchmarks(new Set(d.benchmarks.map((b) => b.slug)));
+        // Pre-select only the incoming benchmark if specified; otherwise select all
+        setSelectedBenchmarks(
+          defaultBenchmark
+            ? new Set([defaultBenchmark])
+            : new Set(d.benchmarks.map((b) => b.slug)),
+        );
       })
       .catch(() => {})
       .finally(() => setBenchmarksLoading(false));
-  }, []);
+  }, [defaultBenchmark]);
 
   // Fetch models from DB
   useEffect(() => {
@@ -207,7 +212,7 @@ export default function NewRunForm() {
         const j = await res.json().catch(() => ({}));
         throw new Error((j as { error?: string }).error ?? `HTTP ${res.status}`);
       }
-      router.push("/benchmarks");
+      router.push(defaultBenchmark ? `/benchmarks/${defaultBenchmark}` : "/benchmarks");
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "Unknown error");
       setStatus("error");
@@ -322,7 +327,10 @@ export default function NewRunForm() {
             </>
           )}
         </button>
-        <Link href="/benchmarks" className="text-sm text-amber-500/50 hover:text-amber-300/80 transition-colors">
+        <Link
+          href={defaultBenchmark ? `/benchmarks/${defaultBenchmark}` : "/benchmarks"}
+          className="text-sm text-amber-500/50 hover:text-amber-300/80 transition-colors"
+        >
           Cancel
         </Link>
       </div>

@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { eq, and } from "drizzle-orm";
-import { db } from "../../../../../data/db";
-import { benchmarkSuiteRun, benchmarkRun } from "../../../../../data/schema";
+import { db } from "../../../../../../data/db";
+import { benchmarkSuiteRun, benchmarkRun } from "../../../../../../data/schema";
 import { resolveModelTargets } from "~/lib/benchmarks/resolve-models";
 import RunDetail from "./RunDetail";
 
