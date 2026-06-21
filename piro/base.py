@@ -3,20 +3,19 @@ piro/base.py
 
 PiroModel — base class for all model classes stored in R2 and run on Modal.
 
-Model authors subclass this, define class attributes, and implement two
-methods.  Everything else — serialize(), count_parameters() — is inherited.
+Model authors subclass this, define class attributes, and implement one
+method.  Everything else — serialize(), count_parameters() — is inherited.
+
+The base calls cls(**cls.hyper_parameters) to instantiate a default model,
+so __init__ must accept keyword arguments matching the hyper_parameters keys.
 
 Two styles for hyperparameters
 ──────────────────────────────
 
-Style 1 — plain dict (no imports needed):
+Style 1 — plain dict (simple, no extras):
 
     class MyModel(PiroModel):
         hyper_parameters = {"hidden_dim": 64, "n_classes": 10}
-
-        @classmethod
-        def build_default(cls):
-            return cls(**cls.hyper_parameters)
 
         def __init__(self, hidden_dim=64, n_classes=10):
             super().__init__()
@@ -30,14 +29,10 @@ Style 2 — typed nested class (IDE-friendly, zero extra imports):
             n_classes: int  = 10
         # hyper_parameters dict is auto-derived — do not define manually
 
-        @classmethod
-        def build_default(cls):
-            return cls(cls.HyperParameters())
-
-        def __init__(self, hp: "MyModel.HyperParameters | None" = None):
+        def __init__(self, hidden_dim=64, n_classes=10):
             super().__init__()
-            hp = hp or type(self).HyperParameters()
-            ...
+            hp = type(self).HyperParameters(hidden_dim=hidden_dim, n_classes=n_classes)
+            ...  # typed access via hp.hidden_dim etc.
 
 In either style, serialize_graph() reads from cls.hyper_parameters — the base
 ensures this dict is always populated regardless of which style is used.
@@ -88,16 +83,6 @@ class PiroModel(nn.Module, ABC):
 
     @classmethod
     @abstractmethod
-    def build_default(cls) -> "PiroModel":
-        """Return a default-configured instance used to count parameters.
-
-        Style 1 (dict):  return cls(**cls.hyper_parameters)
-        Style 2 (typed): return cls(cls.HyperParameters())
-        """
-        ...
-
-    @classmethod
-    @abstractmethod
     def serialize_graph(cls) -> Optional[ArchitectureGraph]:
         """Return an ArchitectureGraph describing the forward pass, or None.
 
@@ -123,7 +108,7 @@ class PiroModel(nn.Module, ABC):
             slug=cls.slug,
             description=cls.description,
             hyperparams=cls.hyper_parameters,
-            parameterCount=cls.build_default().count_parameters(),
+            parameterCount=cls(**cls.hyper_parameters).count_parameters(),
             module=cls.module,
             modelClass=cls.__name__,
             graph=cls.serialize_graph(),

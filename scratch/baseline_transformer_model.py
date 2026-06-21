@@ -71,10 +71,6 @@ class BaselineTransformer(PiroModel):
 
     # ── PiroModel interface ────────────────────────────────────────────────
     @classmethod
-    def build_default(cls) -> "BaselineTransformer":
-        return cls(**cls.hyper_parameters)
-
-    @classmethod
     def serialize_graph(cls) -> Optional[ArchitectureGraph]:
         hp = cls.hyper_parameters
         embed_dim = hp["embed_dim"]

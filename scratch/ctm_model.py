@@ -133,10 +133,6 @@ class ContinuousThoughtModel(PiroModel):
 
     # ── PiroModel interface ────────────────────────────────────────────────
     @classmethod
-    def build_default(cls) -> "ContinuousThoughtModel":
-        return cls(cls.HyperParameters())
-
-    @classmethod
     def serialize_graph(cls) -> Optional[ArchitectureGraph]:
         hp = cls.hyper_parameters      # always a plain dict — safe to read here
         n       = hp["n_neurons"]
@@ -173,9 +169,28 @@ class ContinuousThoughtModel(PiroModel):
         )
 
     # ── nn.Module ──────────────────────────────────────────────────────────
-    def __init__(self, hp: "ContinuousThoughtModel.HyperParameters | None" = None) -> None:
+    def __init__(
+        self,
+        n_neurons:            int   = 4,
+        embed_dim:            int   = 8,
+        query_dim:            int   = 8,
+        value_dim:            int   = 8,
+        hidden_dim:           int   = 16,
+        n_classes:            int   = 5,
+        max_ticks:            int   = 32,
+        confidence_threshold: float = 0.9,
+    ) -> None:
         super().__init__()
-        hp = hp or type(self).HyperParameters()
+        hp = type(self).HyperParameters(
+            n_neurons=n_neurons,
+            embed_dim=embed_dim,
+            query_dim=query_dim,
+            value_dim=value_dim,
+            hidden_dim=hidden_dim,
+            n_classes=n_classes,
+            max_ticks=max_ticks,
+            confidence_threshold=confidence_threshold,
+        )
         if hp.value_dim != hp.embed_dim:
             raise ValueError(
                 f"value_dim ({hp.value_dim}) must equal embed_dim ({hp.embed_dim})"
