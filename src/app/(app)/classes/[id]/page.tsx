@@ -5,17 +5,37 @@ import { eq, and } from "drizzle-orm";
 import { db } from "../../../../../data/db";
 import { modelClass } from "../../../../../data/schema";
 import { r2Get } from "~/lib/r2";
-import ClassDetailClient from "./ClassDetailClient";
+import ClassDetailClient, { type ClassManifest } from "./ClassDetailClient";
 
-interface ClassManifest {
-  name: string;
-  slug: string;
-  description?: string;
-  hyperparams?: Record<string, number | string | boolean>;
-  parameterCount?: number;
-  module?: string;
-  modelClass?: string;
-  configClass?: string;
+// The serialize endpoint — deterministic from Modal app + function name.
+// Set MODAL_SERIALIZE_ENDPOINT in Vercel env vars to override.
+// Must also set MODAL_WEBHOOK_SECRET to match the Modal piro-secrets value.
+const SERIALIZE_ENDPOINT =
+  process.env.MODAL_SERIALIZE_ENDPOINT ??
+  "https://dvargasfuertes--piro-serialize.modal.run";
+
+async function fetchManifest(classId: string): Promise<ClassManifest | null> {
+  const secret = process.env.MODAL_WEBHOOK_SECRET ?? "";
+  try {
+    const res = await fetch(
+      `${SERIALIZE_ENDPOINT}?class_id=${encodeURIComponent(classId)}`,
+      {
+        headers: { "X-Piro-Secret": secret },
+        // Don't cache at the Next.js layer — Modal's Dict cache handles it
+        cache: "no-store",
+      },
+    );
+    if (!res.ok) {
+      console.error(
+        `[piro] serialize endpoint returned ${res.status} for class ${classId}`,
+      );
+      return null;
+    }
+    return res.json() as Promise<ClassManifest>;
+  } catch (err) {
+    console.error(`[piro] serialize endpoint unreachable for class ${classId}:`, err);
+    return null;
+  }
 }
 
 export default async function ClassDetailPage({
@@ -39,14 +59,11 @@ export default async function ClassDetailPage({
   let source: string | null = null;
 
   if (cls.moduleR2Key) {
-    const [manifestRaw, sourceRaw] = await Promise.all([
-      r2Get(`${cls.moduleR2Key}/manifest.json`),
+    // Fetch manifest from Modal serialize endpoint and source from R2 in parallel
+    [manifest, source] = await Promise.all([
+      fetchManifest(cls.id),
       r2Get(`${cls.moduleR2Key}/model.py`),
     ]);
-    if (manifestRaw) {
-      try { manifest = JSON.parse(manifestRaw) as ClassManifest; } catch { /* ignore */ }
-    }
-    source = sourceRaw;
   }
 
   return (

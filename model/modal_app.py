@@ -28,10 +28,11 @@ import modal
 
 app = modal.App("piro")
 
-# Deterministic URL for the infer endpoint — derived from Modal app name + function name.
+# Deterministic URLs — derived from Modal app name + function name.
 # Format: https://<modal-username>--<app-name>-<function-name>.modal.run
-# Update this if the Modal username or app name ever changes.
+# Update if the Modal username or app name ever changes.
 INFER_ENDPOINT = "https://dvargasfuertes--piro-infer.modal.run"
+SERIALIZE_ENDPOINT = "https://dvargasfuertes--piro-serialize.modal.run"
 
 # R2 bucket name — must match BUCKET() in src/lib/r2.ts
 R2_BUCKET = "piro-kb"
@@ -51,6 +52,9 @@ def _r2_client(os_module):
         region_name="auto",
     )
 
+# ── Images ────────────────────────────────────────────────────────────────────
+
+# Training + inference: needs torch, psycopg2, the model/ package, and piro/
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
@@ -59,11 +63,31 @@ image = (
         "psycopg2-binary>=2.9",
         "fastapi[standard]>=0.110.0",
         "boto3>=1.34.0",
+        "pydantic>=2.0",
     )
     .add_local_python_source("model")
+    .add_local_python_source("piro")
+)
+
+# Serialize: lightweight — no torch (model.py imports are exec'd inside a
+# subprocess-style importlib call so torch is loaded only when the user's
+# model needs it, which it will — but we still need it for nn.Module base).
+# Keep it the same base for simplicity.
+serialize_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install(
+        "torch>=2.3.0",
+        "fastapi[standard]>=0.110.0",
+        "boto3>=1.34.0",
+        "pydantic>=2.0",
+    )
+    .add_local_python_source("piro")
 )
 
 piro_secrets = modal.Secret.from_name("piro-secrets")
+
+# ── Manifest cache — keyed by sha256(model.py source) ────────────────────────
+manifest_cache = modal.Dict.from_name("piro-manifest-cache", create_if_missing=True)
 
 
 # ── Trainer class — heavy imports snapshotted per container via @enter() ──────
@@ -594,6 +618,104 @@ def trigger(body: dict) -> dict:
     )
 
     return {"ok": True, "runId": run_id}
+
+
+@app.function(image=serialize_image, secrets=[piro_secrets])
+@modal.fastapi_endpoint(method="GET")
+def serialize(request: "Request") -> dict:
+    """
+    Return a ModelManifest for a model class stored in R2.
+
+    Query params:
+        class_id : str  — the UUID from the model_class DB row
+
+    Headers:
+        X-Piro-Secret : str  — must match MODAL_WEBHOOK_SECRET
+
+    Response:
+        ModelManifest as camelCase JSON (same shape as ClassManifest in TS)
+
+    Caching:
+        Result is cached in modal.Dict keyed by sha256(model.py source).
+        Pass ?bust=true to skip the cache (forces re-execution + re-cache).
+    """
+    import hashlib
+    import importlib.util
+    import os
+    import tempfile
+
+    from fastapi import HTTPException, Request  # noqa: F401 (Request used in signature)
+    from piro import PiroModel
+    from piro.schema import ModelManifest
+
+    expected = os.environ.get("MODAL_WEBHOOK_SECRET", "")
+    if expected and request.headers.get("X-Piro-Secret", "") != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    class_id = request.query_params.get("class_id")
+    if not class_id:
+        raise HTTPException(status_code=400, detail="class_id required")
+
+    bust = request.query_params.get("bust") == "true"
+
+    # ── Fetch model.py from R2 ─────────────────────────────────────────────
+    r2 = _r2_client(os)
+    r2_key = f"classes/{class_id}/model.py"
+    try:
+        resp = r2.get_object(Bucket=R2_BUCKET, Key=r2_key)
+        model_source: str = resp["Body"].read().decode("utf-8")
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=f"{r2_key} not found: {exc}")
+
+    # ── Cache check ────────────────────────────────────────────────────────
+    cache_key = hashlib.sha256(model_source.encode()).hexdigest()
+    if not bust and cache_key in manifest_cache:
+        print(f"[piro-serialize] cache hit {class_id} ({cache_key[:12]})")
+        return manifest_cache[cache_key]
+
+    # ── Dynamically import model.py and call serialize() ──────────────────
+    with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
+        f.write(model_source)
+        tmp_path = f.name
+
+    try:
+        spec = importlib.util.spec_from_file_location("_piro_user_model", tmp_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+    finally:
+        os.unlink(tmp_path)
+
+    # New style: PiroModel subclass with .serialize() classmethod
+    model_cls = None
+    for attr_name in dir(module):
+        obj = getattr(module, attr_name, None)
+        if (
+            obj is not None
+            and isinstance(obj, type)
+            and issubclass(obj, PiroModel)
+            and obj is not PiroModel
+        ):
+            model_cls = obj
+            break
+
+    if model_cls is not None:
+        manifest_obj: ModelManifest = model_cls.serialize()
+        result = manifest_obj.model_dump(by_alias=True, mode="json")
+    elif hasattr(module, "serialize") and callable(module.serialize):
+        # Old style: module-level serialize() function returning a plain dict
+        raw: dict = module.serialize()
+        manifest_obj = ModelManifest.model_validate(raw)
+        result = manifest_obj.model_dump(by_alias=True, mode="json")
+    else:
+        raise HTTPException(
+            status_code=422,
+            detail="model.py must define a PiroModel subclass with .serialize() "
+                   "or a module-level serialize() function",
+        )
+
+    print(f"[piro-serialize] computed manifest for {class_id} ({cache_key[:12]})")
+    manifest_cache[cache_key] = result
+    return result
 
 
 @app.function(image=image, secrets=[piro_secrets])

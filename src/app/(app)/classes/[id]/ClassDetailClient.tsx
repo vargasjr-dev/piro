@@ -10,7 +10,7 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface ClassManifest {
+export interface ClassManifest {
   name: string;
   slug: string;
   description?: string;
