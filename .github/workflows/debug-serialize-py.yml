@@ -2,6 +2,10 @@ name: Debug Serialize Python
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/debug-serialize-py.yml"
 
 jobs:
   debug:
