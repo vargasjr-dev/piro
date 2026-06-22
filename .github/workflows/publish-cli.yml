@@ -1,13 +1,13 @@
 name: Publish CLI
 
-# Publishes the `piro` npm package whenever cli/package.json is updated on
+# Publishes the `trainpiro` npm package whenever cli/package.json is updated on
 # main with a version that doesn't yet exist on the registry.
 #
 # Auth strategy: npm OIDC trusted publishing (no long-lived token stored).
 #
 # One-time setup required on npmjs.com (after the initial publish claims the
 # package name):
-#   npmjs.com → Packages → piro → Settings → Trusted Publisher → GitHub Actions
+#   npmjs.com → Packages → trainpiro → Settings → Trusted Publisher → GitHub Actions
 #     Owner:    vargasjr-dev
 #     Repo:     piro
 #     Workflow: publish-cli.yml
@@ -60,7 +60,7 @@ jobs:
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
           echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
-          PUBLISHED=$(npm view piro@"$PKG_VERSION" version 2>/dev/null || echo "")
+          PUBLISHED=$(npm view trainpiro@"$PKG_VERSION" version 2>/dev/null || echo "")
           if [ "$PUBLISHED" = "$PKG_VERSION" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Version $PKG_VERSION already published — skipping."
