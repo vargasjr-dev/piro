@@ -135,7 +135,12 @@ class BaselineTransformer(PiroModel):
         self.embed_dim = embed_dim
 
     def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
-        x = embeddings if embeddings.ndim == 2 else embeddings.unsqueeze(0)
+        if embeddings.ndim == 2:
+            x = embeddings
+        elif embeddings.ndim == 1:
+            x = embeddings.unsqueeze(0)
+        else:
+            raise ValueError(f"Expected embeddings with 1 or 2 dims, got {embeddings.ndim}")
         for layer in self.layers:
             x = layer(x)
         x = self.ln_final(x)
