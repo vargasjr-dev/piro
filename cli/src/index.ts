@@ -4,13 +4,15 @@
  *
  * Usage:
  *   piro classes serialize <id> [--bust]
+ *   piro classes pull <id> [--out <file>]
+ *   piro classes push <id> [--file <file>]
  *
  * Auth:
  *   PIRO_API_KEY=<key>  (required)
  *   PIRO_BASE_URL=<url> (optional, defaults to https://trainpiro.app)
  */
 
-import { classesSerialize } from "./commands/classes.js";
+import { classesSerialize, classesPull, classesPush } from "./commands/classes.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -22,10 +24,19 @@ function arg(args: string[], pos: number): string | undefined {
   return args.filter((a) => !a.startsWith("--"))[pos];
 }
 
+function opt(args: string[], name: string): string | undefined {
+  const idx = args.indexOf(`--${name}`);
+  if (idx === -1) return undefined;
+  const val = args[idx + 1];
+  return val && !val.startsWith("--") ? val : undefined;
+}
+
 function usage(msg?: string): never {
   if (msg) console.error(`Error: ${msg}\n`);
   console.error("Usage:");
   console.error("  piro classes serialize <id> [--bust]");
+  console.error("  piro classes pull <id> [--out <file>]");
+  console.error("  piro classes push <id> [--file <file>]");
   process.exit(msg ? 1 : 0);
 }
 
@@ -38,6 +49,18 @@ switch (subject) {
         const id = arg(rest, 0);
         if (!id) usage("class id is required");
         await classesSerialize(id, { bust: flag(rest, "bust") });
+        break;
+      }
+      case "pull": {
+        const id = arg(rest, 0);
+        if (!id) usage("class id is required");
+        await classesPull(id, { out: opt(rest, "out") });
+        break;
+      }
+      case "push": {
+        const id = arg(rest, 0);
+        if (!id) usage("class id is required");
+        await classesPush(id, { file: opt(rest, "file") });
         break;
       }
       default:
