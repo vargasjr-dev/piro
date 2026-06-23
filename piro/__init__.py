@@ -8,10 +8,13 @@ Model authors import from here:
 """
 
 from .base import PiroModel
+from .input import PiroInput, TransformerInput
 from .schema import ArchitectureGraph, GraphEdge, GraphNode, ModelManifest
 
 __all__ = [
     "PiroModel",
+    "PiroInput",
+    "TransformerInput",
     "ModelManifest",
     "ArchitectureGraph",
     "GraphNode",
