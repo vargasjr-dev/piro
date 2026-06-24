@@ -76,5 +76,5 @@ class TransformerInput(PiroInput):
             id="input",
             type="io",
             label="Input",
-            detail=f"seq × {embed_dim}",
+            detail=f"Tensor[N × {embed_dim}]",
         )
