@@ -29,6 +29,7 @@ GraphNodeType = Literal[
     "loop",
     "confidence",
     "sync",
+    "reshape",
 ]
 
 
