@@ -62,19 +62,4 @@ class PiroInput(torch.Tensor):
         raise NotImplementedError(f"{cls.__name__} must implement serialize()")
 
 
-class TransformerInput(PiroInput):
-    """Input for transformer-based models: a sequence of embedding vectors.
 
-    Shape: (N, embed_dim) — N tokens, each a vector of size embed_dim.
-    Single-vector inputs of shape (embed_dim,) are also accepted (forward pass
-    unsqueezes them to (1, embed_dim) automatically).
-    """
-
-    @classmethod
-    def serialize(cls, *, embed_dim: int, **_: Any) -> GraphNode:  # type: ignore[override]
-        return GraphNode(
-            id="input",
-            type="io",
-            label="Input",
-            detail=f"Tensor[N × {embed_dim}]",
-        )
