@@ -61,30 +61,4 @@ class PiroLayer(nn.Module, ABC):
         ...
 
 
-class EnsureSequence(PiroLayer):
-    """Normalize input shape to (N, embed_dim) before entering transformer layers.
 
-    Accepts:
-        (embed_dim,)     → unsqueezes to (1, embed_dim)   [single embedding]
-        (N, embed_dim)   → passes through unchanged        [sequence]
-        anything else    → raises ValueError immediately
-
-    Has no learnable parameters — purely a shape contract enforcer.
-    """
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if x.ndim == 2:
-            return x
-        elif x.ndim == 1:
-            return x.unsqueeze(0)
-        else:
-            raise ValueError(f"Expected embeddings with 1 or 2 dims, got {x.ndim}")
-
-    @classmethod
-    def serialize(cls, **_: Any) -> GraphNode:
-        return GraphNode(
-            id="ensure_seq",
-            type="reshape",
-            label="Ensure Sequence",
-            detail="(embed_dim,) → (1, embed_dim)",
-        )
