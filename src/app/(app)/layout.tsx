@@ -7,6 +7,10 @@ import SideNav from "./SideNav";
 // Pages accessible to logged-in users without an active subscription.
 const FREE_PATHS = ["/upgrade", "/dashboard"];
 
+// Admin paths (e.g. /admin/stripe) are accessible to admins regardless of
+// subscription status — admins need to bootstrap Stripe before any subs exist.
+const ADMIN_PATH_PREFIX = "/admin";
+
 export default async function AppLayout({
   children,
 }: {
@@ -27,7 +31,9 @@ export default async function AppLayout({
   const pathname = headersList.get("x-pathname") ?? "";
 
   const isFree = FREE_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  if (!isActive(sub) && !isFree) {
+  const isAdminPath = pathname.startsWith(ADMIN_PATH_PREFIX);
+
+  if (!isActive(sub) && !isFree && !isAdminPath) {
     redirect("/upgrade");
   }
 

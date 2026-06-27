@@ -20,6 +20,15 @@ export const auth = betterAuth({
     // Pass schema explicitly so better-auth doesn't need to introspect the Proxy
     schema: { user, session, account, verification },
   }),
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        defaultValue: "user",
+        input: false, // not settable via signup — admins are promoted manually
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

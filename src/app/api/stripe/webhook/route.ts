@@ -1,31 +1,52 @@
-import { stripe, PRO_TRAINING_RUN_LIMIT } from "~/lib/stripe";
+import { getStripe, PRO_TRAINING_RUN_LIMIT } from "~/lib/stripe";
 import { db } from "../../../../../data/db";
 import { subscription } from "../../../../../data/schema";
 import { eq } from "drizzle-orm";
-import { randomUUID } from "crypto";
 import type Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
 
+const liveWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const testWebhookSecret = process.env.STRIPE_TEST_WEBHOOK_SECRET;
+
 // POST /api/stripe/webhook
-// Handles Stripe lifecycle events to keep the subscription table in sync.
+// Same endpoint handles BOTH live and test webhooks (try live first,
+// fall back to test). This lets admins exercise the full payment flow
+// in test mode using the same URL.
 export async function POST(req: Request) {
   const rawBody = await req.text();
   const sig = req.headers.get("stripe-signature");
 
-  if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
-    return new Response("Missing signature", { status: 400 });
+  if (!sig) return new Response("Missing stripe-signature header", { status: 400 });
+  if (!liveWebhookSecret && !testWebhookSecret) {
+    console.error("No Stripe webhook secret configured");
+    return new Response("Webhook not configured", { status: 500 });
   }
 
   let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch {
-    return new Response("Webhook signature verification failed", { status: 400 });
+
+  if (liveWebhookSecret) {
+    try {
+      event = getStripe(false).webhooks.constructEvent(rawBody, sig, liveWebhookSecret);
+    } catch {
+      if (!testWebhookSecret) {
+        console.error("Webhook signature verification failed (live)");
+        return new Response("Invalid signature", { status: 400 });
+      }
+      try {
+        event = getStripe(true).webhooks.constructEvent(rawBody, sig, testWebhookSecret);
+      } catch (err) {
+        console.error("Webhook signature verification failed (live + test):", err);
+        return new Response("Invalid signature", { status: 400 });
+      }
+    }
+  } else {
+    try {
+      event = getStripe(true).webhooks.constructEvent(rawBody, sig, testWebhookSecret!);
+    } catch (err) {
+      console.error("Webhook signature verification failed (test only):", err);
+      return new Response("Invalid signature", { status: 400 });
+    }
   }
 
   switch (event.type) {
@@ -36,7 +57,9 @@ export async function POST(req: Request) {
       const userId = checkoutSession.metadata?.userId;
       if (!userId) break;
 
-      const stripeSubscription = await stripe.subscriptions.retrieve(
+      // Use the same Stripe client that produced this event (test or live)
+      const isTestEvent = checkoutSession.metadata?.testMode === "1";
+      const stripeSubscription = await getStripe(isTestEvent).subscriptions.retrieve(
         checkoutSession.subscription as string
       );
 
@@ -73,10 +96,7 @@ export async function POST(req: Request) {
   return new Response("ok", { status: 200 });
 }
 
-async function upsertSubscription(
-  userId: string,
-  sub: Stripe.Subscription
-) {
+async function upsertSubscription(userId: string, sub: Stripe.Subscription) {
   const periodStart = new Date((sub.items.data[0].current_period_start ?? 0) * 1000);
   const periodEnd   = new Date((sub.items.data[0].current_period_end   ?? 0) * 1000);
 
