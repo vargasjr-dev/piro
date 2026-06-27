@@ -1,4 +1,33 @@
-import { pgTable, text, timestamp, boolean, integer, bigint, real, unique, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, bigint, real, unique, index, pgEnum } from "drizzle-orm/pg-core";
+
+// ── Billing ──────────────────────────────────────────────────────────────────
+
+/**
+ * One row per user — tracks their Stripe subscription state.
+ * Created when a checkout session completes; updated on renewals/cancellations.
+ *
+ * planId:  'pro' (the only plan for now — $100/mo)
+ * status:  mirrors Stripe subscription status ('active' | 'canceled' | 'past_due' | 'trialing')
+ * trainingRunsUsed: how many training runs the user has kicked off in the current billing period.
+ *   Reset to 0 when currentPeriodEnd ticks over.
+ */
+export const subscription = pgTable("subscription", {
+  id: text("id").primaryKey(),                    // Stripe subscription ID
+  userId: text("userId")
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: "cascade" }),
+  stripeCustomerId: text("stripeCustomerId").notNull(),
+  planId: text("planId").notNull().default("pro"), // 'pro' only for now
+  status: text("status").notNull(),                // 'active' | 'trialing' | 'past_due' | 'canceled'
+  trainingRunsUsed: integer("trainingRunsUsed").notNull().default(0),
+  trainingRunsLimit: integer("trainingRunsLimit").notNull().default(2),
+  currentPeriodStart: timestamp("currentPeriodStart").notNull(),
+  currentPeriodEnd: timestamp("currentPeriodEnd").notNull(),
+  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").notNull().default(false),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
 // Note: boolean kept for the user/session/account tables above
 
 // better-auth required tables

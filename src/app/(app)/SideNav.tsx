@@ -6,6 +6,7 @@ import FlameLogo from "~/components/FlameLogo";
 
 interface Props {
   userName?: string | null;
+  isSubscribed?: boolean;
 }
 
 const NAV_ITEMS = [
@@ -78,7 +79,7 @@ const NAV_ITEMS = [
   },
 ];
 
-export default function SideNav({ userName }: Props) {
+export default function SideNav({ userName, isSubscribed }: Props) {
   const pathname = usePathname();
 
   return (
@@ -121,8 +122,17 @@ export default function SideNav({ userName }: Props) {
         {/* Bottom — model status + user + sign out */}
         <div className="px-5 py-4 border-t border-amber-900/10 space-y-2.5">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-orange-500/40" />
-            <span className="text-xs text-amber-400/40">No model trained</span>
+            {isSubscribed ? (
+              <>
+                <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                <span className="text-xs text-orange-400/80 font-medium">Pro</span>
+              </>
+            ) : (
+              <>
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-900/60" />
+                <span className="text-xs text-amber-400/40">Free</span>
+              </>
+            )}
           </div>
           {userName && (
             <p className="text-xs text-amber-400/30 truncate">{userName}</p>

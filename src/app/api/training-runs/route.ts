@@ -1,10 +1,11 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../data/db";
-import { trainingRun, modelClass } from "../../../../data/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { trainingRun, modelClass, subscription } from "../../../../data/schema";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { buildDefaultClasses } from "~/lib/model-classes";
+import { getSubscription, isActive, hasTrainingRunsRemaining } from "~/lib/billing";
 
 // ── GET /api/training-runs ────────────────────────────────────────────────────
 
@@ -52,6 +53,23 @@ interface CreateBody {
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  // ── Subscription + quota check ────────────────────────────────────────────
+  const sub = await getSubscription(session.user.id);
+  if (!isActive(sub)) {
+    return Response.json(
+      { error: "Active subscription required to start a training run" },
+      { status: 402 }
+    );
+  }
+  if (!hasTrainingRunsRemaining(sub)) {
+    return Response.json(
+      {
+        error: `Training run quota reached (${sub!.trainingRunsUsed}/${sub!.trainingRunsLimit} this period). Upgrade or wait until your next billing period.`,
+      },
+      { status: 429 }
+    );
+  }
 
   let body: CreateBody;
   try {
@@ -114,6 +132,15 @@ export async function POST(request: Request) {
     epochs,
     configJson,
   });
+
+  // Increment the quota counter atomically
+  await db
+    .update(subscription)
+    .set({
+      trainingRunsUsed: sql`${subscription.trainingRunsUsed} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(eq(subscription.userId, session.user.id));
 
   // ── Trigger Modal training worker ─────────────────────────────────────────
   // Modal's web endpoint spawns async and returns 200 immediately, so this
