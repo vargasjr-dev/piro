@@ -13,6 +13,7 @@ import {
 } from "../../../../../data/schema";
 import WeightGraph from "./WeightGraph";
 import ArchiveModelButton from "./ArchiveModelButton";
+import ModelPlayground from "./ModelPlayground";
 import { r2Get } from "~/lib/r2";
 import ScorePill from "~/components/ScorePill";
 
@@ -216,6 +217,17 @@ export default async function ModelDetailPage({
           <div className="space-y-3">
             <h2 className="text-[10px] font-semibold text-amber-400/40 uppercase tracking-widest">Weights</h2>
             <WeightGraph weightsJson={weightsJson} />
+          </div>
+        )}
+
+        {/* Playground — interactive inference */}
+        {isTrainedModel && (
+          <div className="space-y-3">
+            <h2 className="text-[10px] font-semibold text-amber-400/40 uppercase tracking-widest">Playground</h2>
+            <ModelPlayground
+              modelId={m.id}
+              inferenceReady={!!m.inferenceEndpoint}
+            />
           </div>
         )}
 
