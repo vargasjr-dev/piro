@@ -8,9 +8,9 @@ biologically-inspired, RL-first architecture built from scratch (not transformer
 Per VISION.md, the seven-phase architecture roadmap progresses through:
 
 | Phase | Behavior | Status |
-|---|---|---|
-| 0 | Firing rate + Spike timing → CTM primitives | 🎯 **Here** |
-| 1 | Burst patterns | Next |
+|---|---|---|---|
+| 0 | Firing rate + Spike timing → CTM primitives | ✅ **Complete** (45 tests) |
+| 1 | Burst patterns | 🎯 **Next** |
 | 2 | Hebbian plasticity | Critical for personalization |
 | 3 | Dendritic spikes | Medium-term |
 | 4 | Oscillatory entrainment | Hard |
@@ -18,6 +18,7 @@ Per VISION.md, the seven-phase architecture roadmap progresses through:
 
 Phase 0 builds the Continuous Thought Machine (CTM) foundation: per-neuron history,
 synchronization matrix as representation, and adaptive tick-based computation.
+**Phase 0 is complete.** All modules built and tested.
 
 ## Files
 
@@ -49,9 +50,33 @@ This answers: *given my current synchronization state, which part of the
 input should I focus on next?* It is the mechanism by which internal
 model state gates external input processing.
 
-## How They Connect
+### `neuron-history.ts`
+Rolling window of past activations per neuron (W timesteps).
+- `push(activations)` — appends latest activation vector, drops oldest
+- `toActivationMatrix()` — extracts [N × W] buffer in neuron-major order,
+  ready for correlationMatrix()
+- Handles the circular buffer wrap-around so the matrix always has the
+  correct temporal order regardless of push count
 
-In the full CTM forward pass (still to be built in subsequent phases):
+### `neuron-layer.ts`
+N independent 2-layer MLPs — one tiny learned network per neuron.
+- Each neuron has its own W0, b0, W1, b1 (no weight sharing)
+- Supports ReLU, sigmoid, or tanh hidden activation
+- `getParams()` / `setParams()` for serialization
+- Xavier initialization via seeded Box-Muller RNG
+- ~N × (H(D+1) + H + 1) parameters
+
+### `ctm.ts`
+The CTM orchestrator — runs the full adaptive-tick inference loop.
+1. **Warm-up:** fills NeuronHistory by feeding through NeuronLayer
+2. **Adaptive ticks:** compute sync matrix → SyncAttention → check entropy →
+   if confident, emit; otherwise feed context back as next input
+3. **Fallback:** classify from final state if max ticks reached
+- Configurable: numNeurons, inputDim, hiddenDim, windowSize, maxTicks,
+  confidenceThreshold, numClasses
+- ~4K params (64-neuron default) — tiny enough to train in-browser
+
+## How They Connect
 
 ```
 input embedding
@@ -82,3 +107,9 @@ Run with `bun test src/lib/model`:
   edge cases (constant, length mismatch, single element), correlationMatrix
 - `sync-attention.test.ts` — 7 tests: output shape, determinism, seeded
   reproducibility, uniform-attention property, sync matrix sensitivity
+- `neuron-history.test.ts` — 8 tests: bounds, warm/cold state, circular
+  buffer wrap, toActivationMatrix shape, getLatest, clear
+- `neuron-layer.test.ts` — 10 tests: validation, shape, determinism, seeds,
+  activations (relu/sigmoid/tanh), param serialization
+- `ctm.test.ts` — 8 tests: constructor, forward shape, determinism, reset,
+  per-tick steps, entropy convergence, param count, early exit

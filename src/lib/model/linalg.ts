@@ -35,3 +35,13 @@ export function softmax(logits: number[]): number[] {
 export function flatten(matrix: number[][]): number[] {
   return matrix.flat();
 }
+
+/** ReLU activation: max(0, x) */
+export function relu(x: number): number {
+  return x > 0 ? x : 0;
+}
+
+/** Sigmoid activation: 1 / (1 + exp(-x)) */
+export function sigmoid(x: number): number {
+  return 1 / (1 + Math.exp(-x));
+}
