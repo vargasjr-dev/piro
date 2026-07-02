@@ -32,6 +32,11 @@ import { NeuronLayer } from "./neuron-layer";
 import { NeuronHistory } from "./neuron-history";
 import { correlationMatrix } from "./correlation";
 import { SyncAttention } from "./sync-attention";
+import {
+  BurstState,
+  type BurstConfig,
+  applyBurstWeighting,
+} from "./burst-state";
 
 export interface CTMConfig {
   /** Number of neurons (N) */
@@ -50,6 +55,12 @@ export interface CTMConfig {
   activation?: "relu" | "sigmoid" | "tanh";
   /** Number of output classes (for classification head) */
   numClasses: number;
+  /**
+   * Optional burst configuration. When provided, burst-state modulation
+   * is applied to activations and the sync matrix during the forward pass.
+   * undefined = no burst modulation (backward-compatible).
+   */
+  burstConfig?: BurstConfig;
 }
 
 export interface CTMStep {
@@ -103,6 +114,7 @@ export class CTM {
   readonly neuronLayer: NeuronLayer;
   readonly history: NeuronHistory;
   readonly syncAttention: SyncAttention;
+  readonly burstState: BurstState | null;
 
   // Output projection: flatten(syncMatrix[N×N]) → numClasses
   private outputW: number[][];
@@ -129,6 +141,11 @@ export class CTM {
       queryDim: c.inputDim,
       valueDim: c.inputDim,
     });
+
+    // Conditional burst state — null when no burstConfig provided (backward-compat)
+    this.burstState = c.burstConfig
+      ? new BurstState(c.burstConfig, c.numNeurons)
+      : null;
 
     // Output head: flatten(syncMatrix) [N²] → numClasses
     const syncFlatDim = c.numNeurons * c.numNeurons;
@@ -160,12 +177,23 @@ export class CTM {
   ): number[] {
     const c = this.config;
 
+    /** Helper: push activations into history with optional burst weighting. */
+    const pushBurstWeighted = (raw: Float64Array): void => {
+      if (this.burstState) {
+        this.burstState.tick(raw);
+        const weighted = applyBurstWeighting(raw, this.burstState);
+        this.history.push(weighted);
+      } else {
+        this.history.push(raw);
+      }
+    };
+
     // Step 1: Warm-up — fill the history window
     // During warmup we feed activations[N] truncated to inputDim[D] as input
     let currentInput: number[] = input;
     for (let t = 0; t < c.windowSize; t++) {
       const activations = this.neuronLayer.forward(currentInput);
-      this.history.push(activations);
+      pushBurstWeighted(activations);
       currentInput = Array.from(activations.slice(0, c.inputDim));
     }
 
@@ -178,7 +206,16 @@ export class CTM {
       const actMatrix = flatToActMatrix(flatActs, c.numNeurons, windowSz);
 
       // Build sync matrix [N × N]
-      const syncMatrix = correlationMatrix(actMatrix);
+      let syncMatrix = correlationMatrix(actMatrix);
+
+      // Dual burst modulation: also weight the sync matrix so co-bursting
+      // pairs carry more signal (distinguishes sustained from coincidental)
+      if (this.burstState) {
+        syncMatrix = applyBurstWeightingToSyncMatrix(
+          syncMatrix,
+          this.burstState,
+        );
+      }
 
       // Sync attention — expects number[][] for sync, number[] for embedding
       const context = this.syncAttention.forward(syncMatrix, currentInput);
@@ -207,7 +244,7 @@ export class CTM {
       // Feed context back as next input and compute next activations
       currentInput = context;
       const activations = this.neuronLayer.forward(currentInput);
-      this.history.push(activations);
+      pushBurstWeighted(activations);
       currentInput = Array.from(activations.slice(0, c.inputDim));
     }
 
@@ -216,7 +253,13 @@ export class CTM {
       const windowSz = this.history.size;
       const flatActs = this.history.toActivationMatrix();
       const actMatrix = flatToActMatrix(flatActs, c.numNeurons, windowSz);
-      const syncMatrix = correlationMatrix(actMatrix);
+      let syncMatrix = correlationMatrix(actMatrix);
+      if (this.burstState) {
+        syncMatrix = applyBurstWeightingToSyncMatrix(
+          syncMatrix,
+          this.burstState,
+        );
+      }
       finalOutput = this.classify(syncMatrix);
     }
 
@@ -268,9 +311,10 @@ export class CTM {
     return 1.0 - (count > 0 ? sum / count : 0.0);
   }
 
-  /** Reset the model state (history buffer). */
+  /** Reset the model state (history buffer + burst state). */
   reset(): void {
     this.history.clear();
+    this.burstState?.reset();
   }
 
   /**
@@ -286,6 +330,42 @@ export class CTM {
       c.numClasses                   // outputB
     );
   }
+}
+
+/**
+ * Apply burst-weighting to a sync matrix [N × N].
+ *
+ * For each pair (i, j), if either neuron is bursting, boost the
+ * correlation value. This makes co-bursting pairs carry more signal
+ * in the sync matrix — the core insight that distinguishes sustained
+ * co-activity from coincidental single-tick firing.
+ */
+function applyBurstWeightingToSyncMatrix(
+  syncMatrix: number[][],
+  burstState: BurstState,
+  burstSyncBoost = 0.3,
+): number[][] {
+  const n = burstState.numNeurons;
+  const result: number[][] = [];
+  for (let i = 0; i < n; i++) {
+    const row: number[] = [];
+    for (let j = 0; j < n; j++) {
+      let value = syncMatrix[i][j];
+      if (burstState.isBursting(i) || burstState.isBursting(j)) {
+        const boostI = burstState.isBursting(i)
+          ? 1.0 - burstState.burstProgress(i) * (1.0 - burstState.config.burstDecay)
+          : 0;
+        const boostJ = burstState.isBursting(j)
+          ? 1.0 - burstState.burstProgress(j) * (1.0 - burstState.config.burstDecay)
+          : 0;
+        const boost = 1.0 + burstSyncBoost * Math.max(boostI, boostJ);
+        value = Math.min(1.0, value * boost);
+      }
+      row.push(Math.max(-1.0, Math.min(1.0, value))); // clamp to [-1, 1]
+    }
+    result.push(row);
+  }
+  return result;
 }
 
 /** Simple seeded RNG for parameter init. */

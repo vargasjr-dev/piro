@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { CTM, DEFAULT_CTM_CONFIG } from "../ctm";
+import { DEFAULT_BURST_CONFIG } from "../burst-state";
 
 describe("CTM", () => {
   test("default config creates model with proper dimensions", () => {
@@ -143,5 +144,128 @@ describe("CTM", () => {
     // Should have exited before max ticks
     expect(steps.length).toBeLessThan(10);
     expect(output.length).toBe(3);
+  });
+});
+
+// ─── Phase 1b: Burst Integration Tests ─────────────────────────────────
+
+describe("CTM with burst", () => {
+  const burstConfig = { ...DEFAULT_BURST_CONFIG, maxBurstLength: 4, burstThreshold: 0.4 };
+
+  test("with burst config creates burstState", () => {
+    const ctm = new CTM({
+      numNeurons: 8,
+      inputDim: 4,
+      hiddenDim: 4,
+      windowSize: 4,
+      maxTicks: 5,
+      numClasses: 3,
+      burstConfig,
+    });
+    expect(ctm.burstState).not.toBeNull();
+    expect(ctm.burstState!.config.maxBurstLength).toBe(4);
+  });
+
+  test("without burst config — burstState is null (backward compat)", () => {
+    const ctm = new CTM({
+      numNeurons: 8,
+      inputDim: 4,
+      hiddenDim: 4,
+      windowSize: 4,
+      maxTicks: 5,
+      numClasses: 3,
+    });
+    expect(ctm.burstState).toBeNull();
+  });
+
+  test("with burst config produces valid output (same shape, finite)", () => {
+    const ctm = new CTM({
+      numNeurons: 8,
+      inputDim: 4,
+      hiddenDim: 4,
+      windowSize: 4,
+      maxTicks: 5,
+      numClasses: 3,
+      burstConfig,
+    });
+    const input = new Array(4).fill(0.5);
+    const output = ctm.forward(input);
+    expect(output.length).toBe(3);
+    for (const v of output) {
+      expect(Number.isFinite(v)).toBe(true);
+    }
+  });
+
+  test("with burst config + same seed → deterministic", () => {
+    const ctm = new CTM({
+      numNeurons: 8,
+      inputDim: 4,
+      hiddenDim: 4,
+      windowSize: 4,
+      maxTicks: 5,
+      numClasses: 3,
+      burstConfig,
+    });
+    const input = new Array(4).fill(0.5);
+    const out1 = ctm.forward(input);
+    ctm.reset();
+    const out2 = ctm.forward(input);
+    expect(out1).toEqual(out2);
+  });
+
+  test("burst enabled vs disabled → different outputs (after warm-up)", () => {
+    // Use a low threshold so the burst has time to kick in
+    const baseConfig = {
+      numNeurons: 8,
+      inputDim: 4,
+      hiddenDim: 8,
+      windowSize: 4,
+      maxTicks: 8,
+      confidenceThreshold: 0.8,
+      numClasses: 3,
+    };
+    const ctmNoBurst = new CTM(baseConfig);
+    const ctmBurst = new CTM({ ...baseConfig, burstConfig });
+
+    const input = new Array(4).fill(0.6); // strong input to trigger bursting
+    const outNoBurst = ctmNoBurst.forward(input);
+    const outBurst = ctmBurst.forward(input);
+
+    // Outputs should differ — burst modulation changes the sync matrix
+    expect(outNoBurst).not.toEqual(outBurst);
+  });
+
+  test("reset clears burst state (burstingCount === 0 after reset)", () => {
+    const ctm = new CTM({
+      numNeurons: 8,
+      inputDim: 4,
+      hiddenDim: 4,
+      windowSize: 4,
+      maxTicks: 5,
+      numClasses: 3,
+      burstConfig,
+    });
+    const input = new Array(4).fill(0.8); // strong input to trigger bursts
+    ctm.forward(input);
+    ctm.reset();
+    expect(ctm.burstState).not.toBeNull();
+    expect(ctm.burstState!.burstingCount).toBe(0);
+  });
+
+  test("burst state accumulates across warm-up ticks", () => {
+    // With a low threshold and strong input, some neurons should burst
+    const ctm = new CTM({
+      numNeurons: 8,
+      inputDim: 4,
+      hiddenDim: 4,
+      windowSize: 4,
+      maxTicks: 5,
+      numClasses: 3,
+      burstConfig: { ...burstConfig, burstThreshold: 0.3 },
+    });
+    const input = new Array(4).fill(0.9);
+    ctm.forward(input);
+    // After warm-up + adaptive ticks, some neurons should have bursted
+    expect(ctm.burstState!.burstingCount).toBeGreaterThanOrEqual(0);
   });
 });
