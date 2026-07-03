@@ -29,7 +29,9 @@ export default async function HomePage() {
           </div>
 
           <h1 className="text-5xl sm:text-6xl font-black tracking-tight mb-6 leading-[1.05]">
-            <span className="text-amber-50">Frontier models are unaffordable.</span>
+            <span className="text-amber-50">
+              Frontier models are unaffordable.
+            </span>
             <br />
             <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">
               There is no open-source one. We help you build your own.
@@ -38,8 +40,8 @@ export default async function HomePage() {
 
           <p className="text-amber-200/70 text-lg sm:text-xl mb-12 leading-relaxed max-w-2xl mx-auto">
             Train a tiny ML model on your data for{" "}
-            <span className="text-orange-400 font-semibold">$100/mo</span>. Keep it forever.
-            Query it as much as you want. No per-token tax.
+            <span className="text-orange-400 font-semibold">$100/mo</span>. Keep
+            it forever. Query it as much as you want. No per-token tax.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -82,28 +84,31 @@ export default async function HomePage() {
             <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
               <p className="text-4xl font-black text-amber-50 mb-2">$20</p>
               <p className="text-sm text-amber-400/60 leading-relaxed">
-                minimum / month to access a frontier model. That's the cheap tier — no API credits, no real usage.
+                minimum / month to access a frontier model. That's the cheap
+                tier — no API credits, no real usage.
               </p>
             </div>
             <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
               <p className="text-4xl font-black text-amber-50 mb-2">$0.015</p>
               <p className="text-sm text-amber-400/60 leading-relaxed">
-                per 1K tokens on the OpenAI API. A 50-message conversation is $5–$10 in tokens alone.
+                per 1K tokens on the OpenAI API. A 50-message conversation is
+                $5–$10 in tokens alone.
               </p>
             </div>
             <div className="rounded-xl border border-red-700/40 bg-red-900/10 p-6">
               <p className="text-4xl font-black text-red-300 mb-2">$200+</p>
               <p className="text-sm text-amber-200/70 leading-relaxed">
-                real monthly cost for a person who actually uses a frontier model. And you don't own anything.
+                real monthly cost for a person who actually uses a frontier
+                model. And you don't own anything.
               </p>
             </div>
           </div>
 
           <p className="text-lg text-amber-200/80 leading-relaxed max-w-2xl">
             Every query is a tax. You pay the API, you pay the subscription, and
-            the provider owns the model — so they can raise prices, throttle you,
-            or shut you out whenever they want. The bill grows with your usage.
-            Your leverage shrinks.
+            the provider owns the model — so they can raise prices, throttle
+            you, or shut you out whenever they want. The bill grows with your
+            usage. Your leverage shrinks.
           </p>
         </div>
       </section>
@@ -121,8 +126,8 @@ export default async function HomePage() {
           <div className="space-y-6 text-lg text-amber-200/80 leading-relaxed max-w-3xl">
             <p>
               The open-weight models — Llama, Qwen, DeepSeek, Mistral — are{" "}
-              <span className="text-amber-50 font-semibold">good</span>.
-              But they are not frontier. Every benchmark, every leaderboard: the
+              <span className="text-amber-50 font-semibold">good</span>. But
+              they are not frontier. Every benchmark, every leaderboard: the
               closed frontier labs are six months ahead and the gap is widening.
             </p>
 
@@ -133,24 +138,28 @@ export default async function HomePage() {
               <ul className="space-y-2 text-sm text-amber-400/70">
                 <li className="flex gap-3">
                   <span className="text-orange-400 shrink-0">→</span>
-                  Llama 405B needs <span className="text-amber-50">$300/hr</span> of H100 capacity to serve one request
+                  Llama 405B needs{" "}
+                  <span className="text-amber-50">$300/hr</span> of H100
+                  capacity to serve one request
                 </li>
                 <li className="flex gap-3">
                   <span className="text-orange-400 shrink-0">→</span>
                   "Free" weights still cost{" "}
-                  <span className="text-amber-50">$5K–$50K</span> in GPUs to fine-tune
+                  <span className="text-amber-50">$5K–$50K</span> in GPUs to
+                  fine-tune
                 </li>
                 <li className="flex gap-3">
                   <span className="text-orange-400 shrink-0">→</span>
                   Self-hosting at home means{" "}
-                  <span className="text-amber-50">4-figure hardware</span> and an electrician
+                  <span className="text-amber-50">4-figure hardware</span> and
+                  an electrician
                 </li>
               </ul>
             </div>
 
             <p>
-              The "open-source frontier" pitch is a lie. The weights are open. The
-              cost of running them is not.
+              The "open-source frontier" pitch is a lie. The weights are open.
+              The cost of running them is not.
             </p>
           </div>
         </div>
@@ -170,22 +179,24 @@ export default async function HomePage() {
             <p>
               Small models trained on{" "}
               <span className="text-amber-50 font-semibold">your data</span> for{" "}
-              <span className="text-amber-50 font-semibold">your tasks</span> have
-              caught up to frontier reasoning on narrow domains. A 10M-parameter
-              model that's seen your codebase, your notes, your emails — it
-              knows things a 405B-parameter model never will.
+              <span className="text-amber-50 font-semibold">your tasks</span>{" "}
+              have caught up to frontier reasoning on narrow domains. A
+              10M-parameter model that's seen your codebase, your notes, your
+              emails — it knows things a 405B-parameter model never will.
             </p>
 
             <p>
               The frontier labs have a billion users and one model.{" "}
-              <span className="text-amber-50 font-semibold">We have one user and one model each.</span>{" "}
+              <span className="text-amber-50 font-semibold">
+                We have one user and one model each.
+              </span>{" "}
               That's not a disadvantage — it's a moat.
             </p>
 
             <p>
-              Piro is the ecosystem for this. Train your own tiny model. Keep it.
-              Query it forever. When the frontier raises prices, your model is
-              already trained.
+              Piro is the ecosystem for this. Train your own tiny model. Keep
+              it. Query it forever. When the frontier raises prices, your model
+              is already trained.
             </p>
           </div>
 
@@ -193,23 +204,32 @@ export default async function HomePage() {
           <div className="grid sm:grid-cols-3 gap-6 mt-16">
             <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
               <div className="text-3xl font-black text-orange-400 mb-3">1</div>
-              <p className="text-base font-semibold text-amber-50 mb-2">Connect your data</p>
+              <p className="text-base font-semibold text-amber-50 mb-2">
+                Connect your data
+              </p>
               <p className="text-sm text-amber-400/60 leading-relaxed">
-                GitHub repos, Gmail, Notion, anything text. Piro trains on the corpus you choose.
+                GitHub repos, Gmail, Notion, anything text. Piro trains on the
+                corpus you choose.
               </p>
             </div>
             <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
               <div className="text-3xl font-black text-orange-400 mb-3">2</div>
-              <p className="text-base font-semibold text-amber-50 mb-2">Train your model</p>
+              <p className="text-base font-semibold text-amber-50 mb-2">
+                Train your model
+              </p>
               <p className="text-sm text-amber-400/60 leading-relaxed">
-                Two runs per month. We run the GPUs. You keep the weights — checkpointed and versioned.
+                Two runs per month. We run the GPUs. You keep the weights —
+                checkpointed and versioned.
               </p>
             </div>
             <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
               <div className="text-3xl font-black text-orange-400 mb-3">3</div>
-              <p className="text-base font-semibold text-amber-50 mb-2">Query it forever</p>
+              <p className="text-base font-semibold text-amber-50 mb-2">
+                Query it forever
+              </p>
               <p className="text-sm text-amber-400/60 leading-relaxed">
-                Unlimited inference. Your model, your API, your cost — fixed at $100/mo regardless of usage.
+                Unlimited inference. Your model, your API, your cost — fixed at
+                $100/mo regardless of usage.
               </p>
             </div>
           </div>
@@ -239,17 +259,35 @@ export default async function HomePage() {
 
             <ul className="space-y-3 mb-8">
               {[
-                ["🏋️", "2 training runs / month", "Full GPU training on your data"],
-                ["⚡️", "Unlimited inference", "Query your trained model anytime"],
-                ["🤖", "Architecture Copilot (GLM 5.2)", "Design help for your model classes"],
-                ["📊", "Benchmark suite", "Sanity, generalization, adaptive compute"],
+                [
+                  "🏋️",
+                  "2 training runs / month",
+                  "Full GPU training on your data",
+                ],
+                [
+                  "⚡️",
+                  "Unlimited inference",
+                  "Query your trained model anytime",
+                ],
+                [
+                  "🤖",
+                  "Architecture Copilot (GLM 5.2)",
+                  "Design help for your model classes",
+                ],
+                [
+                  "📊",
+                  "Benchmark suite",
+                  "Sanity, generalization, adaptive compute",
+                ],
                 ["📦", "Model versioning", "Roll back to any prior checkpoint"],
                 ["🔑", "API access", "Use your model in your own apps"],
               ].map(([icon, label, detail]) => (
                 <li key={label} className="flex items-start gap-3 py-2">
                   <span className="text-lg mt-0.5">{icon}</span>
                   <div>
-                    <p className="text-sm text-amber-100 font-medium">{label}</p>
+                    <p className="text-sm text-amber-100 font-medium">
+                      {label}
+                    </p>
                     <p className="text-xs text-amber-400/50">{detail}</p>
                   </div>
                 </li>
@@ -265,7 +303,8 @@ export default async function HomePage() {
           </div>
 
           <p className="text-center text-amber-400/50 text-sm">
-            Cancel anytime from your billing portal. No commitment. No per-token tax.
+            Cancel anytime from your billing portal. No commitment. No per-token
+            tax.
           </p>
         </div>
       </section>
@@ -282,8 +321,8 @@ export default async function HomePage() {
           </h2>
 
           <p className="text-amber-200/70 text-lg mb-10 leading-relaxed">
-            Join the people building an ecosystem of tiny, owned, personal models —
-            one user at a time.
+            Join the people building an ecosystem of tiny, owned, personal
+            models — one user at a time.
           </p>
 
           <Link
@@ -301,9 +340,8 @@ export default async function HomePage() {
 
       {/* ── FOOTER ──────────────────────────────────────────────────── */}
       <footer className="py-10 px-4 border-t border-amber-900/20 text-center text-amber-400/40 text-xs">
-        <p>
-          Piro — tiny ML, owned forever. © 2026.
-        </p>
+        <p>Piro — tiny ML, owned forever. © 2026.</p>
+        <p className="mt-1">© 2026 VargasJR LLC. All rights reserved.</p>
       </footer>
     </main>
   );
