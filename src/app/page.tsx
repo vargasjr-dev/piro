@@ -32,7 +32,7 @@ export default async function HomePage() {
             <span className="text-amber-50">Frontier models are unaffordable.</span>
             <br />
             <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">
-              There is no open-source one. We help you build your own.
+              We help you build your own.
             </span>
           </h1>
 
