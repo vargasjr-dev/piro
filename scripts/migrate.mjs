@@ -155,18 +155,9 @@ await sql`
 `;
 console.log("✓ seeded data_source: sorting-sequences");
 
-// Seed counter-sequences for existing users
-await sql`
-  INSERT INTO data_source (id, "userId", name, description, type, "sampleCount", "createdAt")
-  SELECT 'counter-sequences', id,
-    'Counter Sequences',
-    'Synthetic sequential counter task: given INC/DEC ops, predict the final signed count. The working-memory probe for CTM vs transformer — train on lengths 2-8, test on lengths up to 48.',
-    'synthetic', 50000, NOW()
-  FROM "user"
-  WHERE NOT EXISTS (SELECT 1 FROM data_source WHERE id = 'counter-sequences')
-  LIMIT 1
-`;
-console.log("✓ seeded data_source: counter-sequences");
+// Note: counter-sequences is intentionally NOT bulk-seeded. Each user creates
+// their own data source via `piro sources push <id>` — keeping research data
+// scoped to the owning account.
 
 // ── data_source: add scriptR2Key and generatedAt columns ─────────────────────
 await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "scriptR2Key" TEXT`;
