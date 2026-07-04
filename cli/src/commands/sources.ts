@@ -2,14 +2,48 @@ import { readFile, writeFile } from "node:fs/promises";
 import { piroFetch, resolveConfig } from "../client.js";
 
 /**
- * Pull / push the data source's generator script — mirrors `piro classes pull/push`
- * but targets the data-source `script.py` instead of the class `model.py`.
+ * Create / pull / push data sources — mirrors `piro classes` pattern.
  *
- * Why script.py only?
+ *   piro sources create <id> --name "Counter Sequences" [--description "..."]
+ *   piro sources pull <id> [--out <file>]
+ *   piro sources push <id> [--file <file>]
+ *
+ * Why script.py only for pull/push?
  *   The source's `r2Prefix` (data/train.jsonl, metadata.json, etc.) is produced
  *   by generate-source.mjs, not authored by hand. The script is the only file
  *   worth round-tripping through git/version control.
  */
+
+export async function sourcesCreate(
+  id: string,
+  opts: { name: string; description?: string; sampleCount?: number },
+) {
+  const config = resolveConfig();
+
+  const payload: Record<string, unknown> = {
+    id,
+    name: opts.name,
+  };
+  if (opts.description) payload.description = opts.description;
+  if (opts.sampleCount !== undefined) payload.sampleCount = opts.sampleCount;
+
+  const { ok, status, body } = await piroFetch(config, "/api/data-sources", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  if (!ok) {
+    const err = body as Record<string, unknown> | null;
+    console.error(`Error ${status}: ${err?.error ?? "create failed"}`);
+    process.exit(1);
+  }
+
+  const { id: createdId } = body as { id: string };
+  console.log(`Created data source: ${createdId}`);
+  if (createdId !== id) {
+    console.log(`  (requested id "${id}", got "${createdId}")`);
+  }
+}
 
 export async function sourcesPull(id: string, opts: { out?: string }) {
   const config = resolveConfig();

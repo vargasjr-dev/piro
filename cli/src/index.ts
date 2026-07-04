@@ -15,7 +15,7 @@
  */
 
 import { classesSerialize, classesPull, classesPush } from "./commands/classes.js";
-import { sourcesPull, sourcesPush } from "./commands/sources.js";
+import { sourcesCreate, sourcesPull, sourcesPush } from "./commands/sources.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -40,6 +40,7 @@ function usage(msg?: string): never {
   console.error("  piro classes serialize <id> [--bust]");
   console.error("  piro classes pull <id> [--out <file>]");
   console.error("  piro classes push <id> [--file <file>]");
+  console.error("  piro sources create <id> --name <name> [--description <desc>] [--sample-count <n>]");
   console.error("  piro sources pull <id> [--out <file>]");
   console.error("  piro sources push <id> [--file <file>]");
   process.exit(msg ? 1 : 0);
@@ -75,6 +76,20 @@ switch (subject) {
 
   case "sources":
     switch (verb) {
+      case "create": {
+        const id = arg(rest, 0);
+        if (!id) usage("source id is required");
+        const name = opt(rest, "name");
+        if (!name) usage("--name is required for create");
+        const sampleCountStr = opt(rest, "sample-count");
+        const sampleCount = sampleCountStr ? parseInt(sampleCountStr, 10) : undefined;
+        await sourcesCreate(id, {
+          name,
+          description: opt(rest, "description"),
+          sampleCount,
+        });
+        break;
+      }
       case "pull": {
         const id = arg(rest, 0);
         if (!id) usage("source id is required");

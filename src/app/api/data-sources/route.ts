@@ -4,15 +4,26 @@ import { db } from "../../../../data/db";
 import { dataSource } from "../../../../data/schema";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { extractBearer, validateApiKey } from "~/lib/api-auth";
 
-export async function GET() {
+async function resolveUserId(request: Request): Promise<string | null> {
+  const bearer = extractBearer(request);
+  if (bearer) {
+    const keyAuth = await validateApiKey(bearer);
+    if (keyAuth?.userId) return keyAuth.userId;
+  }
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  return session?.user.id ?? null;
+}
+
+export async function GET(request: Request) {
+  const userId = await resolveUserId(request);
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const sources = await db
     .select()
     .from(dataSource)
-    .where(eq(dataSource.userId, session.user.id))
+    .where(eq(dataSource.userId, userId))
     .orderBy(desc(dataSource.createdAt));
 
   return Response.json({
@@ -29,16 +40,16 @@ export async function GET() {
 }
 
 interface CreateBody {
+  id?: string;
   name: string;
   description?: string;
   type?: string;
-  r2Prefix?: string;
   sampleCount?: number;
 }
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await resolveUserId(request);
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   let body: CreateBody;
   try {
@@ -47,17 +58,23 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, description, type = "synthetic", r2Prefix, sampleCount } = body;
+  const { name, description, type = "synthetic", sampleCount } = body;
   if (!name) return Response.json({ error: "name is required" }, { status: 400 });
 
-  const id = randomUUID();
+  // Allow callers to specify a slug-like id (e.g. "counter-sequences")
+  // so push/pull can reference it by name. Fall back to a random UUID.
+  const id = body.id ?? randomUUID();
+  const r2Prefix = `sources/${id}/`;
+  const scriptR2Key = `${userId}/${r2Prefix}script.py`;
+
   await db.insert(dataSource).values({
     id,
-    userId: session.user.id,
+    userId,
     name,
     description: description ?? null,
     type,
-    r2Prefix: r2Prefix ?? null,
+    r2Prefix,
+    scriptR2Key,
     sampleCount: sampleCount ?? null,
   });
 
