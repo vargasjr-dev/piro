@@ -39,9 +39,15 @@ export default async function HomePage() {
           </h1>
 
           <p className="text-amber-200/70 text-lg sm:text-xl mb-12 leading-relaxed max-w-2xl mx-auto">
-            Train a tiny ML model on your data for{" "}
-            <span className="text-orange-400 font-semibold">$100/mo</span>. Keep
-            it forever. Query it as much as you want. No per-token tax.
+            Train your own ML Model using{" "}
+            <span className="text-orange-400 font-semibold">
+              your own data and benchmarks
+            </span>
+            . Join the community actively looking for the cheaper and{" "}
+            <span className="text-orange-400 font-semibold">
+              memory-enabled successor to the transformer
+            </span>
+            .
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
