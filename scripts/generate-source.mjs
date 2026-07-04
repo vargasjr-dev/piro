@@ -84,8 +84,21 @@ async function r2Upload(key, body, contentType) {
 const SOURCE_CONFIGS = {
   "sorting-sequences": {
     scriptPath: "model/data/sequences.py",
+    module: "model.data.sequences",
     trainArgs: ["--split", "train", "--n", "5000", "--seed", "42"],
     trainCount: 5000,
+  },
+  "counter-sequences": {
+    scriptPath: "model/data/counter.py",
+    module: "model.data.counter",
+    trainArgs: [
+      "--split", "train",
+      "--n", "50000",
+      "--length-min", "2",
+      "--length-max", "8",
+      "--seed", "42",
+    ],
+    trainCount: 50000,
   },
 };
 
@@ -114,7 +127,7 @@ const scriptR2Key = `${userId}/${r2Prefix}script.py`;
 function runPython(extraArgs) {
   const result = spawnSync(
     "python3",
-    ["-m", "model.data.sequences", ...extraArgs],
+    ["-m", config.module, ...extraArgs],
     { cwd: repoRoot, encoding: "utf-8", maxBuffer: 50 * 1024 * 1024 },
   );
   if (result.status !== 0) {
@@ -128,7 +141,7 @@ function runPython(extraArgs) {
     .join("\n");
 }
 
-console.log("  Generating train split (5000 samples)…");
+console.log(`  Generating train split (${config.trainCount} samples)…`);
 const trainJsonl = runPython(config.trainArgs);
 console.log(`  ✓ ${trainJsonl.split("\n").filter(Boolean).length} train samples`);
 
