@@ -6,6 +6,8 @@
  *   piro classes serialize <id> [--bust]
  *   piro classes pull <id> [--out <file>]
  *   piro classes push <id> [--file <file>]
+ *   piro sources pull <id> [--out <file>]
+ *   piro sources push <id> [--file <file>]
  *
  * Auth:
  *   PIRO_API_KEY=<key>  (required)
@@ -13,6 +15,7 @@
  */
 
 import { classesSerialize, classesPull, classesPush } from "./commands/classes.js";
+import { sourcesPull, sourcesPush } from "./commands/sources.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -37,6 +40,8 @@ function usage(msg?: string): never {
   console.error("  piro classes serialize <id> [--bust]");
   console.error("  piro classes pull <id> [--out <file>]");
   console.error("  piro classes push <id> [--file <file>]");
+  console.error("  piro sources pull <id> [--out <file>]");
+  console.error("  piro sources push <id> [--file <file>]");
   process.exit(msg ? 1 : 0);
 }
 
@@ -65,6 +70,25 @@ switch (subject) {
       }
       default:
         usage(`unknown classes verb: ${verb}`);
+    }
+    break;
+
+  case "sources":
+    switch (verb) {
+      case "pull": {
+        const id = arg(rest, 0);
+        if (!id) usage("source id is required");
+        await sourcesPull(id, { out: opt(rest, "out") });
+        break;
+      }
+      case "push": {
+        const id = arg(rest, 0);
+        if (!id) usage("source id is required");
+        await sourcesPush(id, { file: opt(rest, "file") });
+        break;
+      }
+      default:
+        usage(`unknown sources verb: ${verb}`);
     }
     break;
 

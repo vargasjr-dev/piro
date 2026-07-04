@@ -155,6 +155,10 @@ await sql`
 `;
 console.log("✓ seeded data_source: sorting-sequences");
 
+// Note: counter-sequences is intentionally NOT bulk-seeded. Each user creates
+// their own data source via `piro sources push <id>` — keeping research data
+// scoped to the owning account.
+
 // ── data_source: add scriptR2Key and generatedAt columns ─────────────────────
 await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "scriptR2Key" TEXT`;
 await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "generatedAt" TIMESTAMP`;

@@ -104,8 +104,8 @@ export default async function SourcesPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-amber-900/20 shrink-0">
         <div>
-          <h1 className="text-amber-100 font-bold text-sm tracking-tight">Sources</h1>
-          <p className="text-xs text-amber-400/40 mt-0.5">Training data sources</p>
+          <h1 className="text-amber-100 font-bold text-sm tracking-tight">Data Sources</h1>
+          <p className="text-xs text-amber-400/40 mt-0.5">Synthetic and uploaded training data</p>
         </div>
       </div>
 
