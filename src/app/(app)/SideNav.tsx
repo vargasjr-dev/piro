@@ -2,11 +2,45 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import FlameLogo from "~/components/FlameLogo";
+import { authClient } from "~/lib/auth.client";
 
 interface Props {
   userName?: string | null;
   isSubscribed?: boolean;
+}
+
+function SignOutButton({ className }: { className: string }) {
+  const [pending, setPending] = useState(false);
+
+  const handleSignOut = async () => {
+    if (pending) return;
+    setPending(true);
+    try {
+      // Use the auth client so the request sets Content-Type: application/json
+      // (better-auth's /sign-out endpoint rejects urlencoded bodies with a 415).
+      await authClient.signOut();
+    } catch {
+      // Swallow errors: the user clicked sign out and should be treated as
+      // logged out regardless. We never want to surface a raw API response here.
+    } finally {
+      // Force a full reload so server components re-evaluate the (now cleared) session
+      // and the user lands on a logged-out view of /login.
+      window.location.href = "/login";
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleSignOut}
+      disabled={pending}
+      className={className}
+    >
+      {pending ? "Signing out..." : "Sign out"}
+    </button>
+  );
 }
 
 const NAV_ITEMS = [
@@ -137,11 +171,7 @@ export default function SideNav({ userName, isSubscribed }: Props) {
           {userName && (
             <p className="text-xs text-amber-400/30 truncate">{userName}</p>
           )}
-          <form action="/api/auth/sign-out" method="POST">
-            <button className="text-xs text-amber-400/50 hover:text-amber-200 transition">
-              Sign out
-            </button>
-          </form>
+          <SignOutButton className="text-xs text-amber-400/50 hover:text-amber-200 transition disabled:opacity-50" />
         </div>
       </aside>
 
@@ -153,14 +183,9 @@ export default function SideNav({ userName, isSubscribed }: Props) {
             <FlameLogo size={22} />
             <span className="font-bold text-amber-50 tracking-tight">Piro</span>
           </div>
-          <form action="/api/auth/sign-out" method="POST">
-            <button className="text-sm text-amber-400/60 hover:text-amber-200 transition">
-              Sign out
-            </button>
-          </form>
+          <SignOutButton className="text-sm text-amber-400/60 hover:text-amber-200 transition disabled:opacity-50" />
         </header>
-
-        </div>
+      </div>
 
       {/* Mobile bottom nav bar */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-[#0d0a08] border-t border-amber-900/20 flex z-50 pb-safe">
