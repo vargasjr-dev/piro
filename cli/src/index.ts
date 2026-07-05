@@ -15,7 +15,7 @@
  */
 
 import { classesSerialize, classesPull, classesPush } from "./commands/classes.js";
-import { sourcesList, sourcesCreate, sourcesPull, sourcesPush } from "./commands/sources.js";
+import { sourcesList, sourcesCreate, sourcesGenerate, sourcesPull, sourcesPush } from "./commands/sources.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -42,6 +42,7 @@ function usage(msg?: string): never {
   console.error("  piro classes push <id> [--file <file>]");
   console.error("  piro sources list");
   console.error("  piro sources create <id> --name <name> [--description <desc>] [--sample-count <n>]");
+  console.error("  piro sources generate <id>");
   console.error("  piro sources pull <id> [--out <file>]");
   console.error("  piro sources push <id> [--file <file>]");
   process.exit(msg ? 1 : 0);
@@ -93,6 +94,12 @@ switch (subject) {
           description: opt(rest, "description"),
           sampleCount,
         });
+        break;
+      }
+      case "generate": {
+        const id = arg(rest, 0);
+        if (!id) usage("source id is required");
+        await sourcesGenerate(id);
         break;
       }
       case "pull": {

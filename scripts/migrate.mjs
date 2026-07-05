@@ -164,6 +164,10 @@ await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "scriptR2Key" TEXT`;
 await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "generatedAt" TIMESTAMP`;
 console.log("✓ data_source: added scriptR2Key, generatedAt");
 
+// ── data_source: add updatedAt column ─────────────────────────────────────────
+await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()`;
+console.log("✓ data_source: added updatedAt");
+
 // ── training_run table ────────────────────────────────────────────────────────
 await sql`
   CREATE TABLE IF NOT EXISTS training_run (

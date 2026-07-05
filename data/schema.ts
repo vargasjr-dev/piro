@@ -224,6 +224,7 @@ export const dataSource = pgTable(
     sampleCount: integer("sampleCount"),
     generatedAt: timestamp("generatedAt"), // last time data was generated + uploaded
     createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(), // last time the source metadata was edited
   },
   (t) => [
     index("ds_user_created").on(t.userId, t.createdAt),
