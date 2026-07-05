@@ -95,11 +95,7 @@ OPS: tuple[str, ...] = (INC, DEC)
 # Prompt template
 # ---------------------------------------------------------------------------
 
-_PROMPT_TEMPLATE = (
-    "Starting from 0, apply each operation in order.\n"
-    "Reply with only the final integer, nothing else.\n\n"
-    "{sequence}"
-)
+_PROMPT_TEMPLATE = "{sequence}"
 
 _LABEL_TEMPLATE = "{sign}{magnitude}"
 

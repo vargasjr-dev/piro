@@ -98,7 +98,7 @@ const GENERATORS: Record<string, GeneratorConfig> = {
         const label = count < 0 ? `-${-count}` : count > 0 ? `+${count}` : "0";
         lines.push(
           JSON.stringify({
-            prompt: `Starting from 0, apply each operation in order.\nReply with only the final integer, nothing else.\n\n${ops.join(" ")}`,
+            prompt: ops.join(" "),
             label,
             metadata: { split, index: i, seed: 42, length: seqLen },
           }),
