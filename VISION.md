@@ -144,12 +144,12 @@ The Piro model is not a transformer fine-tune. It is a ground-up architecture bu
 ### The Seven Behaviors — Research Phases
 
 | Phase | Neuron Behavior | What We Build | Status |
-|---|---|---|---|
-| 0 | **Firing rate + Spike timing** | CTM from scratch: per-neuron history + synchronization matrix as representation + adaptive ticks | 🎯 Current |
-| 1 | **Burst patterns** | Variable output sequence per neuron per step — neuron emits a short sequence shape, not just one float | Next |
-| 2 | **Hebbian plasticity** | Local weight update rules alongside backprop — prevents catastrophic forgetting, enables the personalization flywheel | Critical for Piro moat |
-| 3 | **Dendritic spikes** | Multi-compartment neurons: internal branches vote before the neuron produces output — one neuron = small network | Medium-term |
-| 4 | **Oscillatory entrainment** | Global rhythm vectors that gate neuron participation — dynamic network reorganization by task type | Hard |
+|---|---|---|---|---|
+| 0 | **Firing rate + Spike timing** | CTM from scratch: per-neuron history + synchronization matrix as representation + adaptive ticks | ✅ Complete (45 tests) |
+| 1 | **Burst patterns** | Variable output sequence per neuron per step — neuron emits a short sequence shape, not just one float | ✅ Complete (burst-state.ts, burst-weighted sync matrix) |
+| 2 | **Hebbian plasticity** | Local weight update rules alongside backprop — prevents catastrophic forgetting, enables the personalization flywheel | ✅ Complete (PlasticSynapse, Oja's rule, consolidation API) |
+| 3 | **Dendritic spikes** | Multi-compartment neurons: internal branches vote before the neuron produces output — one neuron = small network | ✅ Complete (dendrite.ts, 23 tests) |
+| 4 | **Oscillatory entrainment** | Global rhythm vectors that gate neuron participation — dynamic network reorganization by task type | 🎯 Next |
 | 5 | **Neuromodulation** | Dynamic meta-parameters controlling plasticity — the model learns to control its own learning rate | Hard |
 
 ### Build Principles
@@ -240,4 +240,4 @@ Modal A100/H100 (on-demand)
 
 *Started: May 30, 2026*
 *Architecture thesis locked: June 14, 2026 — CTM-inspired, built from scratch, 7-phase neuroscience roadmap.*
-*Status: Phase 0 starting — CTM implementation + benchmark runner.*
+*Status: Phase 3 complete (Dendritic Spikes) — 117 tests passing. Phase 4 (Oscillatory Entrainment) next.*
