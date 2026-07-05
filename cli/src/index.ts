@@ -17,6 +17,7 @@
 import { classesSerialize, classesPull, classesPush } from "./commands/classes.js";
 import { sourcesList, sourcesCreate, sourcesGenerate, sourcesPull, sourcesPush } from "./commands/sources.js";
 import { benchmarksList, benchmarksCreate, benchmarksRun, benchmarksPull, benchmarksPush } from "./commands/benchmarks.js";
+import { reposList, reposCreate, reposUse } from "./commands/repos.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -51,6 +52,9 @@ function usage(msg?: string): never {
   console.error("  piro benchmarks run <id> [--model <model-id>]");
   console.error("  piro benchmarks pull <id> [--out <file>]");
   console.error("  piro benchmarks push <id> [--file <file>]");
+  console.error("  piro repos list");
+  console.error("  piro repos create <id> --name <name> [--description <desc>]");
+  console.error("  piro repos use <id>");
   process.exit(msg ? 1 : 0);
 }
 
@@ -163,6 +167,35 @@ switch (subject) {
       }
       default:
         usage(`unknown benchmarks verb: ${verb}`);
+    }
+    break;
+  
+  case "repos":
+  case "repositories":
+    switch (verb) {
+      case "list": {
+        await reposList();
+        break;
+      }
+      case "create": {
+        const id = arg(rest, 0);
+        if (!id) usage("repo id is required");
+        const name = opt(rest, "name");
+        if (!name) usage("--name is required for create");
+        await reposCreate(id, {
+          name,
+          description: opt(rest, "description"),
+        });
+        break;
+      }
+      case "use": {
+        const id = arg(rest, 0);
+        if (!id) usage("repo id is required");
+        await reposUse(id);
+        break;
+      }
+      default:
+        usage(`unknown repos verb: ${verb}`);
     }
     break;
   

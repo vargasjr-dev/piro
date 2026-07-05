@@ -348,4 +348,28 @@ console.log("✓ model: dropped weightsB64");
 await sql`ALTER TABLE model DROP COLUMN IF EXISTS "weightsJson"`;
 console.log("✓ model: dropped weightsJson");
 
+// ── repository: the root unit of model development ────────────────────────────
+await sql`
+  CREATE TABLE IF NOT EXISTS repository (
+    id           text PRIMARY KEY,
+    "userId"     text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    name         text NOT NULL,
+    slug         text NOT NULL,
+    description  text,
+    "r2Prefix"   text,
+    "createdAt"  timestamp NOT NULL DEFAULT now(),
+    "updatedAt"  timestamp NOT NULL DEFAULT now()
+  )
+`;
+await sql`CREATE INDEX IF NOT EXISTS repo_user_created ON repository ("userId", "createdAt" DESC)`;
+await sql`CREATE UNIQUE INDEX IF NOT EXISTS repo_user_slug ON repository ("userId", "slug")`;
+console.log("✓ repository table");
+
+// ── Add repositoryId to component tables (nullable for legacy rows) ───────────
+await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
+await sql`ALTER TABLE benchmark ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
+await sql`ALTER TABLE model_class ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
+await sql`ALTER TABLE training_run ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
+console.log("✓ added repositoryId to data_source, benchmark, model_class, training_run");
+
 console.log("Migrations complete ✓");
