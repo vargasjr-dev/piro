@@ -121,10 +121,10 @@ export default function SideNav({ userName, isSubscribed }: Props) {
       {/* ── DESKTOP SIDEBAR ──────────────────────────────────────── */}
       <aside className="hidden lg:flex flex-col w-52 shrink-0 border-r border-amber-900/20 min-h-screen sticky top-0 self-start">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-5 py-5 border-b border-amber-900/10">
+        <Link href="/" className="flex items-center gap-2.5 px-5 py-5 border-b border-amber-900/10 hover:opacity-80 transition">
           <FlameLogo size={22} />
           <span className="font-bold text-amber-50 tracking-tight">Piro</span>
-        </div>
+        </Link>
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
@@ -179,10 +179,10 @@ export default function SideNav({ userName, isSubscribed }: Props) {
       <div className="lg:hidden">
         {/* Mobile top bar */}
         <header className="border-b border-amber-900/20 px-4 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition">
             <FlameLogo size={22} />
             <span className="font-bold text-amber-50 tracking-tight">Piro</span>
-          </div>
+          </Link>
           <SignOutButton className="text-sm text-amber-400/60 hover:text-amber-200 transition disabled:opacity-50" />
         </header>
       </div>
