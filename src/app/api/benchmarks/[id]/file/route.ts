@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
-import { db } from "../../../../../../../data/db";
-import { benchmark } from "../../../../../../../data/schema";
+import { db } from "../../../../../../data/db";
+import { benchmark } from "../../../../../../data/schema";
 import { eq, and } from "drizzle-orm";
 import { r2Get, r2PutText } from "~/lib/r2";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
@@ -58,11 +58,16 @@ export async function GET(
   if (!bm.scriptR2Key)
     return Response.json({ error: "No script uploaded yet" }, { status: 404 });
 
-  const { content, truncated, size } = await r2Get(bm.scriptR2Key);
+  const content = await r2Get(bm.scriptR2Key);
+  if (content === null) return Response.json({ error: "File not found in R2" }, { status: 404 });
+
+  const size = Buffer.byteLength(content, "utf-8");
+  const truncated = size > 100_000;
+  const displayContent = truncated ? content.slice(0, 100_000) : content;
 
   return Response.json({
     path: filePath,
-    content,
+    content: displayContent,
     truncated,
     size,
   });
