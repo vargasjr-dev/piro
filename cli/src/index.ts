@@ -16,7 +16,7 @@
 
 import { classesSerialize, classesPull, classesPush } from "./commands/classes.js";
 import { sourcesList, sourcesCreate, sourcesGenerate, sourcesPull, sourcesPush } from "./commands/sources.js";
-import { benchmarksList, benchmarksCreate, benchmarksPull, benchmarksPush } from "./commands/benchmarks.js";
+import { benchmarksList, benchmarksCreate, benchmarksRun, benchmarksPull, benchmarksPush } from "./commands/benchmarks.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -48,6 +48,7 @@ function usage(msg?: string): never {
   console.error("  piro sources push <id> [--file <file>]");
   console.error("  piro benchmarks list");
   console.error("  piro benchmarks create <id> --name <name> [--source <source-id>] [--description <desc>]");
+  console.error("  piro benchmarks run <id> [--model <model-id>]");
   console.error("  piro benchmarks pull <id> [--out <file>]");
   console.error("  piro benchmarks push <id> [--file <file>]");
   process.exit(msg ? 1 : 0);
@@ -140,6 +141,12 @@ switch (subject) {
           source: opt(rest, "source"),
           description: opt(rest, "description"),
         });
+        break;
+      }
+      case "run": {
+        const id = arg(rest, 0);
+        if (!id) usage("benchmark id is required");
+        await benchmarksRun(id, { model: opt(rest, "model") });
         break;
       }
       case "pull": {
