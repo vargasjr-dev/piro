@@ -16,6 +16,7 @@
 
 import { classesSerialize, classesPull, classesPush } from "./commands/classes.js";
 import { sourcesList, sourcesCreate, sourcesGenerate, sourcesPull, sourcesPush } from "./commands/sources.js";
+import { benchmarksList, benchmarksCreate, benchmarksPull, benchmarksPush } from "./commands/benchmarks.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -45,6 +46,10 @@ function usage(msg?: string): never {
   console.error("  piro sources generate <id>");
   console.error("  piro sources pull <id> [--out <file>]");
   console.error("  piro sources push <id> [--file <file>]");
+  console.error("  piro benchmarks list");
+  console.error("  piro benchmarks create <id> --name <name> [--source <source-id>] [--description <desc>]");
+  console.error("  piro benchmarks pull <id> [--out <file>]");
+  console.error("  piro benchmarks push <id> [--file <file>]");
   process.exit(msg ? 1 : 0);
 }
 
@@ -118,7 +123,42 @@ switch (subject) {
         usage(`unknown sources verb: ${verb}`);
     }
     break;
-
+  
+  case "benchmarks":
+    switch (verb) {
+      case "list": {
+        await benchmarksList();
+        break;
+      }
+      case "create": {
+        const id = arg(rest, 0);
+        if (!id) usage("benchmark id is required");
+        const name = opt(rest, "name");
+        if (!name) usage("--name is required for create");
+        await benchmarksCreate(id, {
+          name,
+          source: opt(rest, "source"),
+          description: opt(rest, "description"),
+        });
+        break;
+      }
+      case "pull": {
+        const id = arg(rest, 0);
+        if (!id) usage("benchmark id is required");
+        await benchmarksPull(id, { out: opt(rest, "out") });
+        break;
+      }
+      case "push": {
+        const id = arg(rest, 0);
+        if (!id) usage("benchmark id is required");
+        await benchmarksPush(id, { file: opt(rest, "file") });
+        break;
+      }
+      default:
+        usage(`unknown benchmarks verb: ${verb}`);
+    }
+    break;
+  
   default:
     usage(`unknown subject: ${subject}`);
 }
