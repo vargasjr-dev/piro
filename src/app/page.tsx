@@ -1,18 +1,14 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import FlameLogo from "~/components/FlameLogo";
 
 export default async function HomePage() {
-  // If a session cookie is present, send them straight to the app.
+  // Check if the user is logged in so we can swap the CTAs.
+  // We do NOT redirect — logged-in users can still view the landing page.
   const cookieStore = await cookies();
-  const hasSession =
+  const isLoggedIn =
     cookieStore.has("better-auth.session_token") ||
     cookieStore.has("__Secure-better-auth.session_token");
-
-  if (hasSession) {
-    redirect("/benchmarks");
-  }
 
   return (
     <main className="min-h-screen bg-[#0d0a08] text-amber-100">
@@ -51,23 +47,36 @@ export default async function HomePage() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/signup"
-              className="px-8 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:to-red-500 transition-all ember-glow text-base"
-            >
-              Build your model — $100/mo
-            </Link>
-            <Link
-              href="/login"
-              className="px-8 py-3.5 border border-amber-900/50 text-amber-200 font-semibold rounded-xl hover:border-orange-500/50 hover:text-amber-50 transition-all text-base"
-            >
-              Sign in
-            </Link>
+            {isLoggedIn ? (
+              <Link
+                href="/models"
+                className="px-8 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:to-red-500 transition-all ember-glow text-base"
+              >
+                Go to your models →
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/signup"
+                  className="px-8 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:to-red-500 transition-all ember-glow text-base"
+                >
+                  Build your model — $100/mo
+                </Link>
+                <Link
+                  href="/login"
+                  className="px-8 py-3.5 border border-amber-900/50 text-amber-200 font-semibold rounded-xl hover:border-orange-500/50 hover:text-amber-50 transition-all text-base"
+                >
+                  Sign in
+                </Link>
+              </>
+            )}
           </div>
 
-          <p className="text-amber-400/40 text-sm mt-6">
-            2 training runs per month · unlimited inference · cancel anytime
-          </p>
+          {!isLoggedIn && (
+            <p className="text-amber-400/40 text-sm mt-6">
+              2 training runs per month · unlimited inference · cancel anytime
+            </p>
+          )}
         </div>
 
         {/* Scroll cue */}
@@ -301,10 +310,10 @@ export default async function HomePage() {
             </ul>
 
             <Link
-              href="/signup"
+              href={isLoggedIn ? "/models" : "/signup"}
               className="block text-center w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:to-red-500 transition-all ember-glow text-base"
             >
-              Build your model — start training →
+              {isLoggedIn ? "Go to your models →" : "Build your model — start training →"}
             </Link>
           </div>
 
@@ -332,10 +341,10 @@ export default async function HomePage() {
           </p>
 
           <Link
-            href="/signup"
+            href={isLoggedIn ? "/models" : "/signup"}
             className="inline-block px-10 py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:red-500 transition-all ember-glow text-base"
           >
-            Start training your model →
+            {isLoggedIn ? "Go to your models →" : "Start training your model →"}
           </Link>
 
           <div className="mt-12 flex justify-center">
