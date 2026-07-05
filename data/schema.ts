@@ -232,13 +232,15 @@ export const dataSource = pgTable(
 );
 
 /**
- * A benchmark definition (evaluation template) the user can run against models.
- * The three built-in benchmarks (SanityCheck, OODGeneralization, AdaptiveCompute)
- * are lazy-seeded on first access. Future user-defined benchmarks will live here.
+ * A benchmark definition — an evaluation protocol that trains models on a
+ * data source and measures performance across held-out conditions.
  *
- * `slug` maps to the `benchmarkName` string consumed by runner.ts
- * (e.g. "SanityCheck" | "OODGeneralization" | "AdaptiveCompute").
- * `configJson` stores any display-facing hyperparams / config (e.g. sequence length).
+ * The benchmark's Python script (scriptR2Key) defines the eval logic:
+ * how to generate test samples, how to score predictions, what metrics to
+ * report. The dataSourceId links it to the training data.
+ *
+ * `slug` is a URL-friendly identifier used in routes and the CLI.
+ * `configJson` stores eval-facing config (test lengths, sample counts, metrics).
  */
 export const benchmark = pgTable(
   "benchmark",
@@ -247,11 +249,15 @@ export const benchmark = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),             // display name, e.g. "OOD Generalization"
-    slug: text("slug").notNull(),             // code name used in runner, e.g. "OODGeneralization"
+    name: text("name").notNull(),             // display name, e.g. "Length Generalization"
+    slug: text("slug").notNull(),             // URL-friendly id, e.g. "length-generalization"
     description: text("description"),
-    configJson: text("configJson"),           // JSON of display-facing config params
+    dataSourceId: text("dataSourceId"),       // FK → data_source.id (which data source this benchmark evaluates)
+    r2Prefix: text("r2Prefix"),               // R2 prefix: benchmarks/{slug}/
+    scriptR2Key: text("scriptR2Key"),         // R2 key of the eval script: benchmarks/{slug}/script.py
+    configJson: text("configJson"),           // JSON of eval config (test lengths, samples per length, metrics)
     createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
   (t) => [
     index("bm_user_created").on(t.userId, t.createdAt),

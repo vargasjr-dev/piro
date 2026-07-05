@@ -126,6 +126,13 @@ await sql`ALTER TABLE benchmark_run DROP COLUMN IF EXISTS passed`;
 await sql`ALTER TABLE benchmark_run ADD COLUMN IF NOT EXISTS "costUsd" REAL`;
 console.log("✓ benchmark_run schema: dropped threshold/passed, added costUsd");
 
+// ── benchmark: add dataSourceId, r2Prefix, scriptR2Key, updatedAt ────────────
+await sql`ALTER TABLE benchmark ADD COLUMN IF NOT EXISTS "dataSourceId" TEXT`;
+await sql`ALTER TABLE benchmark ADD COLUMN IF NOT EXISTS "r2Prefix" TEXT`;
+await sql`ALTER TABLE benchmark ADD COLUMN IF NOT EXISTS "scriptR2Key" TEXT`;
+await sql`ALTER TABLE benchmark ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()`;
+console.log("✓ benchmark: added dataSourceId, r2Prefix, scriptR2Key, updatedAt");
+
 // ── data_source table ─────────────────────────────────────────────────────────
 await sql`
   CREATE TABLE IF NOT EXISTS data_source (
