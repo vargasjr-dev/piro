@@ -26,11 +26,11 @@ export default async function HomePage() {
 
           <h1 className="text-5xl sm:text-6xl font-black tracking-tight mb-6 leading-[1.05]">
             <span className="text-amber-50">
-              Frontier models are unaffordable.
+              Open weights are not enough.
             </span>
             <br />
             <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">
-              We help you build your own.
+              Build your own model.
             </span>
           </h1>
 
@@ -85,133 +85,106 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── THE MATH IS BROKEN ────────────────────────────────────────── */}
+      {/* ── OPEN WEIGHTS ≠ OPEN SOURCE ──────────────────────────────── */}
       <section className="py-24 sm:py-32 px-4 border-t border-amber-900/20">
         <div className="max-w-4xl mx-auto">
           <p className="text-orange-400/80 text-sm font-semibold uppercase tracking-widest mb-4">
-            The math is broken
+            The distinction
           </p>
           <h2 className="text-3xl sm:text-5xl font-bold text-amber-50 mb-12 leading-tight">
-            You can't afford to use what you pay for.
-          </h2>
-
-          <div className="grid sm:grid-cols-3 gap-6 mb-12">
-            <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
-              <p className="text-4xl font-black text-amber-50 mb-2">$20</p>
-              <p className="text-sm text-amber-400/60 leading-relaxed">
-                minimum / month to access a frontier model. That's the cheap
-                tier — no API credits, no real usage.
-              </p>
-            </div>
-            <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
-              <p className="text-4xl font-black text-amber-50 mb-2">$0.015</p>
-              <p className="text-sm text-amber-400/60 leading-relaxed">
-                per 1K tokens on the OpenAI API. A 50-message conversation is
-                $5–$10 in tokens alone.
-              </p>
-            </div>
-            <div className="rounded-xl border border-red-700/40 bg-red-900/10 p-6">
-              <p className="text-4xl font-black text-red-300 mb-2">$200+</p>
-              <p className="text-sm text-amber-200/70 leading-relaxed">
-                real monthly cost for a person who actually uses a frontier
-                model. And you don't own anything.
-              </p>
-            </div>
-          </div>
-
-          <p className="text-lg text-amber-200/80 leading-relaxed max-w-2xl">
-            Every query is a tax. You pay the API, you pay the subscription, and
-            the provider owns the model — so they can raise prices, throttle
-            you, or shut you out whenever they want. The bill grows with your
-            usage. Your leverage shrinks.
-          </p>
-        </div>
-      </section>
-
-      {/* ── OPEN SOURCE FRONTIER DOESN'T EXIST ───────────────────────── */}
-      <section className="py-24 sm:py-32 px-4 border-t border-amber-900/20 bg-[#0a0806]">
-        <div className="max-w-4xl mx-auto">
-          <p className="text-orange-400/80 text-sm font-semibold uppercase tracking-widest mb-4">
-            The uncomfortable truth
-          </p>
-          <h2 className="text-3xl sm:text-5xl font-bold text-amber-50 mb-12 leading-tight">
-            There is no open-source frontier model.
+            Open weights are not open source.
           </h2>
 
           <div className="space-y-6 text-lg text-amber-200/80 leading-relaxed max-w-3xl">
             <p>
               The open-weight models — Llama, Qwen, DeepSeek, Mistral — are{" "}
-              <span className="text-amber-50 font-semibold">good</span>. But
-              they are not frontier. Every benchmark, every leaderboard: the
-              closed frontier labs are six months ahead and the gap is widening.
+              <span className="text-amber-50 font-semibold">genuinely good</span>.
+              You can download them, run them locally, and fine-tune them. That's
+              real progress, and we celebrate it.
+            </p>
+
+            <p>
+              But free weights give you{" "}
+              <span className="text-amber-50 font-semibold">inference</span>, not{" "}
+              <span className="text-amber-50 font-semibold">agency</span>. You
+              can't retrain the model from scratch. You can't change the
+              architecture. You can't swap the attention mechanism for something
+              with memory. You're renting a pre-built brain and customizing the
+              furniture.
             </p>
 
             <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6 my-8">
               <p className="text-base text-amber-200/90 font-medium mb-3">
-                Even when you can run an "open" model:
+                Open source means you control the full pipeline:
               </p>
               <ul className="space-y-2 text-sm text-amber-400/70">
                 <li className="flex gap-3">
                   <span className="text-orange-400 shrink-0">→</span>
-                  Llama 405B needs{" "}
-                  <span className="text-amber-50">$300/hr</span> of H100
-                  capacity to serve one request
+                  The <span className="text-amber-50">architecture</span> — not
+                  just the weights, the design of the model itself
                 </li>
                 <li className="flex gap-3">
                   <span className="text-orange-400 shrink-0">→</span>
-                  "Free" weights still cost{" "}
-                  <span className="text-amber-50">$5K–$50K</span> in GPUs to
-                  fine-tune
+                  The <span className="text-amber-50">training pipeline</span> —
+                  how it learns, what it learns on, how it improves
                 </li>
                 <li className="flex gap-3">
                   <span className="text-orange-400 shrink-0">→</span>
-                  Self-hosting at home means{" "}
-                  <span className="text-amber-50">4-figure hardware</span> and
-                  an electrician
+                  The <span className="text-amber-50">data</span> — your corpus,
+                  your domain, not a generic internet scrape
+                </li>
+                <li className="flex gap-3">
+                  <span className="text-orange-400 shrink-0">→</span>
+                  The <span className="text-amber-50">weights</span> — yours to
+                  keep, version, and deploy anywhere
                 </li>
               </ul>
             </div>
 
             <p>
-              The "open-source frontier" pitch is a lie. The weights are open.
-              The cost of running them is not.
+              That's what Piro gives you. Not a model to download — a{" "}
+              <span className="text-amber-50 font-semibold">model to build</span>.
             </p>
           </div>
         </div>
       </section>
 
-      {/* ── WHAT IF WE ALL BUILT OUR OWN ─────────────────────────────── */}
-      <section className="py-24 sm:py-32 px-4 border-t border-amber-900/20">
+      {/* ── WHAT PIRO IS ────────────────────────────────────────────── */}
+      <section className="py-24 sm:py-32 px-4 border-t border-amber-900/20 bg-[#0a0806]">
         <div className="max-w-4xl mx-auto">
           <p className="text-orange-400/80 text-sm font-semibold uppercase tracking-widest mb-4">
-            The bet
+            What Piro is
           </p>
           <h2 className="text-3xl sm:text-5xl font-bold text-amber-50 mb-12 leading-tight">
-            What if we all built our own?
+            The platform to train your own model.
           </h2>
 
           <div className="space-y-6 text-lg text-amber-200/80 leading-relaxed max-w-3xl">
             <p>
-              Small models trained on{" "}
-              <span className="text-amber-50 font-semibold">your data</span> for{" "}
-              <span className="text-amber-50 font-semibold">your tasks</span>{" "}
-              have caught up to frontier reasoning on narrow domains. A
-              10M-parameter model that's seen your codebase, your notes, your
-              emails — it knows things a 405B-parameter model never will.
+              Piro trains a{" "}
+              <span className="text-amber-50 font-semibold">tiny model</span> —
+              ~10M parameters — on{" "}
+              <span className="text-amber-50 font-semibold">your data</span>,
+              against{" "}
+              <span className="text-amber-50 font-semibold">your benchmarks</span>.
+              Not a fine-tune of someone else's model. A model trained from
+              scratch, on your terms, that you own completely.
             </p>
 
             <p>
-              The frontier labs have a billion users and one model.{" "}
+              The architecture is a{" "}
               <span className="text-amber-50 font-semibold">
-                We have one user and one model each.
+                Continuous Thought Machine
               </span>{" "}
-              That's not a disadvantage — it's a moat.
+              — a memory-enabled successor to the transformer. Instead of
+              processing tokens in a single pass, it thinks in bursts: refining,
+              recalling, and adjusting across multiple cycles. It's the research
+              frontier for models that reason, not just predict.
             </p>
 
             <p>
-              Piro is the ecosystem for this. Train your own tiny model. Keep
-              it. Query it forever. When the frontier raises prices, your model
-              is already trained.
+              You keep the weights. Query them forever. No per-token tax, no API
+              dependency, no one can take it away.
             </p>
           </div>
 
@@ -233,8 +206,8 @@ export default async function HomePage() {
                 Train your model
               </p>
               <p className="text-sm text-amber-400/60 leading-relaxed">
-                Two runs per month. We run the GPUs. You keep the weights —
-                checkpointed and versioned.
+                We run the GPUs. You keep the weights — checkpointed and
+                versioned.
               </p>
             </div>
             <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
@@ -243,8 +216,8 @@ export default async function HomePage() {
                 Query it forever
               </p>
               <p className="text-sm text-amber-400/60 leading-relaxed">
-                Unlimited inference. Your model, your API, your cost — fixed at
-                $100/mo regardless of usage.
+                Unlimited inference. Your model, your API, your cost — fixed
+                regardless of usage.
               </p>
             </div>
           </div>
@@ -328,7 +301,7 @@ export default async function HomePage() {
       <section className="py-24 sm:py-32 px-4 border-t border-amber-900/20">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-3xl sm:text-5xl font-bold text-amber-50 mb-6 leading-tight">
-            The frontier is closed.
+            Stop renting intelligence.
             <br />
             <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">
               Build your own.
@@ -336,8 +309,8 @@ export default async function HomePage() {
           </h2>
 
           <p className="text-amber-200/70 text-lg mb-10 leading-relaxed">
-            Join the people building an ecosystem of tiny, owned, personal
-            models — one user at a time.
+            Join the community training tiny, owned models on their own data —
+            and exploring what comes after the transformer.
           </p>
 
           <Link
