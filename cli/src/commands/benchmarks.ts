@@ -75,6 +75,37 @@ export async function benchmarksCreate(
   console.log(`Created benchmark: ${id}`);
 }
 
+export async function benchmarksRun(id: string, opts: { model?: string }) {
+  const config = resolveConfig();
+
+  const payload: Record<string, unknown> = {};
+  if (opts.model) payload.modelId = opts.model;
+
+  const { ok, status, body } = await piroFetch(
+    config,
+    `/api/benchmarks/${id}/run`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+
+  if (!ok) {
+    const err = body as Record<string, unknown> | null;
+    console.error(`Error ${status}: ${err?.error ?? "run failed"}`);
+    process.exit(1);
+  }
+
+  const result = body as {
+    suiteRunId: string;
+    benchmarkId: string;
+    benchmarkName: string;
+    modelId: string;
+    modelName: string;
+    status: string;
+  };
+  console.log(`Triggered run: ${result.benchmarkName} on ${result.modelName}`);
+  console.log(`  suiteRunId: ${result.suiteRunId}`);
+  console.log(`  status: ${result.status}`);
+}
+
 export async function benchmarksPull(id: string, opts: { out?: string }) {
   const config = resolveConfig();
   const outFile = opts.out ?? "benchmark.py";

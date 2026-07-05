@@ -130,6 +130,25 @@ export default function BenchmarkDetail({
   runs: RunRow[];
 }) {
   const [tab, setTab] = useState<Tab>("preview");
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+
+  async function handleRun() {
+    setRunning(true);
+    setRunError(null);
+    try {
+      const res = await fetch(`/api/benchmarks/${benchmark.id}/run`, { method: "POST" });
+      if (!res.ok) {
+        const d = await res.json() as { error?: string };
+        throw new Error(d.error ?? "Run failed");
+      }
+      // Reload to pick up the new run in the runs tab
+      window.location.reload();
+    } catch (e) {
+      setRunError(e instanceof Error ? e.message : String(e));
+      setRunning(false);
+    }
+  }
 
   const configEntries = benchmark.config
     ? Object.entries(benchmark.config)
@@ -163,6 +182,33 @@ export default function BenchmarkDetail({
         <span className="text-amber-700/30">
           Updated {new Date(benchmark.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
         </span>
+        {runError && (
+          <span className="text-red-400/60 text-[10px]">{runError}</span>
+        )}
+        <div className="ml-auto">
+          <button
+            onClick={handleRun}
+            disabled={running || !benchmark.hasScript}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-orange-500/30 bg-orange-500/10 text-[11px] font-semibold text-amber-200/80 hover:bg-orange-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {running ? (
+              <>
+                <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Running…
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                </svg>
+                Run
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Tab bar */}
