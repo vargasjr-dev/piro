@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "~/lib/auth.server";
 import { getSubscription, isActive } from "~/lib/billing";
+import { isAdmin } from "~/lib/admin";
 import SideNav from "./SideNav";
 
 // Pages accessible to logged-in users without an active subscription.
@@ -33,13 +34,15 @@ export default async function AppLayout({
   const isFree = FREE_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
   const isAdminPath = pathname.startsWith(ADMIN_PATH_PREFIX);
 
-  if (!isActive(sub) && !isFree && !isAdminPath) {
+  // Admins bypass the subscription gate entirely — they can use all app
+  // features without paying, and they need access to bootstrap billing.
+  if (!isActive(sub) && !isFree && !isAdminPath && !isAdmin(session)) {
     redirect("/upgrade");
   }
 
   return (
     <div className="min-h-screen bg-[#0d0a08] lg:flex">
-      <SideNav userName={session.user.name} isSubscribed={isActive(sub)} />
+      <SideNav userName={session.user.name} isSubscribed={isActive(sub) || isAdmin(session)} />
       <main className="flex-1 min-w-0 pb-20 lg:pb-0">{children}</main>
     </div>
   );

@@ -6,6 +6,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { buildDefaultClasses } from "~/lib/model-classes";
 import { getSubscription, isActive, hasTrainingRunsRemaining } from "~/lib/billing";
+import { isAdmin } from "~/lib/admin";
 
 // ── GET /api/training-runs ────────────────────────────────────────────────────
 
@@ -55,14 +56,17 @@ export async function POST(request: Request) {
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   // ── Subscription + quota check ────────────────────────────────────────────
+  // Admins bypass the subscription gate — they can start training runs
+  // without paying, useful for testing the full pipeline.
+  const adminBypass = isAdmin(session);
   const sub = await getSubscription(session.user.id);
-  if (!isActive(sub)) {
+  if (!isActive(sub) && !adminBypass) {
     return Response.json(
       { error: "Active subscription required to start a training run" },
       { status: 402 }
     );
   }
-  if (!hasTrainingRunsRemaining(sub)) {
+  if (!adminBypass && !hasTrainingRunsRemaining(sub)) {
     return Response.json(
       {
         error: `Training run quota reached (${sub!.trainingRunsUsed}/${sub!.trainingRunsLimit} this period). Upgrade or wait until your next billing period.`,
@@ -133,14 +137,16 @@ export async function POST(request: Request) {
     configJson,
   });
 
-  // Increment the quota counter atomically
-  await db
-    .update(subscription)
-    .set({
-      trainingRunsUsed: sql`${subscription.trainingRunsUsed} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(eq(subscription.userId, session.user.id));
+  // Increment the quota counter atomically (admins have no quota to track)
+  if (!adminBypass) {
+    await db
+      .update(subscription)
+      .set({
+        trainingRunsUsed: sql`${subscription.trainingRunsUsed} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(subscription.userId, session.user.id));
+  }
 
   // ── Trigger Modal training worker ─────────────────────────────────────────
   // Modal's web endpoint spawns async and returns 200 immediately, so this
