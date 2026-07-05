@@ -17,27 +17,6 @@ interface SourceRow {
   createdAt: string;
 }
 
-function TypeChip({ type }: { type: string }) {
-  if (type === "synthetic") {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-violet-900/20 border border-violet-700/20 text-violet-400/70">
-        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
-        </svg>
-        Synthetic
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-teal-900/20 border border-teal-700/20 text-teal-400/70">
-      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-      </svg>
-      Uploaded
-    </span>
-  );
-}
-
 function SourceCard({ source }: { source: SourceRow }) {
   const hasData = source.r2Prefix !== null && source.generatedAt !== null;
   return (
@@ -49,7 +28,6 @@ function SourceCard({ source }: { source: SourceRow }) {
         <div className="flex-1 min-w-0 space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm font-semibold text-amber-100">{source.name}</h3>
-            <TypeChip type={source.type} />
             {!hasData && (
               <span className="text-[10px] text-amber-700/30 italic">not generated</span>
             )}
