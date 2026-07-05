@@ -2,9 +2,10 @@ import { readFile, writeFile } from "node:fs/promises";
 import { piroFetch, resolveConfig } from "../client.js";
 
 /**
- * Create / pull / push data sources — mirrors `piro classes` pattern.
+ * Create / list / pull / push data sources — mirrors `piro classes` pattern.
  *
  *   piro sources create <id> --name "Counter Sequences" [--description "..."]
+ *   piro sources list
  *   piro sources pull <id> [--out <file>]
  *   piro sources push <id> [--file <file>]
  *
@@ -13,6 +14,40 @@ import { piroFetch, resolveConfig } from "../client.js";
  *   by generate-source.mjs, not authored by hand. The script is the only file
  *   worth round-tripping through git/version control.
  */
+
+interface SourceSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  type: string;
+  sampleCount: number | null;
+  createdAt: string;
+}
+
+export async function sourcesList() {
+  const config = resolveConfig();
+
+  const { ok, status, body } = await piroFetch(config, "/api/data-sources");
+
+  if (!ok) {
+    const err = body as Record<string, unknown> | null;
+    console.error(`Error ${status}: ${err?.error ?? "list failed"}`);
+    process.exit(1);
+  }
+
+  const { sources } = body as { sources: SourceSummary[] };
+
+  if (sources.length === 0) {
+    console.log("No data sources found.");
+    return;
+  }
+
+  for (const s of sources) {
+    const samples = s.sampleCount ? `${s.sampleCount.toLocaleString()} samples` : "no data";
+    const desc = s.description ? ` — ${s.description.slice(0, 60)}` : "";
+    console.log(`${s.id}  ${s.name}  (${samples})${desc}`);
+  }
+}
 
 export async function sourcesCreate(
   id: string,
