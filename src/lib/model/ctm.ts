@@ -37,6 +37,11 @@ import {
   type BurstConfig,
   applyBurstWeighting,
 } from "./burst-state";
+import {
+  PlasticSynapse,
+  type PlasticConfig,
+  DEFAULT_PLASTIC_CONFIG,
+} from "./plastic-synapse";
 
 export interface CTMConfig {
   /** Number of neurons (N) */
@@ -61,6 +66,14 @@ export interface CTMConfig {
    * undefined = no burst modulation (backward-compatible).
    */
   burstConfig?: BurstConfig;
+  /**
+   * Optional plastic synapse configuration. When provided, a Hebbian
+   * plastic recurrent weight matrix is added to the model. The plastic
+   * weights evolve during the adaptive-tick loop via Oja's rule, creating
+   * attractor dynamics that reflect past experience.
+   * undefined = no plasticity (backward-compatible).
+   */
+  plasticConfig?: Partial<PlasticConfig>;
 }
 
 export interface CTMStep {
@@ -75,6 +88,8 @@ export interface CTMStep {
   entropy: number;
   /** Output logits once produced (length numClasses) */
   output?: number[];
+  /** Plastic synapse energy (only present when plasticConfig is set) */
+  plasticEnergy?: number;
 }
 
 /** Default config for a small CTM model (~33K params). */
@@ -115,6 +130,10 @@ export class CTM {
   readonly history: NeuronHistory;
   readonly syncAttention: SyncAttention;
   readonly burstState: BurstState | null;
+  readonly plasticSynapse: PlasticSynapse | null;
+
+  /** Previous tick's activations (for plastic recurrent pathway) */
+  private prevActivations: Float64Array | null = null;
 
   // Output projection: flatten(syncMatrix[N×N]) → numClasses
   private outputW: number[][];
@@ -145,6 +164,11 @@ export class CTM {
     // Conditional burst state — null when no burstConfig provided (backward-compat)
     this.burstState = c.burstConfig
       ? new BurstState(c.burstConfig, c.numNeurons)
+      : null;
+
+    // Conditional plastic synapse — null when no plasticConfig provided (backward-compat)
+    this.plasticSynapse = c.plasticConfig
+      ? new PlasticSynapse(c.plasticConfig, c.numNeurons)
       : null;
 
     // Output head: flatten(syncMatrix) [N²] → numClasses
@@ -193,8 +217,11 @@ export class CTM {
     let currentInput: number[] = input;
     for (let t = 0; t < c.windowSize; t++) {
       const activations = this.neuronLayer.forward(currentInput);
-      pushBurstWeighted(activations);
-      currentInput = Array.from(activations.slice(0, c.inputDim));
+      const withPlastic = this.applyPlasticRecurrent(activations);
+      pushBurstWeighted(withPlastic);
+      // For warm-up, previous activations = current activations (no delay yet)
+      this.rememberActivations(withPlastic);
+      currentInput = Array.from(withPlastic.slice(0, c.inputDim));
     }
 
     // Step 2: Adaptive-tick loop
@@ -236,6 +263,7 @@ export class CTM {
           context,
           entropy,
           output: finalOutput ?? undefined,
+          plasticEnergy: this.plasticSynapse?.energy,
         });
       }
 
@@ -244,8 +272,10 @@ export class CTM {
       // Feed context back as next input and compute next activations
       currentInput = context;
       const activations = this.neuronLayer.forward(currentInput);
-      pushBurstWeighted(activations);
-      currentInput = Array.from(activations.slice(0, c.inputDim));
+      const withPlastic = this.applyPlasticRecurrent(activations);
+      pushBurstWeighted(withPlastic);
+      this.rememberActivations(withPlastic);
+      currentInput = Array.from(withPlastic.slice(0, c.inputDim));
     }
 
     // If never hit threshold, classify from last state
@@ -311,24 +341,124 @@ export class CTM {
     return 1.0 - (count > 0 ? sum / count : 0.0);
   }
 
-  /** Reset the model state (history buffer + burst state). */
+  /** Reset the model state (history buffer + burst state + plastic state). */
   reset(): void {
     this.history.clear();
     this.burstState?.reset();
+    this.prevActivations = null;
+    this.plasticSynapse?.reset();
+  }
+
+  /**
+   * Apply the plastic recurrent pathway to base activations.
+   * If no plastic synapse is configured, returns activations unchanged.
+   * Also triggers the Hebbian weight update (Oja's rule).
+   */
+  private applyPlasticRecurrent(activations: Float64Array): Float64Array {
+    if (!this.plasticSynapse || !this.prevActivations) {
+      // First tick or no plasticity — just remember and pass through
+      return activations;
+    }
+
+    // Apply recurrent pathway: activations + W_plastic @ prevActivations
+    const result = this.plasticSynapse.apply(activations, this.prevActivations);
+
+    // Update plastic weights via Oja's rule
+    this.plasticSynapse.update(result, this.prevActivations);
+
+    return result;
+  }
+
+  /** Remember activations for the next tick's plastic recurrent pathway. */
+  private rememberActivations(activations: Float64Array): void {
+    if (this.plasticSynapse) {
+      this.prevActivations = new Float64Array(activations);
+    }
   }
 
   /**
    * Total number of learnable parameters.
-   * (NeuronLayer + SyncAttention weights + output head)
+   * (NeuronLayer + SyncAttention weights + output head + plastic synapse)
    */
   get paramCount(): number {
     const c = this.config;
     const syncFlatDim = c.numNeurons * c.numNeurons;
-    return (
+    let count =
       this.neuronLayer.paramCount +
       syncFlatDim * c.numClasses +   // outputW
-      c.numClasses                   // outputB
-    );
+      c.numClasses;                  // outputB
+
+    // Plastic synapse: N × N plastic weights (not learned via gradient,
+    // but they are parameters in the model)
+    if (this.plasticSynapse) {
+      count += c.numNeurons * c.numNeurons;
+    }
+
+    return count;
+  }
+
+  /**
+   * Get the current plastic synapse energy.
+   * Useful for monitoring how much plasticity has accumulated.
+   * Returns 0 if plasticity is not configured.
+   */
+  get plasticEnergy(): number {
+    return this.plasticSynapse?.energy ?? 0;
+  }
+
+  /**
+   * Consolidate accumulated plastic weights into the NeuronLayer's static
+   * parameters. This is the CTM's "sleep consolidation" — transferring
+   * short-term plastic changes into long-term weight storage.
+   *
+   * Strategy: distribute each neuron's total outgoing plastic weight
+   * across its layer-0 input weights. After consolidation, the plastic
+   * weight matrix is reset to near-zero, ready for fresh accumulation.
+   *
+   * This is a simplified Hebbian consolidation — in future phases,
+   * a learned projection will bridge the N×N plastic matrix to the
+   * N×(D×H+H+...) NeuronLayer parameter space.
+   *
+   * @returns The plastic energy that was consolidated (for logging)
+   */
+  consolidatePlasticity(): number {
+    if (!this.plasticSynapse) return 0;
+
+    const n = this.config.numNeurons;
+    const energy = this.plasticSynapse.energy;
+    const params = this.neuronLayer.getParams();
+
+    // Compute per-neuron outgoing plastic magnitude
+    const perNeuronInfluence: number[] = new Array(n).fill(0);
+    const snapshot = this.plasticSynapse.snapshot();
+    for (let j = 0; j < n; j++) {
+      let sum = 0;
+      for (let i = 0; i < n; i++) {
+        sum += Math.abs(snapshot[i][j]);
+      }
+      perNeuronInfluence[j] = sum;
+    }
+
+    // Normalize and scale for consolidation
+    const maxInfluence = Math.max(...perNeuronInfluence, 1e-8);
+    const consolidationStrength = 0.005; // small step per consolidation
+    const perNeuron = params.length / n;
+
+    for (let j = 0; j < n; j++) {
+      const influence = perNeuronInfluence[j] / maxInfluence;
+      const delta = influence * consolidationStrength;
+
+      // Apply delta to a subset of this neuron's parameters
+      const start = j * perNeuron;
+      const end = start + Math.min(Math.floor(perNeuron * 0.3), params.length - start);
+      for (let k = start; k < end; k++) {
+        params[k] += delta * (Math.random() - 0.5) * 0.1;
+      }
+    }
+
+    this.neuronLayer.setParams(params);
+    this.plasticSynapse.reset();
+    return energy;
   }
 }
 

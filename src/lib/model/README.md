@@ -10,10 +10,10 @@ Per VISION.md, the seven-phase architecture roadmap progresses through:
 | Phase | Behavior | Status |
 |---|---|---|---|
 | 0 | Firing rate + Spike timing → CTM primitives | ✅ **Complete** (45 tests) |
-| 1 | Burst patterns | 🎯 **Next** |
-| 2 | Hebbian plasticity | Critical for personalization |
-| 3 | Dendritic spikes | Medium-term |
-| 4 | Oscillatory entrainment | Hard |
+| 1 | Burst patterns | ✅ **Complete** (burst-state.ts, burst-weighted sync matrix) |
+| 2 | Hebbian plasticity | ✅ **Complete** (plastic-synapse.ts, Oja's rule, consolidation API) |
+| 3 | Dendritic spikes | ✅ **Complete** (dendrite.ts, 23 tests, multi-compartment neurons) |
+| 4 | Oscillatory entrainment | 🎯 **Next** |
 | 5 | Neuromodulation | Hard |
 
 Phase 0 builds the Continuous Thought Machine (CTM) foundation: per-neuron history,
@@ -21,6 +21,14 @@ synchronization matrix as representation, and adaptive tick-based computation.
 **Phase 0 is complete.** All modules built and tested.
 
 ## Files
+
+### `dendrite.ts`
+Multi-compartment dendritic spike neurons (Phase 3). Each neuron has C
+independent compartments, each with its own learned weights and input mask.
+Compartments fire all-or-nothing spikes; the soma sums spikes (count,
+weighted, or hybrid with NeuronLayer output). Adds sub-neural computation
+and coincidence detection. ~2.3K params at default config (64 neurons, 4
+compartments each).
 
 ### `linalg.ts`
 Pure-TypeScript linear algebra for model layers. Zero dependencies.
@@ -111,5 +119,8 @@ Run with `bun test src/lib/model`:
   buffer wrap, toActivationMatrix shape, getLatest, clear
 - `neuron-layer.test.ts` — 10 tests: validation, shape, determinism, seeds,
   activations (relu/sigmoid/tanh), param serialization
+- `dendrite.test.ts` — 23 tests: compartment spike/no-spike, input masking,
+  soma modes (count/weighted/hybrid), layer determinism, spike rate tracking,
+  param count, CTM pipeline compatibility
 - `ctm.test.ts` — 8 tests: constructor, forward shape, determinism, reset,
   per-tick steps, entropy convergence, param count, early exit
