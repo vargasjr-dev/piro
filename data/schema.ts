@@ -43,6 +43,42 @@ export const user = pgTable("user", {
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
 
+/**
+ * A repository — the root unit of model development in Piro.
+ *
+ * Like a GitHub repo, a Piro repo is a self-contained workspace that holds
+ * all the components of a research line: data sources, architectures,
+ * benchmarks, training configs, runs, and models. Everything co-evolves
+ * within a repo and is version-controlled together.
+ *
+ * R2 prefix: repos/{id}/
+ *   repos/{id}/data/{sourceId}/script.py
+ *   repos/{id}/architectures/{classId}/model.py
+ *   repos/{id}/benchmarks/{benchmarkId}/script.py
+ *   repos/{id}/training/
+ *   repos/{id}/runs/
+ *   repos/{id}/models/
+ */
+export const repository = pgTable(
+  "repository",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),             // URL-friendly id, unique per user
+    description: text("description"),
+    r2Prefix: text("r2Prefix"),               // repos/{id}/
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => [
+    index("repo_user_created").on(t.userId, t.createdAt),
+    unique("repo_user_slug").on(t.userId, t.slug),
+  ]
+);
+
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expiresAt").notNull(),
@@ -216,6 +252,7 @@ export const dataSource = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    repositoryId: text("repositoryId"),      // FK → repository.id (nullable for legacy rows)
     name: text("name").notNull(),
     description: text("description"),
     type: text("type").notNull().default("synthetic"), // 'synthetic' | 'uploaded'
@@ -249,6 +286,7 @@ export const benchmark = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    repositoryId: text("repositoryId"),      // FK → repository.id (nullable for legacy rows)
     name: text("name").notNull(),             // display name, e.g. "Length Generalization"
     slug: text("slug").notNull(),             // URL-friendly id, e.g. "length-generalization"
     description: text("description"),
@@ -281,6 +319,7 @@ export const modelClass = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    repositoryId: text("repositoryId"),      // FK → repository.id (nullable for legacy rows)
     name: text("name").notNull(),
     slug: text("slug").notNull(),             // maps to modal_app.py modelTemplate key
     description: text("description"),
@@ -313,6 +352,7 @@ export const trainingRun = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    repositoryId: text("repositoryId"),      // FK → repository.id (nullable for legacy rows)
     modelName: text("modelName"),                    // user-specified label for the resulting model
     modelTemplate: text("modelTemplate").notNull(), // 'ctm' | 'baseline-transformer'
     dataSource: text("dataSource").notNull(),        // 'sorting-sequences'

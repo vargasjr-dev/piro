@@ -45,6 +45,16 @@ function SignOutButton({ className }: { className: string }) {
 
 const NAV_ITEMS = [
   {
+    label: "Repositories",
+    shortLabel: "Repos",
+    href: "/repos",
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 7.5L12 3l9 4.5M3 7.5L12 12m-9-4.5v9L12 21m0-9l9-4.5m-9 4.5v9m9-13.5v9L12 21" />
+      </svg>
+    ),
+  },
+  {
     label: "Data Sources",
     shortLabel: "Sources",
     href: "/sources",
