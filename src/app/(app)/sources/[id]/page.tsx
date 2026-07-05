@@ -71,6 +71,8 @@ export default async function SourcePage({
           scriptR2Key: source.scriptR2Key,
           sampleCount: source.sampleCount,
           generatedAt: source.generatedAt?.toISOString() ?? null,
+          createdAt: source.createdAt.toISOString(),
+          updatedAt: source.updatedAt.toISOString(),
           files,
         }}
       />

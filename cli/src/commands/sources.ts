@@ -80,6 +80,25 @@ export async function sourcesCreate(
   }
 }
 
+export async function sourcesGenerate(id: string) {
+  const config = resolveConfig();
+
+  const { ok, status, body } = await piroFetch(
+    config,
+    `/api/data-sources/${id}/generate`,
+    { method: "POST" },
+  );
+
+  if (!ok) {
+    const err = body as Record<string, unknown> | null;
+    console.error(`Error ${status}: ${err?.error ?? "generate failed"}`);
+    process.exit(1);
+  }
+
+  const { sampleCount } = body as { ok: boolean; sampleCount: number };
+  console.log(`Generated ${sampleCount.toLocaleString()} samples → source ${id}`);
+}
+
 export async function sourcesPull(id: string, opts: { out?: string }) {
   const config = resolveConfig();
   const outFile = opts.out ?? "script.py";

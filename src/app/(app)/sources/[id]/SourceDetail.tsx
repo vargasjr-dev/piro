@@ -11,6 +11,8 @@ interface SourceRow {
   scriptR2Key: string | null;
   sampleCount: number | null;
   generatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
   files: string[]; // paths relative to r2Prefix, e.g. ["data/train.jsonl", "data/test.jsonl"]
 }
 
@@ -229,18 +231,23 @@ export default function SourceDetail({ source: initialSource }: { source: Source
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Meta row */}
-      <div className="px-4 py-3 border-b border-amber-900/15 flex items-center gap-4 text-[11px] shrink-0">
+      <div className="px-4 py-3 border-b border-amber-900/15 flex items-center gap-4 text-[11px] shrink-0 flex-wrap">
         {source.sampleCount !== null && (
           <span className="text-amber-600/40">
             <span className="font-mono text-amber-500/60">{source.sampleCount.toLocaleString()}</span> samples
           </span>
         )}
-        {source.generatedAt && (
+        <span className="text-amber-700/30">
+          Created {new Date(source.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+        </span>
+        <span className="text-amber-700/30">
+          Updated {new Date(source.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+        </span>
+        {source.generatedAt ? (
           <span className="text-amber-600/40">
             Generated {new Date(source.generatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
           </span>
-        )}
-        {!hasData && (
+        ) : (
           <span className="text-amber-700/30 italic">Not yet generated</span>
         )}
         <div className="ml-auto">
