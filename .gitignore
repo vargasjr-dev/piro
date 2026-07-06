@@ -23,3 +23,5 @@ dist/
 model/results/*.json
 node_modules
 .piro/
+.vercel
+.env*

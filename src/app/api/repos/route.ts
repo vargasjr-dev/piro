@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../data/db";
-import { repository } from "../../../../data/schema";
+import { repository, user } from "../../../../data/schema";
 import { eq, desc } from "drizzle-orm";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
 
@@ -33,8 +33,18 @@ export async function GET(request: Request) {
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const repos = await db
-    .select()
+    .select({
+      id: repository.id,
+      name: repository.name,
+      slug: repository.slug,
+      description: repository.description,
+      r2Prefix: repository.r2Prefix,
+      createdAt: repository.createdAt,
+      updatedAt: repository.updatedAt,
+      ownerUsername: user.username,
+    })
     .from(repository)
+    .innerJoin(user, eq(repository.userId, user.id))
     .where(eq(repository.userId, userId))
     .orderBy(desc(repository.createdAt));
 
@@ -44,6 +54,7 @@ export async function GET(request: Request) {
       name: r.name,
       slug: r.slug,
       description: r.description ?? null,
+      ownerUsername: r.ownerUsername,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     })),

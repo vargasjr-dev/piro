@@ -3,8 +3,15 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { eq, and, desc } from "drizzle-orm";
-import { db } from "../../../../../data/db";
-import { repository, dataSource, benchmark, modelClass, trainingRun } from "../../../../../data/schema";
+import { db } from "../../../../../../data/db";
+import {
+  repository,
+  dataSource,
+  benchmark,
+  modelClass,
+  trainingRun,
+  user,
+} from "../../../../../../data/schema";
 
 interface ComponentItem {
   id: string;
@@ -62,26 +69,35 @@ function Section({
 export default async function RepoPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ username: string; slug: string }>;
 }) {
-  const { id } = await params;
+  const { username: ownerHandle, slug } = await params;
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
+
+  // Resolve username → user, then find repo by (userId, slug)
+  const [owner] = await db
+    .select()
+    .from(user)
+    .where(eq(user.username, ownerHandle))
+    .limit(1);
+
+  if (!owner) notFound();
 
   const [repo] = await db
     .select()
     .from(repository)
-    .where(and(eq(repository.id, id), eq(repository.userId, session.user.id)))
+    .where(and(eq(repository.userId, owner.id), eq(repository.slug, slug)))
     .limit(1);
 
   if (!repo) notFound();
 
   // Fetch components belonging to this repo
   const [sources, benchmarks, classes, runs] = await Promise.all([
-    db.select().from(dataSource).where(eq(dataSource.repositoryId, id)).orderBy(desc(dataSource.createdAt)),
-    db.select().from(benchmark).where(eq(benchmark.repositoryId, id)).orderBy(desc(benchmark.createdAt)),
-    db.select().from(modelClass).where(eq(modelClass.repositoryId, id)).orderBy(desc(modelClass.createdAt)),
-    db.select().from(trainingRun).where(eq(trainingRun.repositoryId, id)).orderBy(desc(trainingRun.queuedAt)).limit(10),
+    db.select().from(dataSource).where(eq(dataSource.repositoryId, repo.id)).orderBy(desc(dataSource.createdAt)),
+    db.select().from(benchmark).where(eq(benchmark.repositoryId, repo.id)).orderBy(desc(benchmark.createdAt)),
+    db.select().from(modelClass).where(eq(modelClass.repositoryId, repo.id)).orderBy(desc(modelClass.createdAt)),
+    db.select().from(trainingRun).where(eq(trainingRun.repositoryId, repo.id)).orderBy(desc(trainingRun.queuedAt)).limit(10),
   ]);
 
   return (

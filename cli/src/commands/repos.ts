@@ -20,6 +20,7 @@ interface RepoSummary {
   name: string;
   slug: string;
   description: string | null;
+  ownerUsername: string | null;
   createdAt: string;
 }
 
@@ -59,7 +60,8 @@ export async function reposList() {
   for (const r of repos) {
     const active = r.id === activeId ? " ← active" : "";
     const desc = r.description ? ` — ${r.description.slice(0, 50)}` : "";
-    console.log(`${r.id}  ${r.name}${desc}${active}`);
+    const handle = r.ownerUsername ? `${r.ownerUsername}/${r.slug}` : r.id;
+    console.log(`${handle}  ${r.name}${desc}${active}`);
   }
 }
 
