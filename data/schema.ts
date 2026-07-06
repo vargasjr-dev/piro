@@ -39,6 +39,8 @@ export const user = pgTable("user", {
   image: text("image"),
   /** "user" (default) | "admin" — admins use Stripe test mode for billing flows. */
   role: text("role").notNull().default("user"),
+  /** URL-friendly handle, unique across all users. Used in routes like /repos/{username}/{slug}. */
+  username: text("username").unique(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });

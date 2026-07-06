@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../../../../data/db";
-import { repository } from "../../../../data/schema";
+import { repository, user } from "../../../../data/schema";
 
 interface RepoRow {
   id: string;
@@ -11,12 +11,13 @@ interface RepoRow {
   slug: string;
   description: string | null;
   createdAt: string;
+  ownerUsername: string;
 }
 
 function RepoCard({ repo }: { repo: RepoRow }) {
   return (
     <Link
-      href={`/repos/${repo.id}`}
+      href={`/repos/${repo.ownerUsername}/${repo.slug}`}
       className="block px-4 py-3.5 rounded-xl border border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
     >
       <div className="flex items-center gap-3">
@@ -31,7 +32,7 @@ function RepoCard({ repo }: { repo: RepoRow }) {
             <p className="text-[11px] text-amber-600/40 leading-relaxed truncate max-w-xs">{repo.description}</p>
           )}
           <div className="flex items-center gap-3 text-[11px]">
-            <span className="font-mono text-amber-500/40">{repo.slug}</span>
+            <span className="font-mono text-amber-500/40">{repo.ownerUsername}/{repo.slug}</span>
             <span className="text-amber-700/30">
               {new Date(repo.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
             </span>
@@ -50,8 +51,16 @@ export default async function ReposPage() {
   if (!session) return null;
 
   const repos = await db
-    .select()
+    .select({
+      id: repository.id,
+      name: repository.name,
+      slug: repository.slug,
+      description: repository.description,
+      createdAt: repository.createdAt,
+      ownerUsername: user.username,
+    })
     .from(repository)
+    .innerJoin(user, eq(repository.userId, user.id))
     .where(eq(repository.userId, session.user.id))
     .orderBy(desc(repository.createdAt));
 
@@ -61,6 +70,7 @@ export default async function ReposPage() {
     slug: r.slug,
     description: r.description,
     createdAt: r.createdAt.toISOString(),
+    ownerUsername: r.ownerUsername ?? "unknown",
   }));
 
   return (
