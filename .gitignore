@@ -22,3 +22,4 @@ dist/
 # Benchmark result snapshots (generated — keep only .gitkeep)
 model/results/*.json
 node_modules
+.piro/
