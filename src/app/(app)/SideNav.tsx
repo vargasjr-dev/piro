@@ -179,7 +179,9 @@ export default function SideNav({ userName, isSubscribed }: Props) {
             )}
           </div>
           {userName && (
-            <p className="text-xs text-amber-400/30 truncate">{userName}</p>
+            <Link href="/profile" className="text-xs text-amber-400/30 truncate hover:text-amber-200 transition block">
+              {userName}
+            </Link>
           )}
           <SignOutButton className="text-xs text-amber-400/50 hover:text-amber-200 transition disabled:opacity-50" />
         </div>
@@ -193,7 +195,12 @@ export default function SideNav({ userName, isSubscribed }: Props) {
             <FlameLogo size={22} />
             <span className="font-bold text-amber-50 tracking-tight">Piro</span>
           </Link>
-          <SignOutButton className="text-sm text-amber-400/60 hover:text-amber-200 transition disabled:opacity-50" />
+          <div className="flex items-center gap-4">
+            <Link href="/profile" className="text-amber-400/60 hover:text-amber-200 transition text-sm">
+              Profile
+            </Link>
+            <SignOutButton className="text-sm text-amber-400/60 hover:text-amber-200 transition disabled:opacity-50" />
+          </div>
         </header>
       </div>
 
