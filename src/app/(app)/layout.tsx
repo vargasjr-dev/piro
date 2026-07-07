@@ -6,7 +6,7 @@ import { isAdmin } from "~/lib/admin";
 import SideNav from "./SideNav";
 
 // Pages accessible to logged-in users without an active subscription.
-const FREE_PATHS = ["/upgrade", "/dashboard"];
+const FREE_PATHS = ["/upgrade", "/dashboard", "/profile"];
 
 // Admin paths (e.g. /admin/stripe) are accessible to admins regardless of
 // subscription status — admins need to bootstrap Stripe before any subs exist.
