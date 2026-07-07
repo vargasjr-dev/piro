@@ -5,6 +5,17 @@ import { auth } from "~/lib/auth.server";
 import { db } from "../../../../data/db";
 import { modelClass } from "../../../../data/schema";
 import { r2PutText } from "~/lib/r2";
+import { extractBearer, validateApiKey } from "~/lib/api-auth";
+
+async function resolveUserId(request: Request): Promise<string | null> {
+  const bearer = extractBearer(request);
+  if (bearer) {
+    const keyAuth = await validateApiKey(bearer);
+    if (keyAuth?.userId) return keyAuth.userId;
+  }
+  const session = await auth.api.getSession({ headers: await headers() });
+  return session?.user.id ?? null;
+}
 
 // ── POST /api/classes ─────────────────────────────────────────────────────────
 // Accepts multipart FormData:
@@ -14,10 +25,11 @@ import { r2PutText } from "~/lib/r2";
 //   module      File   (optional .py source — uploaded to R2)
 //
 // Returns { id, slug } on 201.
+// Auth: session cookie or Bearer API key.
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await resolveUserId(request);
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const form = await request.formData();
   const name = (form.get("name") as string | null)?.trim();
@@ -35,7 +47,7 @@ export async function POST(request: Request) {
   try {
     await db.insert(modelClass).values({
       id,
-      userId: session.user.id,
+      userId,
       name,
       slug,
       description,
@@ -79,14 +91,15 @@ export async function POST(request: Request) {
 }
 
 // ── GET /api/classes ──────────────────────────────────────────────────────────
-export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+// Auth: session cookie or Bearer API key.
+export async function GET(request: Request) {
+  const userId = await resolveUserId(request);
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const classes = await db
     .select()
     .from(modelClass)
-    .where(eq(modelClass.userId, session.user.id));
+    .where(eq(modelClass.userId, userId));
 
   return Response.json({ classes });
 }
