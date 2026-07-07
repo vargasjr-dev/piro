@@ -121,8 +121,8 @@ class Trainer:
         # R2 (user data). This setup() must be updated to download the model.py for
         # the requested training_run.modelTemplate from R2 and import it dynamically
         # before training can run. For now, training runs will fail at container setup.
-        from model.data.sequences import generate_sorting_dataset
-        from model.trainer import Trainer as _Trainer, TrainerConfig, EpochMetrics
+        from piro.data.sequences import generate_sorting_dataset
+        from piro.trainer import Trainer as _Trainer, TrainerConfig, EpochMetrics
 
         # Expose to run()
         self._torch = torch

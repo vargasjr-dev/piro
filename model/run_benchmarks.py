@@ -49,12 +49,12 @@ ROOT = Path(__file__).parent
 RESULTS_DIR = ROOT / "results"
 RESULTS_DIR.mkdir(exist_ok=True)
 
-sys.path.insert(0, str(ROOT.parent))  # make `model` importable as a package
+sys.path.insert(0, str(ROOT.parent))  # make `piro` importable as a package
 
-from model.benchmarks.base import Benchmark, BenchmarkResult  # noqa: E402
-from model.benchmarks.models import GPTBaseline, ModelProtocol  # noqa: E402
-from model.benchmarks.ood_generalization import default as _ood_default  # noqa: E402
-from model.benchmarks.adaptive_compute import default as _adaptive_default  # noqa: E402
+from piro.benchmarks.base import Benchmark, BenchmarkResult  # noqa: E402
+from piro.benchmarks.models import GPTBaseline, ModelProtocol  # noqa: E402
+from piro.benchmarks.ood_generalization import default as _ood_default  # noqa: E402
+from piro.benchmarks.adaptive_compute import default as _adaptive_default  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
