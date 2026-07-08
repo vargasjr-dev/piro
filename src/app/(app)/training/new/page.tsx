@@ -16,7 +16,7 @@ export default function NewTrainingRunPage() {
         </Link>
         <div>
           <h1 className="text-amber-100 font-bold text-sm tracking-tight">New Training Run</h1>
-          <p className="text-[11px] text-amber-400/40 mt-0.5">Choose a model template and data source</p>
+          <p className="text-[11px] text-amber-400/40 mt-0.5">Choose an architecture and dataset</p>
         </div>
       </div>
 

@@ -9,11 +9,11 @@ export default async function DashboardPage() {
   if (!session) redirect("/login");
 
   // Admins go straight to the app — they bypass the subscription gate.
-  if (isAdmin(session)) redirect("/benchmarks");
+  if (isAdmin(session)) redirect("/repos");
 
   const sub = await getSubscription(session.user.id);
   if (isActive(sub)) {
-    redirect("/benchmarks");
+    redirect("/repos");
   }
 
   // Free user — hand off to the upgrade page

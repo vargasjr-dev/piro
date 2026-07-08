@@ -27,8 +27,8 @@ export default async function TrainingRunPage({
 
   const initialRun: TrainingRunRow = {
     id: run.id,
-    modelTemplate: run.modelTemplate,
-    dataSource: run.dataSource,
+    architecturePath: run.architecturePath,
+    datasetId: run.datasetId,
     status: run.status as TrainingRunRow["status"],
     epochs: run.epochs,
     configJson: run.configJson,

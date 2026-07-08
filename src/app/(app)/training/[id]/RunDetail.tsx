@@ -17,15 +17,8 @@ function fmt(date: Date): string {
   });
 }
 
-function templateLabel(t: string): string {
-  if (t === "ctm") return "Continuous Thought Model";
-  if (t === "baseline-transformer") return "Baseline Transformer";
-  return t;
-}
-
-function sourceLabel(s: string): string {
-  if (s === "sorting-sequences") return "Sorting Sequences";
-  return s;
+function archLabel(path: string): string {
+  return path.split("/").pop() ?? path;
 }
 
 function StatusBadge({ status }: { status: TrainingRunRow["status"] }) {
@@ -233,12 +226,12 @@ export default function RunDetail({ initialRun }: { initialRun: TrainingRunRow }
         <h2 className="text-xs font-semibold text-amber-400/50 uppercase tracking-widest">Config</h2>
         <div className="space-y-2">
           <div className="flex justify-between text-xs">
-            <span className="text-amber-600/40">Model</span>
-            <span className="text-amber-200/70 font-medium">{templateLabel(run.modelTemplate)}</span>
+            <span className="text-amber-600/40">Architecture</span>
+            <span className="text-amber-200/70 font-medium">{archLabel(run.architecturePath)}</span>
           </div>
           <div className="flex justify-between text-xs">
-            <span className="text-amber-600/40">Data source</span>
-            <span className="text-amber-200/70 font-medium">{sourceLabel(run.dataSource)}</span>
+            <span className="text-amber-600/40">Dataset</span>
+            <span className="text-amber-200/70 font-medium">{run.datasetId ?? "—"}</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-amber-600/40">Epochs</span>

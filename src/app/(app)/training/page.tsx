@@ -19,8 +19,8 @@ export default async function TrainingPage() {
 
   const initialRuns: TrainingRunRow[] = runs.map((r) => ({
     id: r.id,
-    modelTemplate: r.modelTemplate,
-    dataSource: r.dataSource,
+    architecturePath: r.architecturePath,
+    datasetId: r.datasetId,
     status: r.status as TrainingRunRow["status"],
     epochs: r.epochs,
     configJson: r.configJson,
