@@ -372,4 +372,37 @@ await sql`ALTER TABLE model_class ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
 await sql`ALTER TABLE training_run ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
 console.log("✓ added repositoryId to data_source, benchmark, model_class, training_run");
 
+// ── dataset table (replaces data_source) ──────────────────────────────────────
+// Tracks generated data output in R2, referencing the repo + source script path.
+await sql`
+  CREATE TABLE IF NOT EXISTS dataset (
+    id              text PRIMARY KEY,
+    "userId"        text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    "repositoryId"  text NOT NULL REFERENCES repository(id) ON DELETE CASCADE,
+    name            text NOT NULL,
+    "sourcePath"    text NOT NULL,
+    "r2Prefix"      text NOT NULL,
+    "sampleCount"   integer,
+    "generatedAt"   timestamp,
+    "createdAt"     timestamp NOT NULL DEFAULT now(),
+    "updatedAt"     timestamp NOT NULL DEFAULT now()
+  )
+`;
+await sql`CREATE INDEX IF NOT EXISTS ds_repo_created ON dataset ("repositoryId", "createdAt" DESC)`;
+console.log("✓ dataset table");
+
+// ── training_run: add architecturePath + datasetId, drop modelTemplate + dataSource ──
+await sql`ALTER TABLE training_run ADD COLUMN IF NOT EXISTS "architecturePath" TEXT`;
+await sql`ALTER TABLE training_run ADD COLUMN IF NOT EXISTS "datasetId" TEXT REFERENCES dataset(id) ON DELETE SET NULL`;
+console.log("✓ training_run: added architecturePath, datasetId");
+await sql`ALTER TABLE training_run DROP COLUMN IF EXISTS "modelTemplate"`;
+await sql`ALTER TABLE training_run DROP COLUMN IF EXISTS "dataSource"`;
+console.log("✓ training_run: dropped modelTemplate, dataSource");
+
+// ── Drop component tables (repo file structure is now source of truth) ─────────
+await sql`DROP TABLE IF EXISTS data_source CASCADE`;
+await sql`DROP TABLE IF EXISTS benchmark CASCADE`;
+await sql`DROP TABLE IF EXISTS model_class CASCADE`;
+console.log("✓ dropped data_source, benchmark, model_class tables");
+
 console.log("Migrations complete ✓");

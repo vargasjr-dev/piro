@@ -6,9 +6,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { db } from "../../../../../../data/db";
 import {
   repository,
-  dataSource,
-  benchmark,
-  modelClass,
+  dataset,
   trainingRun,
   user,
 } from "../../../../../../data/schema";
@@ -92,11 +90,9 @@ export default async function RepoPage({
 
   if (!repo) notFound();
 
-  // Fetch components belonging to this repo
-  const [sources, benchmarks, classes, runs] = await Promise.all([
-    db.select().from(dataSource).where(eq(dataSource.repositoryId, repo.id)).orderBy(desc(dataSource.createdAt)),
-    db.select().from(benchmark).where(eq(benchmark.repositoryId, repo.id)).orderBy(desc(benchmark.createdAt)),
-    db.select().from(modelClass).where(eq(modelClass.repositoryId, repo.id)).orderBy(desc(modelClass.createdAt)),
+  // Fetch datasets and training runs belonging to this repo
+  const [datasets, runs] = await Promise.all([
+    db.select().from(dataset).where(eq(dataset.repositoryId, repo.id)).orderBy(desc(dataset.createdAt)),
     db.select().from(trainingRun).where(eq(trainingRun.repositoryId, repo.id)).orderBy(desc(trainingRun.queuedAt)).limit(10),
   ]);
 
@@ -125,51 +121,25 @@ export default async function RepoPage({
       {/* Components */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5 max-w-2xl">
         <Section
-          title="Data Sources"
-          items={sources.map((s) => ({
-            id: s.id,
-            name: s.name,
-            href: `/sources/${s.id}`,
-            subtitle: s.sampleCount ? `${s.sampleCount.toLocaleString()} samples` : "",
-            badge: s.generatedAt ? undefined : "not generated",
+          title="Datasets"
+          items={datasets.map((d) => ({
+            id: d.id,
+            name: d.name,
+            href: `/repos/${ownerHandle}/${repo.slug}`,
+            subtitle: d.sampleCount ? `${d.sampleCount.toLocaleString()} samples` : d.sourcePath,
+            badge: d.generatedAt ? undefined : "not generated",
           }))}
-          emptyText="No data sources"
-          createHint="piro sources create"
-        />
-
-        <Section
-          title="Architectures"
-          items={classes.map((c) => ({
-            id: c.id,
-            name: c.name,
-            href: `/classes/${c.id}`,
-            subtitle: c.parameterCount ? `${c.parameterCount.toLocaleString()} params` : c.slug,
-            badge: c.moduleR2Key ? undefined : "no module",
-          }))}
-          emptyText="No architectures defined"
-          createHint="piro classes push"
-        />
-
-        <Section
-          title="Benchmarks"
-          items={benchmarks.map((b) => ({
-            id: b.id,
-            name: b.name,
-            href: `/benchmarks/${b.id}`,
-            subtitle: b.slug,
-            badge: b.scriptR2Key ? undefined : "no script",
-          }))}
-          emptyText="No benchmarks defined"
-          createHint="piro benchmarks create"
+          emptyText="No datasets generated yet"
+          createHint="piro sources generate"
         />
 
         <Section
           title="Training Runs"
           items={runs.map((r) => ({
             id: r.id,
-            name: r.modelName ?? r.modelTemplate,
+            name: r.modelName ?? r.architecturePath,
             href: `/training/${r.id}`,
-            subtitle: `${r.dataSource} · ${r.epochs} epochs`,
+            subtitle: `${r.architecturePath} · ${r.epochs} epochs`,
             badge: r.status,
           }))}
           emptyText="No training runs yet"

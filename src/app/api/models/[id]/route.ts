@@ -79,7 +79,7 @@ export async function GET(
     trainingRun: run
       ? {
           id: run.id,
-          modelTemplate: run.modelTemplate,
+          architecturePath: run.architecturePath,
           configJson: run.configJson,
           epochs: run.epochs,
           finalTrainLoss: run.finalTrainLoss,

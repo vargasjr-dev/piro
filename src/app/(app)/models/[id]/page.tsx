@@ -98,7 +98,7 @@ export default async function ModelDetailPage({
     .limit(50);
 
   const isTrainedModel = !!run;
-  const template = run?.modelTemplate ?? null;
+  const archPath = run?.architecturePath ?? null;
 
   // Fetch weights JSON from R2 for visualization (null if not yet trained / uploaded)
   const weightsJson = m.weightsR2Key
@@ -149,12 +149,10 @@ export default async function ModelDetailPage({
               <span className="text-amber-600/40">Created</span>
               <span className="text-amber-200/60">{fmt(m.createdAt)}</span>
             </div>
-            {template && (
+            {archPath && (
               <div className="flex justify-between text-xs">
                 <span className="text-amber-600/40">Architecture</span>
-                <span className="text-amber-200/60">
-                  {template === "ctm" ? "Continuous Thought Model" : "Baseline Transformer"}
-                </span>
+                <span className="text-amber-200/60">{archPath}</span>
               </div>
             )}
             {run && (

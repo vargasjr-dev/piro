@@ -1,15 +1,18 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../../data/db";
-import { repository, dataSource, benchmark, modelClass, trainingRun } from "../../../../../data/schema";
+import { repository, dataset, trainingRun } from "../../../../../data/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
 
 /**
  * GET /api/repos/[id]
  *
- * Returns a repository with its components: data sources, architectures
- * (model classes), benchmarks, and training runs.
+ * Returns a repository with its datasets and training runs.
+ * Architectures and benchmarks are defined in the connected GitHub repo
+ * (convention: /architectures/<name>/main.py, /benchmarks/<name>/main.py)
+ * — not stored as DB rows.
+ *
  * Accepts session cookie or Bearer API key.
  */
 
@@ -39,11 +42,8 @@ export async function GET(
 
   if (!repo) return Response.json({ error: "Not found" }, { status: 404 });
 
-  // Fetch components that belong to this repo
-  const [sources, benchmarks, classes, runs] = await Promise.all([
-    db.select().from(dataSource).where(eq(dataSource.repositoryId, id)).orderBy(desc(dataSource.createdAt)),
-    db.select().from(benchmark).where(eq(benchmark.repositoryId, id)).orderBy(desc(benchmark.createdAt)),
-    db.select().from(modelClass).where(eq(modelClass.repositoryId, id)).orderBy(desc(modelClass.createdAt)),
+  const [datasets, runs] = await Promise.all([
+    db.select().from(dataset).where(eq(dataset.repositoryId, id)).orderBy(desc(dataset.createdAt)),
     db.select().from(trainingRun).where(eq(trainingRun.repositoryId, id)).orderBy(desc(trainingRun.queuedAt)),
   ]);
 
@@ -56,37 +56,19 @@ export async function GET(
       createdAt: repo.createdAt.toISOString(),
       updatedAt: repo.updatedAt.toISOString(),
     },
-    dataSources: sources.map((s) => ({
-      id: s.id,
-      name: s.name,
-      description: s.description,
-      sampleCount: s.sampleCount,
-      generatedAt: s.generatedAt?.toISOString() ?? null,
-      createdAt: s.createdAt.toISOString(),
-    })),
-    architectures: classes.map((c) => ({
-      id: c.id,
-      name: c.name,
-      slug: c.slug,
-      description: c.description,
-      parameterCount: c.parameterCount,
-      hasModule: c.moduleR2Key !== null,
-      createdAt: c.createdAt.toISOString(),
-    })),
-    benchmarks: benchmarks.map((b) => ({
-      id: b.id,
-      name: b.name,
-      slug: b.slug,
-      description: b.description,
-      dataSourceId: b.dataSourceId,
-      hasScript: b.scriptR2Key !== null,
-      createdAt: b.createdAt.toISOString(),
+    datasets: datasets.map((d) => ({
+      id: d.id,
+      name: d.name,
+      sourcePath: d.sourcePath,
+      sampleCount: d.sampleCount,
+      generatedAt: d.generatedAt?.toISOString() ?? null,
+      createdAt: d.createdAt.toISOString(),
     })),
     trainingRuns: runs.map((r) => ({
       id: r.id,
       modelName: r.modelName,
-      modelTemplate: r.modelTemplate,
-      dataSource: r.dataSource,
+      architecturePath: r.architecturePath,
+      datasetId: r.datasetId,
       status: r.status,
       epochs: r.epochs,
       finalValAccuracy: r.finalValAccuracy,

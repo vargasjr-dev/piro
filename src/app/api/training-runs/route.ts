@@ -1,10 +1,9 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../data/db";
-import { trainingRun, modelClass, subscription } from "../../../../data/schema";
+import { trainingRun, dataset, subscription } from "../../../../data/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { buildDefaultClasses } from "~/lib/model-classes";
 import { getSubscription, isActive, hasTrainingRunsRemaining } from "~/lib/billing";
 import { isAdmin } from "~/lib/admin";
 
@@ -24,8 +23,8 @@ export async function GET() {
   return Response.json({
     runs: runs.map((r) => ({
       id: r.id,
-      modelTemplate: r.modelTemplate,
-      dataSource: r.dataSource,
+      architecturePath: r.architecturePath,
+      datasetId: r.datasetId,
       status: r.status,
       epochs: r.epochs,
       configJson: r.configJson,
@@ -45,8 +44,8 @@ export async function GET() {
 // ── POST /api/training-runs ───────────────────────────────────────────────────
 
 interface CreateBody {
-  modelTemplate: string;
-  dataSource: string;
+  architecturePath: string;
+  datasetId: string;
   epochs?: number;
   modelName?: string;
 }
@@ -56,8 +55,6 @@ export async function POST(request: Request) {
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   // ── Subscription + quota check ────────────────────────────────────────────
-  // Admins bypass the subscription gate — they can start training runs
-  // without paying, useful for testing the full pipeline.
   const adminBypass = isAdmin(session);
   const sub = await getSubscription(session.user.id);
   if (!isActive(sub) && !adminBypass) {
@@ -82,62 +79,39 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { modelTemplate, dataSource, epochs = 10, modelName } = body;
+  const { architecturePath, datasetId, epochs = 10, modelName } = body;
 
-  if (!modelTemplate || !dataSource) {
-    return Response.json({ error: "modelTemplate and dataSource are required" }, { status: 400 });
+  if (!architecturePath || !datasetId) {
+    return Response.json({ error: "architecturePath and datasetId are required" }, { status: 400 });
   }
 
-  // Validate template against user's model_class table.
-  // Lazy-seed defaults if the user has no classes yet (e.g. first training run
-  // attempted without visiting /classes first).
-  let existingClasses = await db
-    .select({ id: modelClass.id })
-    .from(modelClass)
-    .where(eq(modelClass.userId, session.user.id))
+  // Verify the dataset belongs to the user
+  const [ds] = await db
+    .select()
+    .from(dataset)
+    .where(and(eq(dataset.id, datasetId), eq(dataset.userId, session.user.id)))
     .limit(1);
 
-  if (existingClasses.length === 0) {
-    const defaults = buildDefaultClasses(session.user.id);
-    await db.insert(modelClass).values(defaults);
-  }
-
-  const [matchedClass] = await db
-    .select({ id: modelClass.id })
-    .from(modelClass)
-    .where(and(eq(modelClass.userId, session.user.id), eq(modelClass.slug, modelTemplate)))
-    .limit(1);
-
-  if (!matchedClass) {
-    return Response.json(
-      { error: `Unknown class: ${modelTemplate}` },
-      { status: 400 },
-    );
-  }
-
-  const validSources = ["sorting-sequences"];
-  if (!validSources.includes(dataSource)) {
-    return Response.json(
-      { error: `dataSource must be one of: ${validSources.join(", ")}` },
-      { status: 400 },
-    );
+  if (!ds) {
+    return Response.json({ error: "Dataset not found" }, { status: 404 });
   }
 
   const id = randomUUID();
-  const configJson = JSON.stringify({ modelTemplate, dataSource, epochs });
+  const configJson = JSON.stringify({ architecturePath, datasetId, epochs });
 
   await db.insert(trainingRun).values({
     id,
     userId: session.user.id,
+    repositoryId: ds.repositoryId,
     modelName: modelName?.trim() || null,
-    modelTemplate,
-    dataSource,
+    architecturePath,
+    datasetId,
     status: "queued",
     epochs,
     configJson,
   });
 
-  // Increment the quota counter atomically (admins have no quota to track)
+  // Increment the quota counter atomically
   if (!adminBypass) {
     await db
       .update(subscription)
@@ -149,9 +123,6 @@ export async function POST(request: Request) {
   }
 
   // ── Trigger Modal training worker ─────────────────────────────────────────
-  // Modal's web endpoint spawns async and returns 200 immediately, so this
-  // await is fast (< 500 ms). If MODAL_TRAINING_ENDPOINT is not set the run
-  // stays "queued" and can be re-triggered once Modal is deployed.
   const modalEndpoint = process.env.MODAL_TRAINING_ENDPOINT;
   if (modalEndpoint) {
     try {
@@ -161,8 +132,8 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           runId: id,
           modelName: modelName?.trim() || null,
-          modelTemplate,
-          dataSource,
+          architecturePath,
+          datasetR2Prefix: ds.r2Prefix,
           epochs,
           seed: 42,
           secret: process.env.MODAL_WEBHOOK_SECRET ?? "",

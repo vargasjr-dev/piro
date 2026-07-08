@@ -7,8 +7,8 @@ import Link from "next/link";
 
 export interface TrainingRunRow {
   id: string;
-  modelTemplate: string;
-  dataSource: string;
+  architecturePath: string;
+  datasetId: string | null;
   status: "queued" | "running" | "complete" | "error";
   epochs: number;
   configJson: string | null;
@@ -35,15 +35,9 @@ function timeAgo(date: Date): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function templateLabel(t: string): string {
-  if (t === "ctm") return "CTM";
-  if (t === "baseline-transformer") return "Baseline Transformer";
-  return t;
-}
-
-function sourceLabel(s: string): string {
-  if (s === "sorting-sequences") return "Sorting Sequences";
-  return s;
+function archLabel(path: string): string {
+  // architecturePath is like "architectures/ctm" — show last segment
+  return path.split("/").pop() ?? path;
 }
 
 // Modal CPU-only rate: $0.000027/s per vCPU (1 vCPU default)
@@ -153,12 +147,12 @@ function RunCard({ run }: { run: TrainingRunRow }) {
         {/* Middle: config */}
         <div className="flex-1 min-w-0 space-y-0.5">
           <p className="text-xs text-amber-300/60">
-            <span className="text-amber-600/40 mr-1">template:</span>
-            {templateLabel(run.modelTemplate)}
+            <span className="text-amber-600/40 mr-1">arch:</span>
+            {archLabel(run.architecturePath)}
           </p>
           <p className="text-xs text-amber-300/60">
-            <span className="text-amber-600/40 mr-1">data:</span>
-            {sourceLabel(run.dataSource)}
+            <span className="text-amber-600/40 mr-1">dataset:</span>
+            {run.datasetId ?? "—"}
           </p>
           {(isInFlight || run.status === "complete") && (
             <p className="text-xs text-amber-300/60">

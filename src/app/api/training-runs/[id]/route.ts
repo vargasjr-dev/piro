@@ -23,8 +23,8 @@ export async function GET(
   return Response.json({
     run: {
       id: run.id,
-      modelTemplate: run.modelTemplate,
-      dataSource: run.dataSource,
+      architecturePath: run.architecturePath,
+      datasetId: run.datasetId,
       status: run.status,
       epochs: run.epochs,
       configJson: run.configJson,
