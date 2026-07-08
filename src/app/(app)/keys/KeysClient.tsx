@@ -70,7 +70,7 @@ export default function KeysClient({ initialKeys }: Props) {
   const revoked = keys.filter((k) => k.revokedAt);
 
   return (
-    <div className="p-6 max-w-2xl space-y-6">
+    <div className="space-y-6">
 
       {/* ── One-time key reveal ──────────────────────────────────────── */}
       {revealedKey && (

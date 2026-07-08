@@ -2,11 +2,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../data/db";
-import { account, integration, user } from "../../../../data/schema";
+import { account, integration, user, apiKey } from "../../../../data/schema";
 import { eq, and } from "drizzle-orm";
 import { isAdmin } from "~/lib/admin";
 import { getSubscription, isActive } from "~/lib/billing";
 import ProfileClient from "./ProfileClient";
+import KeysClient from "../keys/KeysClient";
 
 export default async function ProfilePage() {
   const headersList = await headers();
@@ -42,10 +43,31 @@ export default async function ProfilePage() {
   const sub = await getSubscription(session.user.id);
   const admin = isAdmin(session);
 
+  // Fetch API keys
+  const keys = await db
+    .select({
+      id: apiKey.id,
+      name: apiKey.name,
+      keyPrefix: apiKey.keyPrefix,
+      createdAt: apiKey.createdAt,
+      lastUsedAt: apiKey.lastUsedAt,
+      revokedAt: apiKey.revokedAt,
+    })
+    .from(apiKey)
+    .where(eq(apiKey.userId, session.user.id))
+    .orderBy(apiKey.createdAt);
+
+  const serializedKeys = keys.map((k) => ({
+    ...k,
+    createdAt: k.createdAt.toISOString(),
+    lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+    revokedAt: k.revokedAt?.toISOString() ?? null,
+  }));
+
   return (
     <div className="px-6 py-8 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-amber-50 mb-1">Profile</h1>
-      <p className="text-amber-400/40 text-sm mb-8">Manage your account and connections.</p>
+      <p className="text-amber-400/40 text-sm mb-8">Manage your account, connections, and API keys.</p>
 
       {/* User info */}
       <section className="bg-[#1a1208]/80 border border-amber-900/30 rounded-2xl p-6 mb-6">
@@ -93,6 +115,15 @@ export default async function ProfilePage() {
             : null
         }
       />
+
+      {/* API Keys */}
+      <div className="mt-6">
+        <h2 className="text-sm font-semibold text-amber-300/70 uppercase tracking-wide mb-4">API Keys</h2>
+        <p className="text-amber-400/40 text-xs mb-4">
+          Keys authenticate as you. Treat them like passwords.
+        </p>
+        <KeysClient initialKeys={serializedKeys} />
+      </div>
     </div>
   );
 }
