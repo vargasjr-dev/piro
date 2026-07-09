@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../data/db";
-import { account, integration, user, apiKey } from "../../../../data/schema";
+import { account, user, apiKey } from "../../../../data/schema";
 import { eq, and } from "drizzle-orm";
 import { isAdmin } from "~/lib/admin";
 import { getSubscription, isActive } from "~/lib/billing";
@@ -26,18 +26,6 @@ export default async function ProfilePage() {
     .select({ username: user.username })
     .from(user)
     .where(eq(user.id, session.user.id))
-    .limit(1);
-
-  // Check for GitHub data integration (repo sync)
-  const [githubIntegration] = await db
-    .select({
-      id: integration.id,
-      providerUsername: integration.providerUsername,
-      status: integration.status,
-      itemCount: integration.itemCount,
-    })
-    .from(integration)
-    .where(and(eq(integration.userId, session.user.id), eq(integration.provider, "github")))
     .limit(1);
 
   const sub = await getSubscription(session.user.id);
@@ -105,15 +93,6 @@ export default async function ProfilePage() {
       {/* GitHub connection */}
       <ProfileClient
         githubLinked={!!githubAccount}
-        githubIntegration={
-          githubIntegration
-            ? {
-                username: githubIntegration.providerUsername,
-                status: githubIntegration.status,
-                itemCount: githubIntegration.itemCount,
-              }
-            : null
-        }
       />
 
       {/* API Keys */}

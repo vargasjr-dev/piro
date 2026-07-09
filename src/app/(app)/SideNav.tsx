@@ -160,12 +160,7 @@ export default function SideNav({ userName, isSubscribed }: Props) {
             <FlameLogo size={22} />
             <span className="font-bold text-amber-50 tracking-tight">Piro</span>
           </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/profile" className="text-amber-400/60 hover:text-amber-200 transition text-sm">
-              Profile
-            </Link>
-            <SignOutButton className="text-sm text-amber-400/60 hover:text-amber-200 transition disabled:opacity-50" />
-          </div>
+          <SignOutButton className="text-sm text-amber-400/60 hover:text-amber-200 transition disabled:opacity-50" />
         </header>
       </div>
 

@@ -5,14 +5,9 @@ import { authClient } from "~/lib/auth.client";
 
 interface Props {
   githubLinked: boolean;
-  githubIntegration: {
-    username: string | null;
-    status: string;
-    itemCount: number;
-  } | null;
 }
 
-export default function ProfileClient({ githubLinked, githubIntegration }: Props) {
+export default function ProfileClient({ githubLinked }: Props) {
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState("");
 
@@ -49,10 +44,7 @@ export default function ProfileClient({ githubLinked, githubIntegration }: Props
           <div>
             <p className="text-amber-100 text-sm font-medium">GitHub</p>
             {githubLinked ? (
-              <p className="text-emerald-400/70 text-xs mt-0.5">
-                Connected
-                {githubIntegration?.username && ` as @${githubIntegration.username}`}
-              </p>
+              <p className="text-emerald-400/70 text-xs mt-0.5">Connected</p>
             ) : (
               <p className="text-amber-400/40 text-xs mt-0.5">Not connected</p>
             )}
