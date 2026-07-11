@@ -61,6 +61,11 @@ export default async function RepoOverviewPage({
 
   return (
     <div className="p-4 lg:p-6 max-w-2xl space-y-6">
+      {/* Repo description */}
+      {repo.description && (
+        <p className="text-sm text-amber-400/50 leading-relaxed">{repo.description}</p>
+      )}
+
       {/* GitHub link card */}
       <a
         href={githubUrl}

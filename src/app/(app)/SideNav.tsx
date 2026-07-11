@@ -7,6 +7,7 @@ import FlameLogo from "~/components/FlameLogo";
 interface Props {
   userName?: string | null;
   isSubscribed?: boolean;
+  repoTitle?: string | null;
 }
 
 const NAV_ITEMS = [
@@ -78,7 +79,7 @@ function TopRightLinks({ pathname }: { pathname: string }) {
   );
 }
 
-export default function SideNav({ userName, isSubscribed }: Props) {
+export default function SideNav({ userName, isSubscribed, repoTitle }: Props) {
   const pathname = usePathname();
 
   return (
@@ -87,10 +88,15 @@ export default function SideNav({ userName, isSubscribed }: Props) {
       <aside className="hidden lg:flex flex-col w-52 shrink-0 border-r border-amber-900/20 min-h-screen sticky top-0 self-start">
         {/* Logo + top-right icons */}
         <div className="flex items-center justify-between px-5 py-5 border-b border-amber-900/10">
-          <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition">
+          <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition shrink-0">
             <FlameLogo size={22} />
             <span className="font-bold text-amber-50 tracking-tight">Piro</span>
           </Link>
+          {repoTitle && (
+            <span className="text-xs font-semibold text-amber-100 truncate mx-2 min-w-0">
+              {repoTitle}
+            </span>
+          )}
           <TopRightLinks pathname={pathname} />
         </div>
 
@@ -154,10 +160,15 @@ export default function SideNav({ userName, isSubscribed }: Props) {
       <div className="lg:hidden">
         {/* Mobile top bar */}
         <header className="border-b border-amber-900/20 px-4 py-3.5 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition">
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition shrink-0">
             <FlameLogo size={22} />
             <span className="font-bold text-amber-50 tracking-tight">Piro</span>
           </Link>
+          {repoTitle && (
+            <span className="text-sm font-semibold text-amber-100 truncate mx-2 min-w-0 text-center">
+              {repoTitle}
+            </span>
+          )}
           <TopRightLinks pathname={pathname} />
         </header>
       </div>
