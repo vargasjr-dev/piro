@@ -2,51 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import FlameLogo from "~/components/FlameLogo";
-import { authClient } from "~/lib/auth.client";
-
-interface Props {
-  userName?: string | null;
-  isSubscribed?: boolean;
-}
-
-function SignOutButton({ className }: { className: string }) {
-  const [pending, setPending] = useState(false);
-
-  const handleSignOut = async () => {
-    if (pending) return;
-    setPending(true);
-    try {
-      // Use the auth client so the request sets Content-Type: application/json
-      // (better-auth's /sign-out endpoint rejects urlencoded bodies with a 415).
-      await authClient.signOut();
-    } catch {
-      // Swallow errors: the user clicked sign out and should be treated as
-      // logged out regardless. We never want to surface a raw API response here.
-    } finally {
-      // Force a full reload so server components re-evaluate the (now cleared) session
-      // and the user lands on a logged-out view of /login.
-      window.location.href = "/login";
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleSignOut}
-      disabled={pending}
-      className={className}
-    >
-      {pending ? "Signing out..." : "Sign out"}
-    </button>
-  );
-}
 
 const NAV_ITEMS = [
   {
-    label: "Repositories",
-    shortLabel: "Repos",
+    label: "Repos",
     href: "/repos",
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -55,29 +15,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: "Training Sessions",
-    shortLabel: "Training",
-    href: "/training",
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="5 3 19 12 5 21 5 3" />
-      </svg>
-    ),
-  },
-  {
-    label: "Models",
-    shortLabel: "Models",
-    href: "/models",
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3" />
-        <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
-      </svg>
-    ),
-  },
-  {
     label: "Profile",
-    shortLabel: "Profile",
     href: "/profile",
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -88,21 +26,20 @@ const NAV_ITEMS = [
   },
 ];
 
-export default function SideNav({ userName, isSubscribed }: Props) {
+export default function SideNav() {
   const pathname = usePathname();
 
   return (
-    <>
-      {/* ── DESKTOP SIDEBAR ──────────────────────────────────────── */}
-      <aside className="hidden lg:flex flex-col w-52 shrink-0 border-r border-amber-900/20 min-h-screen sticky top-0 self-start">
+    <header className="sticky top-0 z-50 border-b border-amber-900/20 bg-[#0d0a08]/95 backdrop-blur">
+      <div className="flex items-center gap-6 px-4 lg:px-6 h-14">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 px-5 py-5 border-b border-amber-900/10 hover:opacity-80 transition">
+        <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition shrink-0">
           <FlameLogo size={22} />
-          <span className="font-bold text-amber-50 tracking-tight">Piro</span>
+          <span className="font-bold text-amber-50 tracking-tight hidden sm:inline">Piro</span>
         </Link>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
+        <nav className="flex items-center gap-1">
           {NAV_ITEMS.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + "/");
@@ -111,7 +48,7 @@ export default function SideNav({ userName, isSubscribed }: Props) {
                 key={item.href}
                 href={item.href}
                 className={`
-                  flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                  flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
                   ${
                     isActive
                       ? "bg-orange-500/15 text-amber-100"
@@ -122,70 +59,12 @@ export default function SideNav({ userName, isSubscribed }: Props) {
                 <span className={isActive ? "text-orange-400" : ""}>
                   {item.icon}
                 </span>
-                {item.label}
+                <span className="hidden sm:inline">{item.label}</span>
               </Link>
             );
           })}
         </nav>
-
-        {/* Bottom — model status + user + sign out */}
-        <div className="px-5 py-4 border-t border-amber-900/10 space-y-2.5">
-          <div className="flex items-center gap-2">
-            {isSubscribed ? (
-              <>
-                <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                <span className="text-xs text-orange-400/80 font-medium">Pro</span>
-              </>
-            ) : (
-              <>
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-900/60" />
-                <span className="text-xs text-amber-400/40">Free</span>
-              </>
-            )}
-          </div>
-          {userName && (
-            <Link href="/profile" className="text-xs text-amber-400/30 truncate hover:text-amber-200 transition block">
-              {userName}
-            </Link>
-          )}
-          <SignOutButton className="text-xs text-amber-400/50 hover:text-amber-200 transition disabled:opacity-50" />
-        </div>
-      </aside>
-
-      {/* ── MOBILE HEADER + TABS ─────────────────────────────────── */}
-      <div className="lg:hidden">
-        {/* Mobile top bar */}
-        <header className="border-b border-amber-900/20 px-4 py-3.5 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition">
-            <FlameLogo size={22} />
-            <span className="font-bold text-amber-50 tracking-tight">Piro</span>
-          </Link>
-          <SignOutButton className="text-sm text-amber-400/60 hover:text-amber-200 transition disabled:opacity-50" />
-        </header>
       </div>
-
-      {/* Mobile bottom nav bar */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-[#0d0a08] border-t border-amber-900/20 flex z-50 pb-safe">
-        {NAV_ITEMS.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`
-                flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors
-                ${isActive ? "text-orange-400" : "text-amber-400/40 hover:text-amber-300"}
-              `}
-            >
-              <span className="w-5 h-5 flex items-center justify-center">
-                {item.icon}
-              </span>
-              {item.shortLabel}
-            </Link>
-          );
-        })}
-      </nav>
-    </>
+    </header>
   );
 }

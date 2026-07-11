@@ -2,69 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 import { db } from "../../../../../../data/db";
 import {
   repository,
   dataset,
   trainingRun,
+  model,
+  modelTrainingRun,
   user,
 } from "../../../../../../data/schema";
 
-interface ComponentItem {
-  id: string;
-  name: string;
-  href: string;
-  subtitle: string;
-  badge?: string;
-}
-
-function Section({
-  title,
-  items,
-  emptyText,
-  createHint,
-}: {
-  title: string;
-  items: ComponentItem[];
-  emptyText: string;
-  createHint?: string;
-}) {
-  return (
-    <div>
-      <h3 className="text-[11px] font-semibold text-amber-300/60 uppercase tracking-wider mb-2">{title}</h3>
-      {items.length === 0 ? (
-        <p className="text-xs text-amber-700/30 italic">
-          {emptyText}
-          {createHint && <span className="not-italic"> — <code className="font-mono text-amber-600/30">{createHint}</code></span>}
-        </p>
-      ) : (
-        <div className="space-y-1.5">
-          {items.map((item) => (
-            <Link
-              key={item.id}
-              href={item.href}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-900/15 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
-            >
-              <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-amber-200/80">{item.name}</span>
-                <span className="text-[10px] text-amber-700/30 ml-2">{item.subtitle}</span>
-              </div>
-              {item.badge && (
-                <span className="text-[10px] text-amber-600/40 italic">{item.badge}</span>
-              )}
-              <svg className="w-3 h-3 text-amber-800/30 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default async function RepoPage({
+export default async function RepoOverviewPage({
   params,
 }: {
   params: Promise<{ username: string; slug: string }>;
@@ -73,7 +22,6 @@ export default async function RepoPage({
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
 
-  // Resolve username → user, then find repo by (userId, slug)
   const [owner] = await db
     .select()
     .from(user)
@@ -90,60 +38,97 @@ export default async function RepoPage({
 
   if (!repo) notFound();
 
-  // Fetch datasets and training runs belonging to this repo
-  const [datasets, runs] = await Promise.all([
-    db.select().from(dataset).where(eq(dataset.repositoryId, repo.id)).orderBy(desc(dataset.createdAt)),
-    db.select().from(trainingRun).where(eq(trainingRun.repositoryId, repo.id)).orderBy(desc(trainingRun.queuedAt)).limit(10),
-  ]);
+  // Counts for overview stats
+  const [datasetCount] = await db
+    .select({ count: count() })
+    .from(dataset)
+    .where(eq(dataset.repositoryId, repo.id));
+
+  const [runCount] = await db
+    .select({ count: count() })
+    .from(trainingRun)
+    .where(eq(trainingRun.repositoryId, repo.id));
+
+  const recentRuns = await db
+    .select()
+    .from(trainingRun)
+    .where(eq(trainingRun.repositoryId, repo.id))
+    .orderBy(desc(trainingRun.queuedAt))
+    .limit(5);
+
+  // Build GitHub URL from owner handle + repo slug
+  const githubUrl = `https://github.com/${ownerHandle}/${repo.slug}`;
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-900/20 shrink-0">
-        <Link href="/repos" className="text-amber-600/40 hover:text-amber-400/70 transition-colors">
-          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+    <div className="p-4 lg:p-6 max-w-2xl space-y-6">
+      {/* GitHub link card */}
+      <a
+        href={githubUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-amber-900/20 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
+      >
+        <div className="w-10 h-10 rounded-lg bg-[#24292e] flex items-center justify-center shrink-0">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" className="text-white">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.81 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
           </svg>
-        </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-amber-600/40" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5L12 3l9 4.5M3 7.5L12 12m-9-4.5v9L12 21m0-9l9-4.5m-9 4.5v9m9-13.5v9L12 21" />
-            </svg>
-            <h1 className="text-amber-100 font-bold text-sm tracking-tight">{repo.name}</h1>
-          </div>
-          {repo.description && (
-            <p className="text-[11px] text-amber-400/40 mt-0.5 max-w-md">{repo.description}</p>
-          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-amber-100">View on GitHub</p>
+          <p className="text-xs text-amber-600/40 font-mono truncate">{ownerHandle}/{repo.slug}</p>
+        </div>
+        <svg className="w-4 h-4 text-amber-800/30 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+        </svg>
+      </a>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-3">
+          <p className="text-2xl font-bold text-amber-100">{datasetCount?.count ?? 0}</p>
+          <p className="text-xs text-amber-400/40 mt-0.5">Datasets</p>
+        </div>
+        <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-3">
+          <p className="text-2xl font-bold text-amber-100">{runCount?.count ?? 0}</p>
+          <p className="text-xs text-amber-400/40 mt-0.5">Training Runs</p>
         </div>
       </div>
 
-      {/* Components */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5 max-w-2xl">
-        <Section
-          title="Datasets"
-          items={datasets.map((d) => ({
-            id: d.id,
-            name: d.name,
-            href: `/repos/${ownerHandle}/${repo.slug}`,
-            subtitle: d.sampleCount ? `${d.sampleCount.toLocaleString()} samples` : d.sourcePath,
-            badge: d.generatedAt ? undefined : "not generated",
-          }))}
-          emptyText="No datasets generated yet"
-          createHint="piro sources generate"
-        />
+      {/* Recent training runs */}
+      {recentRuns.length > 0 && (
+        <div>
+          <h3 className="text-[11px] font-semibold text-amber-300/60 uppercase tracking-wider mb-2">Recent Runs</h3>
+          <div className="space-y-1.5">
+            {recentRuns.map((r) => (
+              <Link
+                key={r.id}
+                href={`/training/${r.id}`}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-900/15 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-medium text-amber-200/80">{r.modelName ?? r.architecturePath}</span>
+                  <span className="text-[10px] text-amber-700/30 ml-2">{r.epochs} epochs</span>
+                </div>
+                <span className={`text-[10px] font-medium ${
+                  r.status === "complete" ? "text-emerald-400/60" :
+                  r.status === "error" ? "text-red-400/60" :
+                  r.status === "running" ? "text-orange-400/60" :
+                  "text-amber-600/40"
+                }`}>{r.status}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
-        <Section
-          title="Training Runs"
-          items={runs.map((r) => ({
-            id: r.id,
-            name: r.modelName ?? r.architecturePath,
-            href: `/training/${r.id}`,
-            subtitle: `${r.architecturePath} · ${r.epochs} epochs`,
-            badge: r.status,
-          }))}
-          emptyText="No training runs yet"
-        />
+      {/* Repo conventions help */}
+      <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-3">
+        <p className="text-xs text-amber-400/50 font-medium mb-2">Repo conventions</p>
+        <div className="space-y-1 text-[11px] font-mono text-amber-600/40">
+          <p>sources/{"<name>"}/main.py</p>
+          <p>architectures/{"<name>"}/main.py</p>
+          <p>benchmarks/{"<name>"}/main.py</p>
+        </div>
       </div>
     </div>
   );
