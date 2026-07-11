@@ -7,6 +7,7 @@ import { db } from "../../../../../../../data/db";
 import { account, repository, user } from "../../../../../../../data/schema";
 import {
   listRepositoryArchitectures,
+  resolveGitHubRepository,
   type RepositoryArchitecture,
 } from "~/lib/github-repository";
 
@@ -43,16 +44,22 @@ export default async function ArchitecturesPage({
 
   let architectures: RepositoryArchitecture[] = [];
   try {
-    architectures = await listRepositoryArchitectures(
+    const githubRepo = await resolveGitHubRepository(
       ownerHandle,
       repo.slug,
       githubAccount?.accessToken,
     );
+    if (githubRepo) {
+      architectures = await listRepositoryArchitectures(
+        githubRepo.owner,
+        githubRepo.repository,
+        githubAccount?.accessToken,
+      );
+    }
   } catch {
     architectures = [];
   }
 
-  const githubUrl = `https://github.com/${ownerHandle}/${repo.slug}/tree/main/architectures`;
   const basePath = `/repos/${ownerHandle}/${repo.slug}/architectures`;
 
   return (
@@ -66,17 +73,6 @@ export default async function ArchitecturesPage({
               : `${architectures.length} architectures defined in this repo`}
           </p>
         </div>
-        <Link
-          href={githubUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-amber-400/50 hover:text-amber-200 transition-colors flex items-center gap-1 shrink-0"
-        >
-          GitHub
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
-        </Link>
       </div>
 
       {architectures.length === 0 ? (
