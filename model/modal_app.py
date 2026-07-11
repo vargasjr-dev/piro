@@ -44,6 +44,7 @@ app = modal.App("piro")
 # Update if the Modal username or app name ever changes.
 INFER_ENDPOINT = "https://dvargasfuertes--piro-infer.modal.run"
 SERIALIZE_ENDPOINT = "https://dvargasfuertes--piro-serialize.modal.run"
+SERIALIZE_SOURCE_ENDPOINT = "https://dvargasfuertes--piro-serialize-source.modal.run"
 
 # R2 bucket name — must match BUCKET() in src/lib/r2.ts
 R2_BUCKET = "piro-kb"
@@ -688,6 +689,71 @@ def serialize(request: Request) -> dict:
         raise HTTPException(status_code=500, detail=f"Uncaught: {type(exc).__name__}: {exc}\n\n{tb}")
 
 
+def _serialize_source(model_source, cache_key, context_label, bust,
+                      importlib, os, sys, tempfile, traceback,
+                      HTTPException, PiroModel, ModelManifest):
+    """Execute a repository architecture source and return its JSON manifest."""
+    if len(model_source.encode("utf-8")) > 1_000_000:
+        raise HTTPException(status_code=413, detail="Architecture source exceeds 1 MB")
+
+    if not bust and cache_key in manifest_cache:
+        print(f"[piro-serialize] cache hit {context_label} ({cache_key[:12]})")
+        return manifest_cache[cache_key]
+
+    with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
+        f.write(model_source)
+        tmp_path = f.name
+
+    module_name = f"_piro_user_model_{cache_key[:16]}"
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, tmp_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+    except Exception as exc:
+        tb = traceback.format_exc()
+        print(f"[piro-serialize] ERROR exec'ing {context_label}:\n{tb}")
+        raise HTTPException(status_code=500, detail=f"model.py exec failed — {type(exc).__name__}: {exc}\n\n{tb}")
+    finally:
+        sys.modules.pop(module_name, None)
+        os.unlink(tmp_path)
+
+    model_cls = None
+    for attr_name in dir(module):
+        obj = getattr(module, attr_name, None)
+        if (
+            obj is not None
+            and isinstance(obj, type)
+            and issubclass(obj, PiroModel)
+            and obj is not PiroModel
+        ):
+            model_cls = obj
+            break
+
+    if model_cls is not None:
+        try:
+            manifest_obj: ModelManifest = model_cls.serialize()
+            result = manifest_obj.model_dump(by_alias=True, mode="json")
+        except Exception as exc:
+            tb = traceback.format_exc()
+            print(f"[piro-serialize] ERROR in {model_cls.__name__} ({context_label}):\n{tb}")
+            raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}\n\n{tb}")
+    elif hasattr(module, "serialize") and callable(module.serialize):
+        raw: dict = module.serialize()
+        manifest_obj = ModelManifest.model_validate(raw)
+        result = manifest_obj.model_dump(by_alias=True, mode="json")
+    else:
+        raise HTTPException(
+            status_code=422,
+            detail="model.py must define a PiroModel subclass with .serialize() "
+                   "or a module-level serialize() function",
+        )
+
+    print(f"[piro-serialize] computed manifest for {context_label} ({cache_key[:12]})")
+    manifest_cache[cache_key] = result
+    return result
+
+
 def _serialize_inner(request, hashlib, importlib, os, sys, tempfile, traceback,
                      HTTPException, PiroModel, ModelManifest):
     """Inner serialize logic — called from serialize() with all imports passed in."""
@@ -718,71 +784,65 @@ def _serialize_inner(request, hashlib, importlib, os, sys, tempfile, traceback,
         print(f"[piro-serialize] ERROR fetching {r2_key!r}:\n{tb}")
         raise HTTPException(status_code=500, detail=f"R2 fetch failed — {type(exc).__name__}: {exc}\n\n{tb}")
 
-    # ── Cache check ────────────────────────────────────────────────────────
     cache_key = hashlib.sha256(model_source.encode()).hexdigest()
-    if not bust and cache_key in manifest_cache:
-        print(f"[piro-serialize] cache hit {class_id} ({cache_key[:12]})")
-        return manifest_cache[cache_key]
+    return _serialize_source(
+        model_source,
+        cache_key,
+        f"class {class_id}",
+        bust,
+        importlib,
+        os,
+        sys,
+        tempfile,
+        traceback,
+        HTTPException,
+        PiroModel,
+        ModelManifest,
+    )
 
-    # ── Dynamically import model.py and call serialize() ──────────────────
-    with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
-        f.write(model_source)
-        tmp_path = f.name
+@app.function(image=serialize_image, secrets=[piro_secrets])
+@modal.fastapi_endpoint(method="POST")
+async def serialize_source(request: Request) -> dict:
+    """Serialize a GitHub-backed architecture source supplied by Piro."""
+    import hashlib
+    import importlib.util
+    import os
+    import sys
+    import tempfile
+    import traceback
 
-    # Use a unique module name per source hash so concurrent warm-container
-    # calls don't clobber each other, and register it in sys.modules before
-    # exec_module so dataclasses can resolve forward references via
-    # sys.modules.get(cls.__module__).__dict__ (otherwise AttributeError: NoneType).
-    module_name = f"_piro_user_model_{cache_key[:16]}"
+    from fastapi import HTTPException
+    from piro import PiroModel
+    from piro.schema import ModelManifest
+
+    expected = os.environ.get("MODAL_WEBHOOK_SECRET", "")
+    if expected and request.headers.get("X-Piro-Secret", "") != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     try:
-        spec = importlib.util.spec_from_file_location(module_name, tmp_path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        spec.loader.exec_module(module)  # type: ignore[union-attr]
+        body = await request.json()
     except Exception as exc:
-        tb = traceback.format_exc()
-        print(f"[piro-serialize] ERROR exec'ing model.py for {class_id}:\n{tb}")
-        raise HTTPException(status_code=500, detail=f"model.py exec failed — {type(exc).__name__}: {exc}\n\n{tb}")
-    finally:
-        sys.modules.pop(module_name, None)
-        os.unlink(tmp_path)
+        raise HTTPException(status_code=400, detail=f"Invalid JSON body: {exc}")
 
-    # New style: PiroModel subclass with .serialize() classmethod
-    model_cls = None
-    for attr_name in dir(module):
-        obj = getattr(module, attr_name, None)
-        if (
-            obj is not None
-            and isinstance(obj, type)
-            and issubclass(obj, PiroModel)
-            and obj is not PiroModel
-        ):
-            model_cls = obj
-            break
+    source = body.get("source") if isinstance(body, dict) else None
+    if not isinstance(source, str) or not source.strip():
+        raise HTTPException(status_code=400, detail="source is required")
 
-    if model_cls is not None:
-        try:
-            manifest_obj: ModelManifest = model_cls.serialize()
-            result = manifest_obj.model_dump(by_alias=True, mode="json")
-        except Exception as exc:
-            tb = traceback.format_exc()
-            print(f"[piro-serialize] ERROR in {model_cls.__name__}.serialize():\n{tb}")
-            raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}\n\n{tb}")
-    elif hasattr(module, "serialize") and callable(module.serialize):
-        # Old style: module-level serialize() function returning a plain dict
-        raw: dict = module.serialize()
-        manifest_obj = ModelManifest.model_validate(raw)
-        result = manifest_obj.model_dump(by_alias=True, mode="json")
-    else:
-        raise HTTPException(
-            status_code=422,
-            detail="model.py must define a PiroModel subclass with .serialize() "
-                   "or a module-level serialize() function",
-        )
-
-    print(f"[piro-serialize] computed manifest for {class_id} ({cache_key[:12]})")
-    manifest_cache[cache_key] = result
-    return result
+    cache_key = hashlib.sha256(source.encode()).hexdigest()
+    return _serialize_source(
+        source,
+        cache_key,
+        "repository architecture",
+        body.get("bust") is True,
+        importlib,
+        os,
+        sys,
+        tempfile,
+        traceback,
+        HTTPException,
+        PiroModel,
+        ModelManifest,
+    )
 
 
 @app.function(image=image, secrets=[piro_secrets])

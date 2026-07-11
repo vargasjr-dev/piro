@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
@@ -31,8 +30,6 @@ export default async function SourcesPage({
 
   if (!repo) notFound();
 
-  const githubUrl = `https://github.com/${ownerHandle}/${repo.slug}/tree/main/sources`;
-
   return (
     <div className="p-4 lg:p-6 max-w-2xl space-y-4">
       <div className="flex items-center justify-between">
@@ -42,16 +39,6 @@ export default async function SourcesPage({
             Data generation scripts live in your repo at <code className="font-mono text-amber-600/40">sources/</code>
           </p>
         </div>
-        <Link
-          href={githubUrl}
-          target="_blank"
-          className="text-xs text-amber-400/50 hover:text-amber-200 transition-colors flex items-center gap-1 shrink-0"
-        >
-          View on GitHub
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
-        </Link>
       </div>
 
       <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-6 text-center">
