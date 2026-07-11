@@ -403,10 +403,30 @@ function D4({ size = 72 }: LogoProps) {
         </linearGradient>
         <mask id={`${uid}-m`}>
           <rect width="100" height="100" fill="white" />
-          <path d="M38 35 L38 76 L45 76 L45 60 L56 60 C64 60 68 55 68 47 C68 39 63 35 56 35 Z M45 42 L55 42 C59 42 61 44 61 47 C61 51 59 53 55 53 L45 53Z" fill="black" />
+          {/* Lowered P — shifted six viewBox units into the belly */}
+          <path d="M38 41 L38 82 L45 82 L45 66 L56 66 C64 66 68 61 68 53 C68 45 63 41 56 41 Z M45 48 L55 48 C59 48 61 50 61 53 C61 57 59 59 55 59 L45 59Z" fill="black" />
         </mask>
       </defs>
-      <path d="M47 4 C44 16 35 23 29 32 C25 26 19 28 20 35 C21 41 28 43 22 50 C16 57 9 60 16 67 C22 73 28 71 21 80 C16 89 29 98 50 98 C72 98 88 89 80 79 C74 72 85 68 80 60 C76 53 68 50 75 42 C80 35 77 28 72 29 C67 30 64 37 63 42 C60 29 51 22 53 8 C50 16 47 22 45 29 C45 18 49 10 47 4Z" fill={`url(#${uid}-g)`} mask={`url(#${uid}-m)`} />
+      {/* Sharper emoji-like silhouette: pointed side tongues instead of rounded lobes */}
+      <path d="M47 4
+        C44 16 35 23 29 32
+        L24 26 L20 29 L23 38
+        L14 45 L22 51
+        L10 59 L20 65
+        L15 76 L24 78
+        C19 87 31 97 50 98
+        C70 98 84 90 79 81
+        L88 77 L80 68
+        L90 61 L79 54
+        L86 45 L76 39
+        L80 30 L72 29
+        C67 30 64 37 63 42
+        C60 29 51 22 53 8
+        C50 16 47 22 45 29
+        C45 18 49 10 47 4Z"
+        fill={`url(#${uid}-g)`}
+        mask={`url(#${uid}-m)`}
+      />
     </svg>
   );
 }
