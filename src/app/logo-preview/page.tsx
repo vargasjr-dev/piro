@@ -648,11 +648,11 @@ const REFINE_OPTIONS = [
 ];
 
 const FOLLOWUP_OPTIONS = [
+  { id: "D4", name: "Carved P", desc: "One continuous chaotic flame with the P punched out as negative space", Comp: D4 },
+  { id: "D4L", name: "Carved P — Lower", desc: "Same D4 flame, with the negative-space P shifted six units lower", Comp: D4L },
   { id: "D1", name: "Offset Shell", desc: "The inner core drifts inside a larger multi-tongue outer contour", Comp: D1 },
   { id: "D2", name: "Split Core", desc: "Double flame with two inner tongues instead of one orderly teardrop", Comp: D2 },
   { id: "D3", name: "Heavy Ember", desc: "Bold outlined shell surrounding a much larger, irregular inner fire", Comp: D3 },
-  { id: "D4", name: "Carved P", desc: "One continuous chaotic flame with the P punched out as negative space", Comp: D4 },
-  { id: "D4L", name: "Carved P — Lower", desc: "D4 with the negative-space P shifted six units lower into the flame belly", Comp: D4L },
   { id: "D5", name: "Core P", desc: "Single flame with a bright P-shaped inner tongue — no outer outline", Comp: D5 },
   { id: "D6", name: "Pure Emoji Flame", desc: "Single broad emoji-like flame with hot layered tongues and no outline", Comp: D6 },
 ];
@@ -732,6 +732,18 @@ export default function LogoShowcase() {
         {FOLLOWUP_OPTIONS.map((o) => (
           <LogoCard key={o.id} {...o} />
         ))}
+      </div>
+
+      <div className="bg-[#1a1208]/80 border border-orange-500/30 rounded-2xl p-6 mb-12">
+        <p className="text-orange-300/80 text-xs font-semibold uppercase tracking-wide mb-4">D4 vs D4L — P position comparison</p>
+        <div className="flex items-end gap-10">
+          {[FOLLOWUP_OPTIONS[0], FOLLOWUP_OPTIONS[1]].map((o) => (
+            <div key={o.id} className="flex flex-col items-center gap-2">
+              <div className="bg-[#0d0a08] rounded-xl px-6 py-4"><o.Comp size={110} /></div>
+              <span className="text-amber-200 text-sm font-semibold">{o.id}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Group B — New */}
