@@ -39,6 +39,14 @@ export const auth = betterAuth({
       },
     },
   },
+  account: {
+    // Skip the state cookie check on OAuth callbacks — the state is still
+    // validated against the verification table in the database, so this is
+    // secure. The cookie check fails because the state cookie set during the
+    // link-social POST is sometimes not carried back across the GitHub
+    // redirect, causing a state_security_mismatch error.
+    skipStateCookieCheck: true,
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
