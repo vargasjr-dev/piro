@@ -328,6 +328,128 @@ function C5({ size = 72 }: LogoProps) {
   );
 }
 
+/* ════════ GROUP D — Six focused follow-ups to C2 ════════ */
+
+/* D1: Offset shell — inner core drifts inside a larger, multi-tongue contour */
+function D1({ size = 72 }: LogoProps) {
+  const uid = "d1";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-o`} x1="48" y1="98" x2="44" y2="3" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="34%" stopColor="#dc2626" /><stop offset="68%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+        <linearGradient id={`${uid}-i`} x1="56" y1="92" x2="47" y2="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#991b1b" /><stop offset="55%" stopColor="#fb923c" /><stop offset="100%" stopColor="#fff7ed" />
+        </linearGradient>
+      </defs>
+      <path d="M46 4 C42 15 36 20 31 27 C27 21 21 23 21 30 C21 36 27 39 22 46 C18 52 9 55 15 63 C20 69 27 67 21 76 C16 84 25 95 48 98 C67 100 88 91 79 80 C74 73 86 70 82 61 C78 54 70 51 77 43 C82 37 80 29 75 28 C70 27 67 34 64 37 C61 25 53 18 54 8 C51 15 48 21 46 27 C45 17 49 10 46 4Z" fill="none" stroke={`url(#${uid}-o)`} strokeWidth="3.5" strokeLinejoin="round" />
+      <path d="M55 28 C47 37 39 46 41 56 C43 63 36 69 40 78 C44 88 52 92 60 88 C68 85 71 78 67 70 C64 62 71 58 65 48 C62 41 57 35 55 28Z" fill={`url(#${uid}-i)`} />
+      <text x="54" y="72" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="26" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
+/* D2: Split core — double aesthetic with two inner tongues instead of one teardrop */
+function D2({ size = 72 }: LogoProps) {
+  const uid = "d2";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-o`} x1="50" y1="98" x2="50" y2="4" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="38%" stopColor="#dc2626" /><stop offset="72%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+        <linearGradient id={`${uid}-i`} x1="50" y1="89" x2="50" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#b91c1c" /><stop offset="55%" stopColor="#fb923c" /><stop offset="100%" stopColor="#fef3c7" />
+        </linearGradient>
+      </defs>
+      <path d="M50 4 C47 15 39 22 34 31 C30 25 25 24 23 29 C20 35 27 40 22 47 C18 53 11 57 16 64 C20 69 27 67 23 75 C18 84 28 96 50 97 C73 98 84 89 79 80 C75 72 83 69 80 62 C77 55 70 52 76 44 C81 37 77 29 72 29 C68 30 65 36 64 40 C60 30 53 22 53 11 C52 17 50 22 48 27 C48 18 52 10 50 4Z" fill="none" stroke={`url(#${uid}-o)`} strokeWidth="3.4" strokeLinejoin="round" />
+      <path d="M50 29 C44 38 37 45 39 54 C41 61 34 67 38 76 C40 82 45 87 50 88 C54 87 58 82 60 76 C63 68 57 62 60 54 C62 47 56 38 50 29Z" fill={`url(#${uid}-i)`} />
+      <path d="M45 43 C41 50 40 57 43 62 C45 66 43 70 45 75 C47 79 49 80 50 80 C49 72 52 67 49 60 C47 54 47 49 45 43Z" fill="#fff7ed" opacity="0.72" />
+      <path d="M55 43 C59 50 60 57 57 62 C55 66 57 70 55 75 C53 79 51 80 50 80 C51 72 48 67 51 60 C53 54 53 49 55 43Z" fill="#fed7aa" opacity="0.62" />
+      <text x="50" y="72" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="25" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
+/* D3: Heavy ember — bold outlined outer shell, huge irregular inner fire */
+function D3({ size = 72 }: LogoProps) {
+  const uid = "d3";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-o`} x1="50" y1="98" x2="48" y2="2" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="30%" stopColor="#dc2626" /><stop offset="65%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+        <radialGradient id={`${uid}-i`} cx="49" cy="62" r="38" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#fff7ed" /><stop offset="42%" stopColor="#fb923c" /><stop offset="100%" stopColor="#b91c1c" />
+        </radialGradient>
+      </defs>
+      <path d="M47 4 C43 17 35 24 29 31 C25 25 19 28 20 35 C21 40 28 42 23 49 C18 56 9 59 16 67 C22 73 27 70 21 79 C16 88 28 97 50 98 C72 98 87 89 79 80 C73 72 84 69 80 61 C76 53 68 51 75 42 C80 36 77 28 72 29 C67 30 64 37 63 42 C60 29 51 22 53 8 C50 16 47 22 45 29 C45 18 49 10 47 4Z" fill="none" stroke={`url(#${uid}-o)`} strokeWidth="4.8" strokeLinejoin="round" />
+      <path d="M49 21 C41 34 31 42 34 54 C36 63 28 69 33 80 C37 90 47 94 57 89 C68 84 72 76 67 67 C63 59 72 53 64 43 C59 36 52 29 49 21Z" fill={`url(#${uid}-i)`} />
+      <text x="51" y="73" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="26" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
+/* D4: Carved P — single continuous chaotic flame with a literal P-shaped void */
+function D4({ size = 72 }: LogoProps) {
+  const uid = "d4";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="50" y1="98" x2="45" y2="3" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="28%" stopColor="#dc2626" /><stop offset="58%" stopColor="#f97316" /><stop offset="84%" stopColor="#fbbf24" /><stop offset="100%" stopColor="#fff7ed" />
+        </linearGradient>
+        <mask id={`${uid}-m`}>
+          <rect width="100" height="100" fill="white" />
+          <path d="M38 35 L38 76 L45 76 L45 60 L56 60 C64 60 68 55 68 47 C68 39 63 35 56 35 Z M45 42 L55 42 C59 42 61 44 61 47 C61 51 59 53 55 53 L45 53Z" fill="black" />
+        </mask>
+      </defs>
+      <path d="M47 4 C44 16 35 23 29 32 C25 26 19 28 20 35 C21 41 28 43 22 50 C16 57 9 60 16 67 C22 73 28 71 21 80 C16 89 29 98 50 98 C72 98 88 89 80 79 C74 72 85 68 80 60 C76 53 68 50 75 42 C80 35 77 28 72 29 C67 30 64 37 63 42 C60 29 51 22 53 8 C50 16 47 22 45 29 C45 18 49 10 47 4Z" fill={`url(#${uid}-g)`} mask={`url(#${uid}-m)`} />
+    </svg>
+  );
+}
+
+/* D5: Core P — single silhouette with a bright P-shaped inner tongue */
+function D5({ size = 72 }: LogoProps) {
+  const uid = "d5";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="50" y1="98" x2="45" y2="3" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="30%" stopColor="#dc2626" /><stop offset="64%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+        <linearGradient id={`${uid}-i`} x1="50" y1="90" x2="50" y2="29" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#fb923c" /><stop offset="70%" stopColor="#fff7ed" /><stop offset="100%" stopColor="#fef3c7" />
+        </linearGradient>
+      </defs>
+      <path d="M48 4 C44 17 35 24 29 33 C25 27 20 29 21 36 C22 41 28 44 23 50 C17 57 10 61 17 68 C22 73 28 71 22 80 C17 89 29 98 50 98 C72 98 87 89 80 80 C74 72 84 68 80 60 C76 53 69 50 75 42 C80 35 77 28 72 29 C67 30 64 37 63 42 C60 29 51 22 53 8 C50 16 47 22 45 29 C45 18 50 10 48 4Z" fill={`url(#${uid}-g)`} />
+      <path d="M49 29 C44 39 39 47 41 57 L41 76 L47 76 L47 62 L56 62 C62 62 66 57 66 50 C66 43 62 39 56 39 L50 39 C51 35 51 32 49 29Z M47 45 L55 45 C58 45 60 47 60 50 C60 53 58 55 55 55 L47 55Z" fill={`url(#${uid}-i)`} />
+    </svg>
+  );
+}
+
+/* D6: Pure emoji flame — single broad flame, no inset outline, just hot layered tongues */
+function D6({ size = 72 }: LogoProps) {
+  const uid = "d6";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="50" y1="98" x2="48" y2="2" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="27%" stopColor="#dc2626" /><stop offset="55%" stopColor="#f97316" /><stop offset="80%" stopColor="#fbbf24" /><stop offset="100%" stopColor="#fff7ed" />
+        </linearGradient>
+        <linearGradient id={`${uid}-i`} x1="50" y1="90" x2="50" y2="36" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#c2410c" /><stop offset="55%" stopColor="#fb923c" /><stop offset="100%" stopColor="#fff7ed" />
+        </linearGradient>
+      </defs>
+      <path d="M47 3 C45 17 34 23 29 34 C25 42 32 47 24 53 C17 59 11 65 18 72 C23 77 17 84 22 90 C28 98 42 99 50 98 C62 99 78 96 82 87 C85 80 77 77 84 70 C91 63 85 55 77 51 C70 46 77 39 70 30 C65 23 56 18 54 8 C52 15 49 21 47 26 C46 16 51 9 47 3Z" fill={`url(#${uid}-g)`} />
+      <path d="M50 35 C44 45 39 52 41 61 C43 68 39 73 43 80 C46 86 51 89 56 86 C62 82 63 76 59 69 C56 63 62 58 58 51 C56 45 52 40 50 35Z" fill={`url(#${uid}-i)`} />
+      <text x="51" y="72" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="26" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
 /* ════════ GROUP B — Completely new ideas ════════ */
 
 /* B1: Bold P with flame gradient fill — no flame shape at all */
@@ -505,6 +627,15 @@ const REFINE_OPTIONS = [
   { id: "A5", name: "Double Flame", desc: "Outer outlined flame + inner solid flame, P centered between", Comp: A5 },
 ];
 
+const FOLLOWUP_OPTIONS = [
+  { id: "D1", name: "Offset Shell", desc: "The inner core drifts inside a larger multi-tongue outer contour", Comp: D1 },
+  { id: "D2", name: "Split Core", desc: "Double flame with two inner tongues instead of one orderly teardrop", Comp: D2 },
+  { id: "D3", name: "Heavy Ember", desc: "Bold outlined shell surrounding a much larger, irregular inner fire", Comp: D3 },
+  { id: "D4", name: "Carved P", desc: "One continuous chaotic flame with the P punched out as negative space", Comp: D4 },
+  { id: "D5", name: "Core P", desc: "Single flame with a bright P-shaped inner tongue — no outer outline", Comp: D5 },
+  { id: "D6", name: "Pure Emoji Flame", desc: "Single broad emoji-like flame with hot layered tongues and no outline", Comp: D6 },
+];
+
 const CHAOTIC_OPTIONS = [
   { id: "C1", name: "Licked Outline", desc: "Asymmetric outer contour with a hooked tip and a calmer inner flame", Comp: C1 },
   { id: "C2", name: "Three-Tongue", desc: "Visible side licks and three unpredictable tongues around the A5 structure", Comp: C2 },
@@ -571,6 +702,17 @@ export default function LogoShowcase() {
         ))}
       </div>
 
+      {/* Group D — Follow-up options */}
+      <h2 className="text-sm font-semibold text-orange-400/80 uppercase tracking-wide mb-2">
+        D — C2 Follow-ups
+      </h2>
+      <p className="text-amber-400/50 text-sm mb-5">Three double-flame directions, then three single-flame directions.</p>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-12">
+        {FOLLOWUP_OPTIONS.map((o) => (
+          <LogoCard key={o.id} {...o} />
+        ))}
+      </div>
+
       {/* Group B — New */}
       <h2 className="text-sm font-semibold text-orange-400/80 uppercase tracking-wide mb-5">
         B — Completely New Ideas
@@ -587,7 +729,7 @@ export default function LogoShowcase() {
       </h2>
       <div className="bg-[#1a1208]/80 border border-amber-900/30 rounded-2xl p-8 overflow-x-auto">
         <div className="flex items-end gap-10">
-          {[...REFINE_OPTIONS, ...CHAOTIC_OPTIONS, ...NEW_OPTIONS].map((o) => (
+          {[...REFINE_OPTIONS, ...CHAOTIC_OPTIONS, ...FOLLOWUP_OPTIONS, ...NEW_OPTIONS].map((o) => (
             <div key={o.id} className="flex flex-col items-center gap-3 shrink-0">
               <div className="flex items-end gap-3 bg-[#0d0a08] px-4 py-3 rounded-xl">
                 <o.Comp size={22} />
