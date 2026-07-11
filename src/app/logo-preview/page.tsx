@@ -213,6 +213,121 @@ function A5({ size = 72 }: LogoProps) {
   );
 }
 
+/* ════════ GROUP C — Chaotic A5 explorations ════════ */
+
+/* C1: Licked outline — asymmetric outer contour with a calm inner flame */
+function C1({ size = 72 }: LogoProps) {
+  const uid = "c1";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="50" y1="96" x2="46" y2="4" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" />
+          <stop offset="30%" stopColor="#dc2626" />
+          <stop offset="62%" stopColor="#f97316" />
+          <stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+        <linearGradient id={`${uid}-i`} x1="52" y1="91" x2="45" y2="25" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#991b1b" />
+          <stop offset="55%" stopColor="#fb923c" />
+          <stop offset="100%" stopColor="#fef9c3" />
+        </linearGradient>
+      </defs>
+      {/* Uneven outer contour: left lick, right hook, offset tip */}
+      <path d="M45 5 C43 16 29 21 24 34 C19 46 24 48 17 57 C11 65 19 69 15 79 C12 88 27 97 49 97 C74 97 89 90 82 79 C78 72 91 69 84 59 C80 53 88 44 78 34 C71 27 62 21 61 10 C59 17 54 23 49 28 C48 19 49 11 45 5Z" fill="none" stroke={`url(#${uid}-g)`} strokeWidth="3.6" strokeLinejoin="round" />
+      <path d="M52 24 C45 36 35 40 35 51 C35 58 28 63 32 73 C35 84 43 90 52 90 C61 90 70 84 68 75 C66 68 73 62 67 53 C63 46 56 40 52 24Z" fill={`url(#${uid}-i)`} />
+      <text x="51" y="70" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="27" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
+/* C2: Three-tongue flame — visible side licks around the A5 double flame */
+function C2({ size = 72 }: LogoProps) {
+  const uid = "c2";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="50" y1="97" x2="50" y2="3" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="38%" stopColor="#dc2626" /><stop offset="70%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+        <linearGradient id={`${uid}-i`} x1="50" y1="91" x2="50" y2="26" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#b91c1c" /><stop offset="55%" stopColor="#fb923c" /><stop offset="100%" stopColor="#fef9c3" />
+        </linearGradient>
+      </defs>
+      {/* Outer flame with three unpredictable tongues */}
+      <path d="M48 5 C46 16 40 22 35 29 C32 23 27 20 25 25 C22 31 28 37 24 43 C20 49 13 50 15 58 C17 64 24 65 20 73 C15 82 25 96 49 97 C73 98 87 89 80 78 C76 71 85 67 84 60 C83 53 76 50 77 43 C78 37 84 31 79 26 C75 22 70 28 67 34 C63 26 57 18 55 9 C53 16 50 21 48 26 C47 17 50 10 48 5Z" fill="none" stroke={`url(#${uid}-g)`} strokeWidth="3.4" strokeLinejoin="round" />
+      <path d="M51 25 C45 36 35 43 36 53 C37 61 31 66 34 76 C37 86 44 91 51 91 C60 91 67 85 66 77 C64 69 71 64 66 54 C62 45 55 37 51 25Z" fill={`url(#${uid}-i)`} />
+      <text x="51" y="71" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="27" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
+/* C3: Leaning fire — the whole flame bends left like a real flame in wind */
+function C3({ size = 72 }: LogoProps) {
+  const uid = "c3";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="53" y1="96" x2="35" y2="3" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="35%" stopColor="#dc2626" /><stop offset="68%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+        <linearGradient id={`${uid}-i`} x1="55" y1="90" x2="39" y2="26" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#991b1b" /><stop offset="50%" stopColor="#fb923c" /><stop offset="100%" stopColor="#fef9c3" />
+        </linearGradient>
+      </defs>
+      {/* Windblown silhouette — offset lobes and a hooked tip */}
+      <path d="M56 4 C48 16 32 20 27 33 C24 41 31 45 23 51 C16 56 18 63 27 66 C18 72 14 80 22 87 C31 96 47 98 62 96 C81 94 88 84 79 77 C73 72 84 66 77 59 C72 54 80 47 72 39 C67 34 59 31 58 24 C57 17 62 10 56 4Z" fill="none" stroke={`url(#${uid}-g)`} strokeWidth="3.6" strokeLinejoin="round" />
+      <path d="M52 25 C44 35 34 41 36 51 C38 58 31 64 36 73 C40 83 48 89 57 89 C65 89 71 84 68 76 C65 68 73 62 66 52 C62 45 55 37 52 25Z" fill={`url(#${uid}-i)`} />
+      <text x="54" y="70" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="27" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
+/* C4: Scratched ember — irregular hand-drawn double outline with a brighter core */
+function C4({ size = 72 }: LogoProps) {
+  const uid = "c4";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="50" y1="97" x2="48" y2="5" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="32%" stopColor="#dc2626" /><stop offset="65%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+        <radialGradient id={`${uid}-i`} cx="50" cy="58" r="35" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#fef9c3" /><stop offset="48%" stopColor="#fb923c" /><stop offset="100%" stopColor="#b91c1c" />
+        </radialGradient>
+      </defs>
+      {/* Two slightly mismatched strokes create a hand-drawn, chaotic edge */}
+      <path d="M49 6 C42 17 28 26 22 41 C18 52 25 56 18 64 C12 72 20 75 17 83 C14 92 31 98 50 97 C70 97 88 91 81 81 C77 74 87 69 80 60 C75 53 83 45 76 35 C69 26 58 20 55 8 C53 15 51 21 47 27 C47 18 51 11 49 6Z" fill="none" stroke={`url(#${uid}-g)`} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M46 8 C39 20 26 28 21 42 C17 53 24 57 17 65 C11 73 19 76 16 84 C13 93 30 99 49 98 C69 98 87 92 80 82 C76 75 86 70 79 61 C74 54 82 46 75 36 C68 27 57 21 54 10" fill="none" stroke="#fb923c" strokeWidth="0.9" strokeLinecap="round" opacity="0.8" />
+      <path d="M50 28 C43 38 34 45 36 55 C38 62 31 68 35 77 C39 87 46 91 53 90 C62 89 68 83 65 75 C62 67 69 61 64 52 C60 44 54 36 50 28Z" fill={`url(#${uid}-i)`} />
+      <text x="51" y="71" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="27" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
+/* C5: Emoji flame — fullest silhouette, big side lobes, hot yellow inner tongue */
+function C5({ size = 72 }: LogoProps) {
+  const uid = "c5";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="50" y1="98" x2="50" y2="2" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="25%" stopColor="#dc2626" /><stop offset="55%" stopColor="#f97316" /><stop offset="82%" stopColor="#fbbf24" /><stop offset="100%" stopColor="#fef3c7" />
+        </linearGradient>
+        <linearGradient id={`${uid}-i`} x1="50" y1="92" x2="50" y2="34" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#c2410c" /><stop offset="45%" stopColor="#fb923c" /><stop offset="100%" stopColor="#fff7ed" />
+        </linearGradient>
+      </defs>
+      {/* Big emoji-like silhouette with multiple tongues and a rounded base */}
+      <path d="M47 3 C46 17 35 22 30 34 C26 43 33 47 25 53 C17 59 11 65 18 72 C23 77 17 83 21 89 C27 98 41 99 50 98 C62 99 78 96 82 87 C85 80 77 77 84 70 C91 63 84 55 77 51 C70 46 77 39 70 30 C65 23 56 18 54 8 C52 15 49 21 47 26 C46 16 51 9 47 3Z" fill={`url(#${uid}-g)`} />
+      {/* A5-style inset outline keeps the double-flame structure */}
+      <path d="M50 24 C43 36 34 43 36 54 C38 62 32 68 35 77 C39 87 46 91 53 90 C62 89 68 83 65 75 C62 67 69 61 64 52 C60 44 54 36 50 24Z" fill="none" stroke="#fed7aa" strokeWidth="2" opacity="0.8" />
+      <path d="M50 35 C45 44 40 51 42 59 C44 66 40 71 43 78 C46 84 51 87 55 84 C60 81 61 76 58 70 C56 64 61 59 58 52 C56 46 52 40 50 35Z" fill={`url(#${uid}-i)`} />
+      <text x="51" y="72" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="26" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
 /* ════════ GROUP B — Completely new ideas ════════ */
 
 /* B1: Bold P with flame gradient fill — no flame shape at all */
@@ -390,6 +505,14 @@ const REFINE_OPTIONS = [
   { id: "A5", name: "Double Flame", desc: "Outer outlined flame + inner solid flame, P centered between", Comp: A5 },
 ];
 
+const CHAOTIC_OPTIONS = [
+  { id: "C1", name: "Licked Outline", desc: "Asymmetric outer contour with a hooked tip and a calmer inner flame", Comp: C1 },
+  { id: "C2", name: "Three-Tongue", desc: "Visible side licks and three unpredictable tongues around the A5 structure", Comp: C2 },
+  { id: "C3", name: "Windblown", desc: "The whole flame leans left like real fire moving in a breeze", Comp: C3 },
+  { id: "C4", name: "Scratched Ember", desc: "Mismatched hand-drawn outlines create a rough, energetic edge", Comp: C4 },
+  { id: "C5", name: "Emoji Flame", desc: "Big rounded silhouette with multiple tongues and a hot yellow inner flame", Comp: C5 },
+];
+
 const NEW_OPTIONS = [
   { id: "B1", name: "Bold P + Spark", desc: "No flame shape — just a heavy P with fire gradient and a small spark above", Comp: B1 },
   { id: "B2", name: "Hex Badge", desc: "Hexagonal shield with P and flame accent on top vertex", Comp: B2 },
@@ -437,6 +560,17 @@ export default function LogoShowcase() {
         ))}
       </div>
 
+      {/* Group C — Chaotic A5 */}
+      <h2 className="text-sm font-semibold text-orange-400/80 uppercase tracking-wide mb-2">
+        C — A5, But More Like 🔥
+      </h2>
+      <p className="text-amber-400/50 text-sm mb-5">Same double-flame structure, less symmetry and more real-fire chaos.</p>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-12">
+        {CHAOTIC_OPTIONS.map((o) => (
+          <LogoCard key={o.id} {...o} />
+        ))}
+      </div>
+
       {/* Group B — New */}
       <h2 className="text-sm font-semibold text-orange-400/80 uppercase tracking-wide mb-5">
         B — Completely New Ideas
@@ -447,13 +581,13 @@ export default function LogoShowcase() {
         ))}
       </div>
 
-      {/* Size comparison for all 10 */}
+      {/* Size comparison for all 15 */}
       <h2 className="text-sm font-semibold text-orange-400/80 uppercase tracking-wide mb-5">
         Size Comparison (22px sidebar · 52px login · 72px hero)
       </h2>
       <div className="bg-[#1a1208]/80 border border-amber-900/30 rounded-2xl p-8 overflow-x-auto">
         <div className="flex items-end gap-10">
-          {[...REFINE_OPTIONS, ...NEW_OPTIONS].map((o) => (
+          {[...REFINE_OPTIONS, ...CHAOTIC_OPTIONS, ...NEW_OPTIONS].map((o) => (
             <div key={o.id} className="flex flex-col items-center gap-3 shrink-0">
               <div className="flex items-end gap-3 bg-[#0d0a08] px-4 py-3 rounded-xl">
                 <o.Comp size={22} />
