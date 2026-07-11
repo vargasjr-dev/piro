@@ -49,10 +49,10 @@ export default async function HomePage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {isLoggedIn ? (
               <Link
-                href="/models"
+                href="/repos"
                 className="px-8 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:to-red-500 transition-all ember-glow text-base"
               >
-                Go to your models →
+                Go To Models →
               </Link>
             ) : (
               <>
@@ -283,10 +283,10 @@ export default async function HomePage() {
             </ul>
 
             <Link
-              href={isLoggedIn ? "/models" : "/signup"}
+              href={isLoggedIn ? "/repos" : "/signup"}
               className="block text-center w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:to-red-500 transition-all ember-glow text-base"
             >
-              {isLoggedIn ? "Go to your models →" : "Build your model — start training →"}
+              {isLoggedIn ? "Go To Models →" : "Build your model — start training →"}
             </Link>
           </div>
 
@@ -314,10 +314,10 @@ export default async function HomePage() {
           </p>
 
           <Link
-            href={isLoggedIn ? "/models" : "/signup"}
+            href={isLoggedIn ? "/repos" : "/signup"}
             className="inline-block px-10 py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:red-500 transition-all ember-glow text-base"
           >
-            {isLoggedIn ? "Go to your models →" : "Start training your model →"}
+            {isLoggedIn ? "Go To Models →" : "Start training your model →"}
           </Link>
 
           <div className="mt-12 flex justify-center">

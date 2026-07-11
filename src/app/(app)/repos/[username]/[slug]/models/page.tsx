@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "../../../../../../../data/db";
-import { repository, trainingRun, model, modelTrainingRun, user } from "../../../../../../../data/schema";
+import { repository, trainingRun, user } from "../../../../../../../data/schema";
 
 export default async function RepoModelsPage({
   params,
@@ -45,27 +44,6 @@ export default async function RepoModelsPage({
     .where(and(eq(trainingRun.repositoryId, repo.id), eq(trainingRun.status, "complete")))
     .orderBy(desc(trainingRun.completedAt));
 
-  // Find models linked to these runs
-  const modelLinks = runs.length > 0
-    ? await db
-        .select()
-        .from(modelTrainingRun)
-        .where(
-          // model_training_run has a unique trainingRunId, so we can just match
-          eq(modelTrainingRun.trainingRunId, runs[0].id),
-        )
-        .limit(1)
-    : [];
-
-  // Fetch actual models
-  const models = modelLinks.length > 0
-    ? await db
-        .select()
-        .from(model)
-        .where(eq(model.id, modelLinks[0].modelId))
-        .limit(1)
-    : [];
-
   return (
     <div className="p-4 lg:p-6 max-w-2xl space-y-4">
       <div>
@@ -78,20 +56,16 @@ export default async function RepoModelsPage({
       {runs.length === 0 ? (
         <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-8 text-center">
           <p className="text-sm text-amber-400/50">No trained models yet.</p>
-          <Link
-            href="/training/new"
-            className="text-xs text-amber-500/50 hover:text-amber-300 transition-colors mt-2 inline-block"
-          >
-            Start a training run →
-          </Link>
+          <p className="text-xs text-amber-600/30 mt-2">
+            Start a training run from the Piro CLI.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
           {runs.map((r) => (
-            <Link
+            <div
               key={r.id}
-              href={`/training/${r.id}`}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-900/15 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-900/15 bg-amber-900/5"
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-amber-200/80">
@@ -107,7 +81,7 @@ export default async function RepoModelsPage({
                   <p className="text-[10px] text-amber-700/30">val acc</p>
                 </div>
               )}
-            </Link>
+            </div>
           ))}
         </div>
       )}
