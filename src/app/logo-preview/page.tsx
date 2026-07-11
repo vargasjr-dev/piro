@@ -411,6 +411,26 @@ function D4({ size = 72 }: LogoProps) {
   );
 }
 
+/* D4L: D4 with the carved P shifted lower into the flame belly */
+function D4L({ size = 72 }: LogoProps) {
+  const uid = "d4l";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="50" y1="98" x2="45" y2="3" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="28%" stopColor="#dc2626" /><stop offset="58%" stopColor="#f97316" /><stop offset="84%" stopColor="#fbbf24" /><stop offset="100%" stopColor="#fff7ed" />
+        </linearGradient>
+        <mask id={`${uid}-m`}>
+          <rect width="100" height="100" fill="white" />
+          {/* Same P as D4, translated down 6 viewBox units */}
+          <path d="M38 41 L38 82 L45 82 L45 66 L56 66 C64 66 68 61 68 53 C68 45 63 41 56 41 Z M45 48 L55 48 C59 48 61 50 61 53 C61 57 59 59 55 59 L45 59Z" fill="black" />
+        </mask>
+      </defs>
+      <path d="M47 4 C44 16 35 23 29 32 C25 26 19 28 20 35 C21 41 28 43 22 50 C16 57 9 60 16 67 C22 73 28 71 21 80 C16 89 29 98 50 98 C72 98 88 89 80 79 C74 72 85 68 80 60 C76 53 68 50 75 42 C80 35 77 28 72 29 C67 30 64 37 63 42 C60 29 51 22 53 8 C50 16 47 22 45 29 C45 18 49 10 47 4Z" fill={`url(#${uid}-g)`} mask={`url(#${uid}-m)`} />
+    </svg>
+  );
+}
+
 /* D5: Core P — single silhouette with a bright P-shaped inner tongue */
 function D5({ size = 72 }: LogoProps) {
   const uid = "d5";
@@ -632,6 +652,7 @@ const FOLLOWUP_OPTIONS = [
   { id: "D2", name: "Split Core", desc: "Double flame with two inner tongues instead of one orderly teardrop", Comp: D2 },
   { id: "D3", name: "Heavy Ember", desc: "Bold outlined shell surrounding a much larger, irregular inner fire", Comp: D3 },
   { id: "D4", name: "Carved P", desc: "One continuous chaotic flame with the P punched out as negative space", Comp: D4 },
+  { id: "D4L", name: "Carved P — Lower", desc: "D4 with the negative-space P shifted six units lower into the flame belly", Comp: D4L },
   { id: "D5", name: "Core P", desc: "Single flame with a bright P-shaped inner tongue — no outer outline", Comp: D5 },
   { id: "D6", name: "Pure Emoji Flame", desc: "Single broad emoji-like flame with hot layered tongues and no outline", Comp: D6 },
 ];
