@@ -5,7 +5,10 @@ import { auth } from "~/lib/auth.server";
 import { eq, and } from "drizzle-orm";
 import { db } from "../../../../../../../../data/db";
 import { account, repository, user } from "../../../../../../../../data/schema";
-import { getRepositoryArchitecture } from "~/lib/github-repository";
+import {
+  getRepositoryArchitecture,
+  resolveGitHubRepository,
+} from "~/lib/github-repository";
 
 export default async function ArchitecturePage({
   params,
@@ -45,12 +48,19 @@ export default async function ArchitecturePage({
 
   let architecture = null;
   try {
-    architecture = await getRepositoryArchitecture(
+    const githubRepo = await resolveGitHubRepository(
       ownerHandle,
       repo.slug,
-      architectureName,
       githubAccount?.accessToken,
     );
+    if (githubRepo) {
+      architecture = await getRepositoryArchitecture(
+        githubRepo.owner,
+        githubRepo.repository,
+        architectureName,
+        githubAccount?.accessToken,
+      );
+    }
   } catch {
     architecture = null;
   }
