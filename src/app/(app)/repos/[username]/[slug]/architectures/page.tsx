@@ -4,7 +4,11 @@ import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { eq, and } from "drizzle-orm";
 import { db } from "../../../../../../../data/db";
-import { repository, user } from "../../../../../../../data/schema";
+import { account, repository, user } from "../../../../../../../data/schema";
+import {
+  listRepositoryArchitectures,
+  type RepositoryArchitecture,
+} from "~/lib/github-repository";
 
 export default async function ArchitecturesPage({
   params,
@@ -16,7 +20,7 @@ export default async function ArchitecturesPage({
   if (!session) return null;
 
   const [owner] = await db
-    .select()
+    .select({ id: user.id })
     .from(user)
     .where(eq(user.username, ownerHandle))
     .limit(1);
@@ -24,49 +28,89 @@ export default async function ArchitecturesPage({
   if (!owner) notFound();
 
   const [repo] = await db
-    .select()
+    .select({ slug: repository.slug })
     .from(repository)
     .where(and(eq(repository.userId, owner.id), eq(repository.slug, slug)))
     .limit(1);
 
   if (!repo) notFound();
 
+  const [githubAccount] = await db
+    .select({ accessToken: account.accessToken })
+    .from(account)
+    .where(and(eq(account.userId, owner.id), eq(account.providerId, "github")))
+    .limit(1);
+
+  let architectures: RepositoryArchitecture[] = [];
+  try {
+    architectures = await listRepositoryArchitectures(
+      ownerHandle,
+      repo.slug,
+      githubAccount?.accessToken,
+    );
+  } catch {
+    architectures = [];
+  }
+
   const githubUrl = `https://github.com/${ownerHandle}/${repo.slug}/tree/main/architectures`;
+  const basePath = `/repos/${ownerHandle}/${repo.slug}/architectures`;
 
   return (
     <div className="p-4 lg:p-6 max-w-2xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-sm font-semibold text-amber-100">Architectures</h2>
           <p className="text-xs text-amber-400/40 mt-0.5">
-            Model definitions live in your repo at <code className="font-mono text-amber-600/40">architectures/</code>
+            {architectures.length === 1
+              ? "1 architecture defined in this repo"
+              : `${architectures.length} architectures defined in this repo`}
           </p>
         </div>
         <Link
           href={githubUrl}
           target="_blank"
+          rel="noopener noreferrer"
           className="text-xs text-amber-400/50 hover:text-amber-200 transition-colors flex items-center gap-1 shrink-0"
         >
-          View on GitHub
+          GitHub
           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>
         </Link>
       </div>
 
-      <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-6 text-center">
-        <p className="text-sm text-amber-400/50">Architectures are defined in your GitHub repo.</p>
-        <p className="text-xs text-amber-600/30 mt-2">
-          Each architecture is a directory with a <code className="font-mono">main.py</code>:
-        </p>
-        <div className="mt-3 inline-block text-left">
-          <pre className="text-[11px] font-mono text-amber-600/40 bg-amber-950/30 rounded-lg px-3 py-2">{`architectures/
-  ctm/
-    main.py        # PiroModel subclass
-  baseline-transformer/
-    main.py`}</pre>
+      {architectures.length === 0 ? (
+        <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-8 text-center">
+          <p className="text-sm text-amber-400/50">No architectures found in this repo.</p>
+          <p className="text-xs text-amber-600/30 mt-2">
+            Add an architecture directory under <code className="font-mono">architectures/</code> and push it to GitHub.
+          </p>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-2">
+          {architectures.map((architecture) => (
+            <Link
+              key={architecture.path}
+              href={`${basePath}/${encodeURIComponent(architecture.name)}`}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-900/15 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 7.5L12 3l8 4.5v9L12 21l-8-4.5v-9Z" />
+                  <path d="M8 9.75 12 12l4-2.25M12 12v4.5" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-amber-200/80">{architecture.name}</p>
+                <p className="text-[11px] text-amber-700/30 font-mono truncate">{architecture.path}/main.py</p>
+              </div>
+              <svg className="w-4 h-4 text-amber-800/30 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
+              </svg>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
