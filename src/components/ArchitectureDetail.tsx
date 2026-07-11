@@ -31,10 +31,13 @@ export function ArchitectureDetail({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const [tab, setTab] = useState<Tab>(requestedTab === "code" ? "code" : "preview");
+  const [tab, setTab] = useState<Tab>(
+    requestedTab === "code" ? "code" : "preview",
+  );
   const [manifest, setManifest] = useState<ArchitectureManifest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     setTab(requestedTab === "code" ? "code" : "preview");
@@ -44,15 +47,22 @@ export function ArchitectureDetail({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setManifest(null);
 
-    fetch(serializeUrl)
+    fetch(serializeUrl, {
+      signal: AbortSignal.timeout(60_000),
+    })
       .then(async (response) => {
         const body = (await response.json()) as ArchitectureManifest & {
           error?: string;
           detail?: string;
         };
         if (!response.ok) {
-          throw new Error(body.detail ?? body.error ?? "Unable to serialize this architecture.");
+          throw new Error(
+            body.detail ??
+              body.error ??
+              "Unable to serialize this architecture.",
+          );
         }
         return body;
       })
@@ -61,7 +71,13 @@ export function ArchitectureDetail({
       })
       .catch((reason: unknown) => {
         if (!cancelled) {
-          setError(reason instanceof Error ? reason.message : "Unable to serialize this architecture.");
+          const message =
+            reason instanceof DOMException && reason.name === "TimeoutError"
+              ? "Architecture serialization timed out. Please try again."
+              : reason instanceof Error
+                ? reason.message
+                : "Unable to serialize this architecture.";
+          setError(message);
         }
       })
       .finally(() => {
@@ -71,7 +87,7 @@ export function ArchitectureDetail({
     return () => {
       cancelled = true;
     };
-  }, [serializeUrl]);
+  }, [serializeUrl, retryCount]);
 
   function switchTab(nextTab: Tab) {
     setTab(nextTab);
@@ -83,7 +99,9 @@ export function ArchitectureDetail({
   }
 
   const graph = manifest?.graph;
-  const hyperparams = manifest?.hyperparams ? Object.entries(manifest.hyperparams) : [];
+  const hyperparams = manifest?.hyperparams
+    ? Object.entries(manifest.hyperparams)
+    : [];
 
   return (
     <div className="space-y-4">
@@ -126,14 +144,24 @@ export function ArchitectureDetail({
         <div className="rounded-xl border border-red-900/20 bg-red-950/10 px-4 py-5 text-sm text-red-300/60">
           <p className="font-medium text-red-300/75">Preview unavailable</p>
           <p className="mt-1 text-xs leading-relaxed">{error}</p>
+          <button
+            type="button"
+            onClick={() => setRetryCount((count) => count + 1)}
+            className="mt-4 rounded-md border border-red-900/30 px-3 py-1.5 text-xs text-red-300/75 transition-colors hover:bg-red-900/20"
+          >
+            Retry
+          </button>
         </div>
       ) : (
         <div className="space-y-6">
           {manifest?.description && (
-            <p className="text-sm text-amber-400/60 leading-relaxed">{manifest.description}</p>
+            <p className="text-sm text-amber-400/60 leading-relaxed">
+              {manifest.description}
+            </p>
           )}
 
-          {(manifest?.parameterCount !== undefined || hyperparams.length > 0) && (
+          {(manifest?.parameterCount !== undefined ||
+            hyperparams.length > 0) && (
             <div className="grid gap-3 sm:grid-cols-2">
               {manifest && manifest.parameterCount !== undefined && (
                 <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-3">
@@ -147,7 +175,9 @@ export function ArchitectureDetail({
               )}
               {manifest && hyperparams.length > 0 && (
                 <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-3">
-                  <p className="text-lg font-semibold text-amber-100">{hyperparams.length}</p>
+                  <p className="text-lg font-semibold text-amber-100">
+                    {hyperparams.length}
+                  </p>
                   <p className="text-[10px] uppercase tracking-widest text-amber-600/45">
                     Hyperparameters
                   </p>
@@ -163,9 +193,14 @@ export function ArchitectureDetail({
               </h3>
               <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 divide-y divide-amber-900/10">
                 {hyperparams.map(([key, value]) => (
-                  <div key={key} className="flex items-center justify-between gap-4 px-4 py-2.5 text-xs">
+                  <div
+                    key={key}
+                    className="flex items-center justify-between gap-4 px-4 py-2.5 text-xs"
+                  >
                     <span className="font-mono text-amber-600/55">{key}</span>
-                    <span className="font-mono text-amber-200/65">{String(value)}</span>
+                    <span className="font-mono text-amber-200/65">
+                      {String(value)}
+                    </span>
                   </div>
                 ))}
               </div>
