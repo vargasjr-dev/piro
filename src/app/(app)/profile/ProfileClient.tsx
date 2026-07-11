@@ -7,6 +7,33 @@ interface Props {
   githubLinked: boolean;
 }
 
+function SignOutButton() {
+  const [pending, setPending] = useState(false);
+
+  const handleSignOut = async () => {
+    if (pending) return;
+    setPending(true);
+    try {
+      await authClient.signOut();
+    } catch {
+      // Swallow errors — treat as logged out regardless
+    } finally {
+      window.location.href = "/login";
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleSignOut}
+      disabled={pending}
+      className="w-full px-4 py-3 rounded-xl border border-red-800/30 bg-red-950/30 text-sm font-medium text-red-300/80 hover:bg-red-950/50 hover:text-red-200 transition-colors disabled:opacity-50"
+    >
+      {pending ? "Signing out..." : "Sign out"}
+    </button>
+  );
+}
+
 export default function ProfileClient({ githubLinked }: Props) {
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState("");
@@ -28,6 +55,7 @@ export default function ProfileClient({ githubLinked }: Props) {
   };
 
   return (
+    <>
     <section className="bg-[#1a1208]/80 border border-amber-900/30 rounded-2xl p-6">
       <h2 className="text-sm font-semibold text-amber-300/70 uppercase tracking-wide mb-4">
         Connections
@@ -84,5 +112,11 @@ export default function ProfileClient({ githubLinked }: Props) {
         </div>
       )}
     </section>
+
+    {/* Sign out */}
+    <div className="mt-6">
+      <SignOutButton />
+    </div>
+    </>
   );
 }

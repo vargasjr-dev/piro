@@ -41,9 +41,9 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0a08] lg:flex">
-      <SideNav userName={session.user.name} isSubscribed={isActive(sub) || isAdmin(session)} />
-      <main className="flex-1 min-w-0 pb-20 lg:pb-0">{children}</main>
+    <div className="min-h-screen bg-[#0d0a08]">
+      <SideNav />
+      <main className="min-w-0">{children}</main>
     </div>
   );
 }
