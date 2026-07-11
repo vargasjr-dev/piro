@@ -63,6 +63,12 @@ export default function SideNav() {
               </Link>
             );
           })}
+          <Link
+            href="/docs"
+            className="px-3 py-1.5 rounded-lg text-sm font-medium text-amber-400/50 hover:text-amber-300 hover:bg-amber-900/20 transition-colors"
+          >
+            <span className="hidden sm:inline">Docs</span>
+          </Link>
         </nav>
       </div>
     </header>

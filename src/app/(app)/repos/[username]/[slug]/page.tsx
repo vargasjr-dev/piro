@@ -121,15 +121,6 @@ export default async function RepoOverviewPage({
         </div>
       )}
 
-      {/* Repo conventions help */}
-      <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-3">
-        <p className="text-xs text-amber-400/50 font-medium mb-2">Repo conventions</p>
-        <div className="space-y-1 text-[11px] font-mono text-amber-600/40">
-          <p>sources/{"<name>"}/main.py</p>
-          <p>architectures/{"<name>"}/main.py</p>
-          <p>benchmarks/{"<name>"}/main.py</p>
-        </div>
-      </div>
     </div>
   );
 }
