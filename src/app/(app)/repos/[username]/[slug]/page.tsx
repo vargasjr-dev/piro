@@ -105,10 +105,9 @@ export default async function RepoOverviewPage({
           <h3 className="text-[11px] font-semibold text-amber-300/60 uppercase tracking-wider mb-2">Recent Runs</h3>
           <div className="space-y-1.5">
             {recentRuns.map((r) => (
-              <Link
+              <div
                 key={r.id}
-                href={`/training/${r.id}`}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-900/15 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-900/15 bg-amber-900/5"
               >
                 <div className="flex-1 min-w-0">
                   <span className="text-xs font-medium text-amber-200/80">{r.modelName ?? r.architecturePath}</span>
@@ -120,7 +119,7 @@ export default async function RepoOverviewPage({
                   r.status === "running" ? "text-orange-400/60" :
                   "text-amber-600/40"
                 }`}>{r.status}</span>
-              </Link>
+              </div>
             ))}
           </div>
         </div>
