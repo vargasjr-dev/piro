@@ -8,6 +8,7 @@ import { isAdmin } from "~/lib/admin";
 import { getSubscription, isActive } from "~/lib/billing";
 import ProfileClient from "./ProfileClient";
 import KeysClient from "../keys/KeysClient";
+import SignOutButton from "./SignOutButton";
 
 export default async function ProfilePage() {
   const headersList = await headers();
@@ -102,6 +103,11 @@ export default async function ProfilePage() {
           Keys authenticate as you. Treat them like passwords.
         </p>
         <KeysClient initialKeys={serializedKeys} />
+      </div>
+
+      {/* Sign out */}
+      <div className="mt-8 pt-6 border-t border-amber-900/20">
+        <SignOutButton className="px-4 py-2 text-sm text-amber-400/60 hover:text-amber-200 transition border border-amber-900/30 rounded-lg hover:border-amber-900/50 disabled:opacity-50" />
       </div>
     </div>
   );
