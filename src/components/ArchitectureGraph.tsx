@@ -14,7 +14,8 @@ export type GraphNodeType =
   | "linear"
   | "loop"
   | "confidence"
-  | "sync";
+  | "sync"
+  | "reshape";
 
 export interface GraphNode {
   id: string;
@@ -52,6 +53,7 @@ const NODE_META: Record<GraphNodeType, NodeMeta> = {
   loop:       { icon: "↺", textColor: "text-amber-300",    borderColor: "border-amber-400/30", bgColor: "bg-amber-400/5"  },
   confidence: { icon: "◎", textColor: "text-amber-400/70", borderColor: "border-amber-900/20", bgColor: "bg-transparent"  },
   sync:       { icon: "⊗", textColor: "text-amber-500/60", borderColor: "border-amber-900/20", bgColor: "bg-transparent"  },
+  reshape:    { icon: "↔", textColor: "text-amber-500/60", borderColor: "border-amber-900/20", bgColor: "bg-transparent"  },
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────

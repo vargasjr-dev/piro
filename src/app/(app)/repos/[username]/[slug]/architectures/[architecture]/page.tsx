@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArchitectureDetail } from "~/components/ArchitectureDetail";
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { eq, and } from "drizzle-orm";
@@ -84,22 +85,12 @@ export default async function ArchitecturePage({
           <h2 className="text-xl font-semibold text-amber-100">{architecture.name}</h2>
           <p className="text-xs text-amber-400/40 mt-1 font-mono">{architecture.path}</p>
         </div>
-        <a
-          href={architecture.htmlUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-amber-400/50 hover:text-amber-200 transition-colors flex items-center gap-1 shrink-0"
-        >
-          GitHub
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
-        </a>
       </div>
 
-      <pre className="rounded-xl border border-amber-900/20 bg-[#13100c] p-4 overflow-x-auto text-xs leading-relaxed text-amber-200/70 font-mono">
-        <code>{architecture.source ?? "Source unavailable."}</code>
-      </pre>
+      <ArchitectureDetail
+        source={architecture.source}
+        serializeUrl={`/api/repos/${encodeURIComponent(ownerHandle)}/${encodeURIComponent(repo.slug)}/architectures/${encodeURIComponent(architecture.name)}/serialize`}
+      />
     </div>
   );
 }
