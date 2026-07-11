@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { auth } from "~/lib/auth.server";
 import { getSubscription, isActive } from "~/lib/billing";
 import { isAdmin } from "~/lib/admin";
+import { eq, and } from "drizzle-orm";
+import { db } from "../../../data/db";
+import { repository, user } from "../../../data/schema";
 import SideNav from "./SideNav";
 
 // Pages accessible to logged-in users without an active subscription.
@@ -40,10 +43,35 @@ export default async function AppLayout({
     redirect("/upgrade");
   }
 
+  // If we're inside a repo page, fetch the repo title for the nav bar.
+  // Pathname looks like /repos/[username]/[slug](...).
+  let repoTitle: string | null = null;
+  const repoMatch = pathname.match(/^\/repos\/([^/]+)\/([^/]+)/);
+  if (repoMatch) {
+    const [, ownerHandle, slug] = repoMatch;
+    const [owner] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.username, ownerHandle))
+      .limit(1);
+    if (owner) {
+      const [repo] = await db
+        .select({ name: repository.name })
+        .from(repository)
+        .where(and(eq(repository.userId, owner.id), eq(repository.slug, slug)))
+        .limit(1);
+      if (repo) repoTitle = repo.name;
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-[#0d0a08]">
-      <SideNav />
-      <main className="min-w-0">{children}</main>
+    <div className="min-h-screen bg-[#0d0a08] lg:flex">
+      <SideNav
+        userName={session.user.name}
+        isSubscribed={isActive(sub) || isAdmin(session)}
+        repoTitle={repoTitle}
+      />
+      <main className="flex-1 min-w-0 pb-20 lg:pb-0">{children}</main>
     </div>
   );
 }
