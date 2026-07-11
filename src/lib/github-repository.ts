@@ -13,6 +13,7 @@ interface GitHubRequestOptions {
   repository: string;
   path: string;
   accessToken?: string | null;
+  signal?: AbortSignal;
 }
 
 interface GitHubRepositorySearchResult {
@@ -38,7 +39,10 @@ async function fetchGitHubContents({
   repository,
   path,
   accessToken,
-}: GitHubRequestOptions): Promise<GitHubContentItem | GitHubContentItem[] | null> {
+  signal,
+}: GitHubRequestOptions): Promise<
+  GitHubContentItem | GitHubContentItem[] | null
+> {
   const encodedPath = path
     .split("/")
     .map((part) => encodeURIComponent(part))
@@ -48,6 +52,7 @@ async function fetchGitHubContents({
     {
       headers: githubHeaders(accessToken),
       cache: "no-store",
+      signal,
     },
   );
 
@@ -61,10 +66,12 @@ async function fetchGitHubContents({
 
 async function getAuthenticatedGitHubLogin(
   accessToken: string,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   const response = await fetch("https://api.github.com/user", {
     headers: githubHeaders(accessToken),
     cache: "no-store",
+    signal,
   });
 
   if (!response.ok) return null;
@@ -89,11 +96,12 @@ export async function resolveGitHubRepository(
   piroOwner: string,
   repository: string,
   accessToken?: string | null,
+  signal?: AbortSignal,
 ): Promise<GitHubRepositoryRef | null> {
   const candidates: string[] = [];
 
   if (accessToken) {
-    const login = await getAuthenticatedGitHubLogin(accessToken);
+    const login = await getAuthenticatedGitHubLogin(accessToken, signal);
     if (login) candidates.push(login);
   }
   candidates.push(piroOwner);
@@ -103,6 +111,7 @@ export async function resolveGitHubRepository(
     {
       headers: githubHeaders(accessToken),
       cache: "no-store",
+      signal,
     },
   );
 
@@ -126,6 +135,7 @@ export async function resolveGitHubRepository(
       ...ref,
       path: "architectures",
       accessToken,
+      signal,
     });
 
     if (contents === null) continue;
@@ -185,6 +195,7 @@ export async function getRepositoryArchitecture(
   repository: string,
   name: string,
   accessToken?: string | null,
+  signal?: AbortSignal,
 ): Promise<RepositoryArchitectureFile | null> {
   const path = `architectures/${name}/main.py`;
   const contents = await fetchGitHubContents({
@@ -192,6 +203,7 @@ export async function getRepositoryArchitecture(
     repository,
     path,
     accessToken,
+    signal,
   });
 
   if (!contents || Array.isArray(contents) || contents.type !== "file") {
@@ -200,7 +212,9 @@ export async function getRepositoryArchitecture(
 
   const source =
     contents.encoding === "base64" && contents.content
-      ? Buffer.from(contents.content.replace(/\n/g, ""), "base64").toString("utf8")
+      ? Buffer.from(contents.content.replace(/\n/g, ""), "base64").toString(
+          "utf8",
+        )
       : null;
 
   return {
