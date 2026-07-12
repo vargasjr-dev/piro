@@ -8,8 +8,16 @@ let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
 function getInstance() {
   if (!_db) {
-    const url = process.env.DATABASE_URL;
-    if (!url) throw new Error("DATABASE_URL is not set");
+    const url = process.env.PIRO_DATABASE_URL ?? process.env.DATABASE_URL;
+    if (!url) throw new Error("PIRO_DATABASE_URL is not set");
+
+    const parsed = new URL(url);
+    if (parsed.hostname.includes("-pooler.")) {
+      throw new Error(
+        "PIRO_DATABASE_URL must use a direct Neon endpoint when using neon-http",
+      );
+    }
+
     _db = drizzle(neon(url), { schema });
   }
   return _db;
