@@ -23,9 +23,11 @@ type Tab = "preview" | "code";
 export function ArchitectureDetail({
   source,
   serializeUrl,
+  serializationToken,
 }: {
   source: string | null;
   serializeUrl: string;
+  serializationToken: string | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -44,13 +46,23 @@ export function ArchitectureDetail({
   }, [requestedTab]);
 
   useEffect(() => {
+    if (tab !== "preview" || !serializationToken) {
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
     let cancelled = false;
     setLoading(true);
     setError(null);
     setManifest(null);
 
     fetch(serializeUrl, {
-      signal: AbortSignal.timeout(60_000),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: serializationToken, source }),
+      signal: controller.signal,
     })
       .then(async (response) => {
         const body = (await response.json()) as ArchitectureManifest & {
@@ -72,7 +84,7 @@ export function ArchitectureDetail({
       .catch((reason: unknown) => {
         if (!cancelled) {
           const message =
-            reason instanceof DOMException && reason.name === "TimeoutError"
+            reason instanceof DOMException && reason.name === "AbortError"
               ? "Architecture serialization timed out. Please try again."
               : reason instanceof Error
                 ? reason.message
@@ -81,13 +93,16 @@ export function ArchitectureDetail({
         }
       })
       .finally(() => {
+        clearTimeout(timeout);
         if (!cancelled) setLoading(false);
       });
 
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
     };
-  }, [serializeUrl, retryCount]);
+  }, [serializeUrl, retryCount, serializationToken, tab]);
 
   function switchTab(nextTab: Tab) {
     setTab(nextTab);

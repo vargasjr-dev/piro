@@ -1,59 +1,68 @@
-import { notFound } from "next/navigation";
-import { headers } from "next/headers";
-import { auth } from "~/lib/auth.server";
-import { eq, and } from "drizzle-orm";
-import { db } from "../../../../../../../data/db";
-import { repository, user } from "../../../../../../../data/schema";
+import Link from "next/link";
+import { getRepositoryContext } from "~/lib/repository-context.server";
+import { listRepositoryComponents } from "~/lib/repository-components";
 
 export default async function BenchmarksPage({
   params,
 }: {
   params: Promise<{ username: string; slug: string }>;
 }) {
-  const { username: ownerHandle, slug } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return null;
+  const { username, slug } = await params;
+  const context = await getRepositoryContext(username, slug);
+  if (!context) return null;
 
-  const [owner] = await db
-    .select()
-    .from(user)
-    .where(eq(user.username, ownerHandle))
-    .limit(1);
-
-  if (!owner) notFound();
-
-  const [repo] = await db
-    .select()
-    .from(repository)
-    .where(and(eq(repository.userId, owner.id), eq(repository.slug, slug)))
-    .limit(1);
-
-  if (!repo) notFound();
+  const components = context.githubRepo
+    ? await listRepositoryComponents(
+        context.githubRepo.owner,
+        context.githubRepo.repository,
+        "benchmarks",
+        context.accessToken,
+      ).catch(() => [])
+    : [];
+  const basePath = `/repos/${username}/${context.repo.slug}/benchmarks`;
 
   return (
     <div className="p-4 lg:p-6 max-w-2xl space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-amber-100">Benchmarks</h2>
-          <p className="text-xs text-amber-400/40 mt-0.5">
-            Evaluation scripts live in your repo at <code className="font-mono text-amber-600/40">benchmarks/</code>
-          </p>
-        </div>
+      <div>
+        <h2 className="text-sm font-semibold text-amber-100">Benchmarks</h2>
+        <p className="text-xs text-amber-400/40 mt-0.5">
+          {components.length} benchmark{components.length === 1 ? "" : "s"} in
+          this repository
+        </p>
       </div>
 
-      <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-6 text-center">
-        <p className="text-sm text-amber-400/50">Benchmarks are defined in your GitHub repo.</p>
-        <p className="text-xs text-amber-600/30 mt-2">
-          Each benchmark is a directory with a <code className="font-mono">main.py</code>:
-        </p>
-        <div className="mt-3 inline-block text-left">
-          <pre className="text-[11px] font-mono text-amber-600/40 bg-amber-950/30 rounded-lg px-3 py-2">{`benchmarks/
-  length-generalization/
-    main.py        # Benchmark subclass
-  ood-generalization/
-    main.py`}</pre>
+      {components.length === 0 ? (
+        <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-8 text-center">
+          <p className="text-sm text-amber-400/50">No benchmarks found.</p>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-2">
+          {components.map((component) => (
+            <a
+              key={component.path}
+              href={component.htmlUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-900/15 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-300 flex items-center justify-center shrink-0">
+                B
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-amber-200/80">
+                  {component.name}
+                </p>
+                <p className="text-[11px] text-amber-700/30 font-mono truncate">
+                  {component.entrypoint
+                    ? `${component.path}/${component.entrypoint}`
+                    : component.path}
+                </p>
+              </div>
+              <span className="text-[10px] text-amber-600/40">GitHub</span>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -27,10 +27,7 @@ function githubHeaders(accessToken?: string | null): HeadersInit {
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
-
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   return headers;
 }
 
@@ -43,24 +40,23 @@ async function fetchGitHubContents({
 }: GitHubRequestOptions): Promise<
   GitHubContentItem | GitHubContentItem[] | null
 > {
-  const encodedPath = path
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/");
+  const suffix = path
+    ? `/${path
+        .split("/")
+        .map((part) => encodeURIComponent(part))
+        .join("/")}`
+    : "";
   const response = await fetch(
-    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/contents/${encodedPath}`,
-    {
-      headers: githubHeaders(accessToken),
-      cache: "no-store",
-      signal,
-    },
+    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/contents${suffix}`,
+    { headers: githubHeaders(accessToken), cache: "no-store", signal },
   );
 
   if (response.status === 404) return null;
   if (!response.ok) {
-    throw new Error(`GitHub returned ${response.status} while reading ${path}`);
+    throw new Error(
+      `GitHub returned ${response.status} while reading ${path || "repository root"}`,
+    );
   }
-
   return (await response.json()) as GitHubContentItem | GitHubContentItem[];
 }
 
@@ -73,7 +69,6 @@ async function getAuthenticatedGitHubLogin(
     cache: "no-store",
     signal,
   });
-
   if (!response.ok) return null;
   const body = (await response.json()) as { login?: string };
   return body.login ?? null;
@@ -84,14 +79,6 @@ export interface GitHubRepositoryRef {
   repository: string;
 }
 
-/**
- * Resolve the GitHub repository independently from Piro's app username.
- *
- * Piro usernames and GitHub owners are different identities: for example,
- * the Piro user `dvargasfuertes` owns the GitHub repository under the
- * `vargasjr-dev` organization. Prefer the linked GitHub account, then the
- * Piro username, and finally exact-name GitHub search results.
- */
 export async function resolveGitHubRepository(
   piroOwner: string,
   repository: string,
@@ -99,7 +86,6 @@ export async function resolveGitHubRepository(
   signal?: AbortSignal,
 ): Promise<GitHubRepositoryRef | null> {
   const candidates: string[] = [];
-
   if (accessToken) {
     const login = await getAuthenticatedGitHubLogin(accessToken, signal);
     if (login) candidates.push(login);
@@ -108,13 +94,8 @@ export async function resolveGitHubRepository(
 
   const searchResponse = await fetch(
     `https://api.github.com/search/repositories?q=${encodeURIComponent(`${repository} in:name`)}&per_page=20`,
-    {
-      headers: githubHeaders(accessToken),
-      cache: "no-store",
-      signal,
-    },
+    { headers: githubHeaders(accessToken), cache: "no-store", signal },
   );
-
   if (searchResponse.ok) {
     const searchBody = (await searchResponse.json()) as {
       items?: GitHubRepositorySearchResult[];
@@ -126,61 +107,89 @@ export async function resolveGitHubRepository(
     }
   }
 
-  const uniqueCandidates = [...new Set(candidates)];
-  let firstExactMatch: GitHubRepositoryRef | null = null;
-
-  for (const owner of uniqueCandidates) {
+  for (const owner of [...new Set(candidates)]) {
     const ref = { owner, repository };
-    const contents = await fetchGitHubContents({
-      ...ref,
-      path: "architectures",
-      accessToken,
-      signal,
-    });
-
-    if (contents === null) continue;
-    firstExactMatch ??= ref;
-
-    // Prefer the exact repo that actually contains the component directory.
-    if (Array.isArray(contents)) return ref;
+    if (await fetchGitHubContents({ ...ref, path: "", accessToken, signal })) {
+      return ref;
+    }
   }
-
-  return firstExactMatch;
+  return null;
 }
 
-export interface RepositoryArchitecture {
+export interface GitHubRepositoryComponent {
   name: string;
   path: string;
   htmlUrl: string;
+  entrypoint: string | null;
 }
+
+const COMPONENT_ENTRYPOINTS = ["main.py", "model.py", "script.py"];
+
+export async function listRepositoryDirectory(
+  owner: string,
+  repository: string,
+  directory: string,
+  accessToken?: string | null,
+  signal?: AbortSignal,
+): Promise<GitHubRepositoryComponent[]> {
+  const contents = await fetchGitHubContents({
+    owner,
+    repository,
+    path: directory,
+    accessToken,
+    signal,
+  });
+  if (!Array.isArray(contents)) return [];
+
+  const components = await Promise.all(
+    contents
+      .filter(
+        (item) =>
+          item.type === "dir" &&
+          !item.name.startsWith(".") &&
+          item.name !== "__pycache__",
+      )
+      .map(async (item) => {
+        const candidates = await Promise.all(
+          COMPONENT_ENTRYPOINTS.map(async (entrypoint) => {
+            const file = await fetchGitHubContents({
+              owner,
+              repository,
+              path: `${item.path}/${entrypoint}`,
+              accessToken,
+              signal,
+            });
+            return file && !Array.isArray(file) && file.type === "file"
+              ? entrypoint
+              : null;
+          }),
+        );
+        return {
+          name: item.name,
+          path: item.path,
+          htmlUrl: item.html_url,
+          entrypoint: candidates.find(Boolean) ?? null,
+        };
+      }),
+  );
+  return components.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export interface RepositoryArchitecture extends GitHubRepositoryComponent {}
 
 export async function listRepositoryArchitectures(
   owner: string,
   repository: string,
   accessToken?: string | null,
+  signal?: AbortSignal,
 ): Promise<RepositoryArchitecture[]> {
-  const contents = await fetchGitHubContents({
+  return listRepositoryDirectory(
     owner,
     repository,
-    path: "architectures",
+    "architectures",
     accessToken,
-  });
-
-  if (!Array.isArray(contents)) return [];
-
-  return contents
-    .filter(
-      (item) =>
-        item.type === "dir" &&
-        !item.name.startsWith(".") &&
-        item.name !== "__pycache__",
-    )
-    .map((item) => ({
-      name: item.name,
-      path: item.path,
-      htmlUrl: item.html_url,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    signal,
+  );
 }
 
 export interface RepositoryArchitectureFile {
@@ -197,30 +206,25 @@ export async function getRepositoryArchitecture(
   accessToken?: string | null,
   signal?: AbortSignal,
 ): Promise<RepositoryArchitectureFile | null> {
-  const path = `architectures/${name}/main.py`;
-  const contents = await fetchGitHubContents({
-    owner,
-    repository,
-    path,
-    accessToken,
-    signal,
-  });
+  for (const entrypoint of COMPONENT_ENTRYPOINTS) {
+    const path = `architectures/${name}/${entrypoint}`;
+    const contents = await fetchGitHubContents({
+      owner,
+      repository,
+      path,
+      accessToken,
+      signal,
+    });
+    if (!contents || Array.isArray(contents) || contents.type !== "file")
+      continue;
 
-  if (!contents || Array.isArray(contents) || contents.type !== "file") {
-    return null;
+    const source =
+      contents.encoding === "base64" && contents.content
+        ? Buffer.from(contents.content.replace(/\n/g, ""), "base64").toString(
+            "utf8",
+          )
+        : null;
+    return { name, path, htmlUrl: contents.html_url, source };
   }
-
-  const source =
-    contents.encoding === "base64" && contents.content
-      ? Buffer.from(contents.content.replace(/\n/g, ""), "base64").toString(
-          "utf8",
-        )
-      : null;
-
-  return {
-    name,
-    path,
-    htmlUrl: contents.html_url,
-    source,
-  };
+  return null;
 }

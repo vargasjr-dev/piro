@@ -7,13 +7,10 @@ import {
   repository,
   user,
 } from "../../../../../../../../../data/schema";
-import {
-  getRepositoryArchitecture,
-  resolveGitHubRepository,
-} from "~/lib/github-repository";
+import { verifyArchitectureSerializationHandoff } from "~/lib/architecture-serialization-handoff.server";
 
-export async function GET(
-  _request: Request,
+export async function POST(
+  request: Request,
   {
     params,
   }: {
@@ -22,6 +19,10 @@ export async function GET(
 ) {
   const { username, slug, architecture: encodedArchitecture } = await params;
   const architectureName = decodeURIComponent(encodedArchitecture);
+  const body = (await request.json().catch(() => null)) as {
+    token?: string;
+    source?: string;
+  } | null;
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session)
     return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -42,41 +43,38 @@ export async function GET(
   if (!repo)
     return Response.json({ error: "Repository not found" }, { status: 404 });
 
-  const [githubAccount] = await db
-    .select({ accessToken: account.accessToken })
-    .from(account)
-    .where(and(eq(account.userId, owner.id), eq(account.providerId, "github")))
-    .limit(1);
+  if (!body?.token) {
+    return Response.json(
+      { error: "Serialization handoff required" },
+      { status: 400 },
+    );
+  }
+
+  const source = body?.source;
+  if (!source) {
+    return Response.json(
+      { error: "Architecture source required" },
+      { status: 400 },
+    );
+  }
+
+  if (
+    !verifyArchitectureSerializationHandoff({
+      token: body.token,
+      username,
+      repository: repo.slug,
+      architecture: architectureName,
+      source,
+    })
+  ) {
+    return Response.json(
+      { error: "Invalid serialization handoff" },
+      { status: 403 },
+    );
+  }
 
   try {
-    const requestSignal = AbortSignal.timeout(45_000);
-    const githubRepo = await resolveGitHubRepository(
-      username,
-      repo.slug,
-      githubAccount?.accessToken,
-      requestSignal,
-    );
-    if (!githubRepo) {
-      return Response.json(
-        { error: "GitHub repository not found" },
-        { status: 404 },
-      );
-    }
-
-    const architecture = await getRepositoryArchitecture(
-      githubRepo.owner,
-      githubRepo.repository,
-      architectureName,
-      githubAccount?.accessToken,
-      requestSignal,
-    );
-    if (!architecture?.source) {
-      return Response.json(
-        { error: "Architecture source not found" },
-        { status: 404 },
-      );
-    }
-
+    const requestSignal = AbortSignal.timeout(20_000);
     const endpoint =
       process.env.MODAL_SERIALIZE_SOURCE_ENDPOINT ??
       "https://dvargasfuertes--piro-serialize-source.modal.run";
@@ -87,7 +85,7 @@ export async function GET(
         "Content-Type": "application/json",
         "X-Piro-Secret": process.env.MODAL_WEBHOOK_SECRET ?? "",
       },
-      body: JSON.stringify({ source: architecture.source }),
+      body: JSON.stringify({ source }),
       cache: "no-store",
       signal: requestSignal,
     });
