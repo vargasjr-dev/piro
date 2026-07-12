@@ -4,10 +4,15 @@ import { db } from "../../data/db";
 import { user, session, account, verification } from "../../data/schema";
 import { TRUSTED_ORIGINS } from "./domains";
 
-const socialProviders = (() => {
-  const providers: Record<string, { clientId: string; clientSecret: string }> = {};
+export const isGitHubConfigured = Boolean(
+  process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET,
+);
 
-  if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+const socialProviders = (() => {
+  const providers: Record<string, { clientId: string; clientSecret: string }> =
+    {};
+
+  if (isGitHubConfigured) {
     providers.github = {
       clientId: process.env.GITHUB_CLIENT_ID,
       clientSecret: process.env.GITHUB_CLIENT_SECRET,

@@ -5,7 +5,13 @@ import Link from "next/link";
 import FlameLogo from "~/components/FlameLogo";
 import { authClient } from "~/lib/auth.client";
 
-export default function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
+export default function LoginForm({
+  callbackUrl,
+  githubConfigured,
+}: {
+  callbackUrl?: string;
+  githubConfigured: boolean;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -18,7 +24,10 @@ export default function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
     setError("");
     setLoading(true);
     try {
-      const { error: authError } = await authClient.signIn.email({ email, password });
+      const { error: authError } = await authClient.signIn.email({
+        email,
+        password,
+      });
       if (authError) throw new Error(authError.message || "Login failed");
       window.location.href = destination;
     } catch (err) {
@@ -36,15 +45,21 @@ export default function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
 
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-8 flex justify-center">
-          <Link href="/"><FlameLogo size={52} /></Link>
+          <Link href="/">
+            <FlameLogo size={52} />
+          </Link>
         </div>
 
         <div className="bg-[#1a1208]/80 border border-amber-900/30 rounded-2xl p-8 backdrop-blur-sm">
-          <h1 className="text-2xl font-bold text-amber-50 mb-6 text-center">Welcome back</h1>
+          <h1 className="text-2xl font-bold text-amber-50 mb-6 text-center">
+            Welcome back
+          </h1>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-amber-300/70 mb-1.5">Email</label>
+              <label className="block text-sm font-medium text-amber-300/70 mb-1.5">
+                Email
+              </label>
               <input
                 type="email"
                 value={email}
@@ -55,7 +70,9 @@ export default function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-amber-300/70 mb-1.5">Password</label>
+              <label className="block text-sm font-medium text-amber-300/70 mb-1.5">
+                Password
+              </label>
               <input
                 type="password"
                 value={password}
@@ -81,29 +98,51 @@ export default function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
             </button>
           </form>
 
-          {/* Social login */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-amber-900/30" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-[#1a1208] px-3 text-amber-400/40">or</span>
-            </div>
-          </div>
+          {githubConfigured && (
+            <>
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-amber-900/30" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-[#1a1208] px-3 text-amber-400/40">
+                    or
+                  </span>
+                </div>
+              </div>
 
-          <button
-            onClick={() => authClient.signIn.social({ provider: "github", callbackURL: destination })}
-            className="w-full py-3 bg-[#24292e] text-white font-semibold rounded-xl hover:bg-[#2f363d] transition-all flex items-center justify-center gap-3"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.81 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
-            </svg>
-            Continue with GitHub
-          </button>
+              <button
+                onClick={() =>
+                  authClient.signIn.social({
+                    provider: "github",
+                    callbackURL: destination,
+                  })
+                }
+                className="w-full py-3 bg-[#24292e] text-white font-semibold rounded-xl hover:bg-[#2f363d] transition-all flex items-center justify-center gap-3"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.81 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                Continue with GitHub
+              </button>
+            </>
+          )}
 
           <div className="mt-6 flex items-center justify-between text-sm text-amber-400/60">
-            <Link href="/forgot-password" className="hover:text-orange-400 transition">Forgot password?</Link>
-            <Link href="/signup" className="hover:text-orange-400 transition">Create account →</Link>
+            <Link
+              href="/forgot-password"
+              className="hover:text-orange-400 transition"
+            >
+              Forgot password?
+            </Link>
+            <Link href="/signup" className="hover:text-orange-400 transition">
+              Create account →
+            </Link>
           </div>
         </div>
       </div>
