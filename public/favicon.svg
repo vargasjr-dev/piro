@@ -1,19 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 110" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
   <defs>
-    <linearGradient id="fo" x1="50" y1="108" x2="50" y2="6" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#7f1d1d"/>
-      <stop offset="30%" stop-color="#b91c1c"/>
-      <stop offset="58%" stop-color="#ea580c"/>
-      <stop offset="82%" stop-color="#f97316"/>
-      <stop offset="100%" stop-color="#fde68a"/>
+    <linearGradient id="piro-gradient" x1="16" y1="84" x2="84" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7f1d1d" />
+      <stop offset="40%" stop-color="#dc2626" />
+      <stop offset="72%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#fde68a" />
     </linearGradient>
-    <linearGradient id="fi" x1="50" y1="100" x2="50" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#c2410c"/>
-      <stop offset="55%" stop-color="#fb923c"/>
-      <stop offset="100%" stop-color="#fef9c3"/>
-    </linearGradient>
+    <mask id="piro-p-mask">
+      <rect width="100" height="100" fill="white" />
+      <path
+        d="M35 74V26h20c11 0 17 6 17 16s-6 16-17 16H45v16H35Zm10-39v14h9c5 0 8-2 8-7 0-4-3-7-8-7h-9Z"
+        fill="black"
+      />
+    </mask>
   </defs>
-  <path d="M46 6 C36 16,10 28,8 52 C6 66,10 76,8 88 C6 100,22 110,50 110 C78 110,94 100,92 88 C90 76,94 66,92 52 C90 28,72 14,66 22 C62 28,56 36,50 28 C48 20,48 12,46 6Z" fill="url(#fo)"/>
-  <path d="M50 44 C42 54,34 64,36 76 C38 88,44 100,50 100 C56 100,62 88,64 76 C66 64,58 54,50 44Z" fill="url(#fi)" opacity="0.82"/>
-  <text x="50" y="96" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-weight="900" font-size="28" fill="white" opacity="0.95">P</text>
+  <rect
+    x="9"
+    y="9"
+    width="82"
+    height="82"
+    rx="22"
+    fill="url(#piro-gradient)"
+    mask="url(#piro-p-mask)"
+  />
 </svg>
