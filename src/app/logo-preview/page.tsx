@@ -490,6 +490,115 @@ function D6({ size = 72 }: LogoProps) {
   );
 }
 
+/* ════════ GROUP E — Simple directions ════════ */
+
+/* E1: Gradient circle with a negative-space P */
+function E1({ size = 72 }: LogoProps) {
+  const uid = "e1";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="22" y1="82" x2="78" y2="18" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="42%" stopColor="#ea580c" /><stop offset="72%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+        <mask id={`${uid}-m`}>
+          <rect width="100" height="100" fill="white" />
+          <path d="M37 74 L37 27 L55 27 C65 27 71 33 71 42 C71 51 65 57 55 57 L46 57 L46 74 Z M46 35 L46 49 L54 49 C59 49 62 47 62 42 C62 38 59 35 54 35 Z" fill="black" />
+        </mask>
+      </defs>
+      <circle cx="50" cy="50" r="42" fill={`url(#${uid}-g)`} mask={`url(#${uid}-m)`} />
+    </svg>
+  );
+}
+
+/* E2: Rounded square / app tile with a negative-space P */
+function E2({ size = 72 }: LogoProps) {
+  const uid = "e2";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="16" y1="84" x2="84" y2="16" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="40%" stopColor="#dc2626" /><stop offset="72%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+        <mask id={`${uid}-m`}>
+          <rect width="100" height="100" fill="white" />
+          <path d="M35 74 L35 26 L55 26 C66 26 72 32 72 42 C72 52 66 58 55 58 L45 58 L45 74 Z M45 35 L45 49 L54 49 C59 49 62 47 62 42 C62 37 59 35 54 35 Z" fill="black" />
+        </mask>
+      </defs>
+      <rect x="9" y="9" width="82" height="82" rx="22" fill={`url(#${uid}-g)`} mask={`url(#${uid}-m)`} />
+    </svg>
+  );
+}
+
+/* E3: Gradient ember pill with a negative-space P */
+function E3({ size = 72 }: LogoProps) {
+  const uid = "e3";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="20" y1="80" x2="80" y2="20" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#991b1b" /><stop offset="42%" stopColor="#ea580c" /><stop offset="74%" stopColor="#f97316" /><stop offset="100%" stopColor="#fef3c7" />
+        </linearGradient>
+        <mask id={`${uid}-m`}>
+          <rect width="100" height="100" fill="white" />
+          <path d="M31 72 L31 29 L53 29 C64 29 70 35 70 44 C70 53 64 59 53 59 L42 59 L42 72 Z M42 37 L42 51 L52 51 C57 51 60 49 60 44 C60 40 57 37 52 37 Z" fill="black" />
+        </mask>
+      </defs>
+      <rect x="13" y="27" width="74" height="46" rx="23" fill={`url(#${uid}-g)`} mask={`url(#${uid}-m)`} />
+    </svg>
+  );
+}
+
+/* E4: Simple flame droplet with a solid P — one clean silhouette */
+function E4({ size = 72 }: LogoProps) {
+  const uid = "e4";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="50" y1="93" x2="45" y2="7" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="38%" stopColor="#dc2626" /><stop offset="68%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+      </defs>
+      <path d="M49 7 C42 22 27 32 24 49 C20 67 29 86 50 93 C71 86 80 67 76 49 C73 32 58 22 49 7Z" fill={`url(#${uid}-g)`} />
+      <text x="50" y="68" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="29" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
+/* E5: Orbit emblem — gradient core with a simple orbital ring */
+function E5({ size = 72 }: LogoProps) {
+  const uid = "e5";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="25" y1="78" x2="75" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="45%" stopColor="#ea580c" /><stop offset="75%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+      </defs>
+      <circle cx="50" cy="50" r="28" fill={`url(#${uid}-g)`} />
+      <ellipse cx="50" cy="50" rx="42" ry="17" transform="rotate(-25 50 50)" stroke="#fed7aa" strokeWidth="3" opacity="0.9" />
+      <circle cx="82" cy="32" r="4" fill="#fde68a" />
+      <text x="50" y="62" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="25" fill="white" opacity="0.95">P</text>
+    </svg>
+  );
+}
+
+/* E6: Geometric P with a tiny gradient spark — the simplest lettermark */
+function E6({ size = 72 }: LogoProps) {
+  const uid = "e6";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${uid}-g`} x1="24" y1="84" x2="74" y2="16" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#7f1d1d" /><stop offset="44%" stopColor="#ea580c" /><stop offset="75%" stopColor="#f97316" /><stop offset="100%" stopColor="#fde68a" />
+        </linearGradient>
+      </defs>
+      <path d="M29 85 L29 24 L52 24 C65 24 72 31 72 42 C72 53 65 60 52 60 L41 60 L41 85 Z M41 35 L41 49 L51 49 C56 49 59 47 59 42 C59 38 56 35 51 35 Z" fill={`url(#${uid}-g)`} />
+      <path d="M78 10 C76 14 72 16 73 20 C74 23 77 24 79 21 C81 24 85 22 85 19 C85 15 81 13 78 10Z" fill="#fde68a" />
+    </svg>
+  );
+}
+
 /* ════════ GROUP B — Completely new ideas ════════ */
 
 /* B1: Bold P with flame gradient fill — no flame shape at all */
@@ -685,6 +794,15 @@ const CHAOTIC_OPTIONS = [
   { id: "C5", name: "Emoji Flame", desc: "Big rounded silhouette with multiple tongues and a hot yellow inner flame", Comp: C5 },
 ];
 
+const SIMPLE_OPTIONS = [
+  { id: "E1", name: "Gradient Circle", desc: "A pure gradient-filled circle with the P cut out in negative space", Comp: E1 },
+  { id: "E2", name: "Rounded Tile", desc: "App-icon-like rounded square with a negative-space P", Comp: E2 },
+  { id: "E3", name: "Ember Pill", desc: "A compact horizontal ember shape with the P cut out", Comp: E3 },
+  { id: "E4", name: "Simple Flame", desc: "One clean flame droplet with a solid white P", Comp: E4 },
+  { id: "E5", name: "Orbit Core", desc: "Gradient core with a single orbit ring and P", Comp: E5 },
+  { id: "E6", name: "P + Spark", desc: "Minimal geometric P with a tiny gradient spark", Comp: E6 },
+];
+
 const NEW_OPTIONS = [
   { id: "B1", name: "Bold P + Spark", desc: "No flame shape — just a heavy P with fire gradient and a small spark above", Comp: B1 },
   { id: "B2", name: "Hex Badge", desc: "Hexagonal shield with P and flame accent on top vertex", Comp: B2 },
@@ -766,6 +884,17 @@ export default function LogoShowcase() {
         </div>
       </div>
 
+      {/* Group E — Simple */}
+      <h2 className="text-sm font-semibold text-orange-400/80 uppercase tracking-wide mb-2">
+        E — Simple Directions
+      </h2>
+      <p className="text-amber-400/50 text-sm mb-5">Less shape, more identity: gradients, geometry, and the P.</p>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-12">
+        {SIMPLE_OPTIONS.map((o) => (
+          <LogoCard key={o.id} {...o} />
+        ))}
+      </div>
+
       {/* Group B — New */}
       <h2 className="text-sm font-semibold text-orange-400/80 uppercase tracking-wide mb-5">
         B — Completely New Ideas
@@ -782,7 +911,7 @@ export default function LogoShowcase() {
       </h2>
       <div className="bg-[#1a1208]/80 border border-amber-900/30 rounded-2xl p-8 overflow-x-auto">
         <div className="flex items-end gap-10">
-          {[...REFINE_OPTIONS, ...CHAOTIC_OPTIONS, ...FOLLOWUP_OPTIONS, ...NEW_OPTIONS].map((o) => (
+          {[...REFINE_OPTIONS, ...CHAOTIC_OPTIONS, ...FOLLOWUP_OPTIONS, ...SIMPLE_OPTIONS, ...NEW_OPTIONS].map((o) => (
             <div key={o.id} className="flex flex-col items-center gap-3 shrink-0">
               <div className="flex items-end gap-3 bg-[#0d0a08] px-4 py-3 rounded-xl">
                 <o.Comp size={22} />
