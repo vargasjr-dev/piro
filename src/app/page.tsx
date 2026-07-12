@@ -12,6 +12,30 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen bg-[#0d0a08] text-amber-100">
+      {/* Public navigation — Docs belongs here, not in the authenticated dashboard. */}
+      <header className="absolute top-0 inset-x-0 z-20 border-b border-amber-900/20 bg-[#0d0a08]/70 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition">
+            <FlameLogo size={24} />
+            <span className="font-bold text-amber-50 tracking-tight">Piro</span>
+          </Link>
+          <nav className="flex items-center gap-5 text-sm">
+            <Link href="/docs" className="text-amber-300/60 hover:text-amber-100 transition-colors">
+              Docs
+            </Link>
+            {isLoggedIn ? (
+              <Link href="/repos" className="text-amber-300/60 hover:text-amber-100 transition-colors">
+                Dashboard
+              </Link>
+            ) : (
+              <Link href="/login" className="text-amber-300/60 hover:text-amber-100 transition-colors">
+                Sign in
+              </Link>
+            )}
+          </nav>
+        </div>
+      </header>
+
       {/* ── HERO ──────────────────────────────────────────────────────── */}
       <section className="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-hidden">
         {/* Ambient glow */}

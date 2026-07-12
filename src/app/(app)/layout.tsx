@@ -6,7 +6,7 @@ import { isAdmin } from "~/lib/admin";
 import { eq, and } from "drizzle-orm";
 import { db } from "../../../data/db";
 import { repository, user } from "../../../data/schema";
-import SideNav from "./SideNav";
+import AppHeader from "./AppHeader";
 
 // Pages accessible to logged-in users without an active subscription.
 const FREE_PATHS = ["/upgrade", "/dashboard", "/profile"];
@@ -65,13 +65,9 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0a08] lg:flex">
-      <SideNav
-        userName={session.user.name}
-        isSubscribed={isActive(sub) || isAdmin(session)}
-        repoTitle={repoTitle}
-      />
-      <main className="flex-1 min-w-0 pb-20 lg:pb-0">{children}</main>
+    <div className="min-h-screen bg-[#0d0a08]">
+      <AppHeader repoTitle={repoTitle} />
+      <main className="min-w-0">{children}</main>
     </div>
   );
 }
