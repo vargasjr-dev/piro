@@ -1,15 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArchitectureDetail } from "~/components/ArchitectureDetail";
-import { headers } from "next/headers";
-import { auth } from "~/lib/auth.server";
-import { eq, and } from "drizzle-orm";
-import { db } from "../../../../../../../../data/db";
-import { account, repository, user } from "../../../../../../../../data/schema";
-import {
-  getRepositoryArchitecture,
-  resolveGitHubRepository,
-} from "~/lib/github-repository";
+import { getRepositoryArchitecture } from "~/lib/github-repository";
+import { getRepositoryContext } from "~/lib/repository-context.server";
+import { createArchitectureSerializationHandoff } from "~/lib/architecture-serialization-handoff.server";
 
 export default async function ArchitecturePage({
   params,
@@ -22,51 +16,35 @@ export default async function ArchitecturePage({
     architecture: encodedArchitecture,
   } = await params;
   const architectureName = decodeURIComponent(encodedArchitecture);
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return null;
+  const context = await getRepositoryContext(ownerHandle, slug);
+  if (!context) return null;
 
-  const [owner] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.username, ownerHandle))
-    .limit(1);
-
-  if (!owner) notFound();
-
-  const [repo] = await db
-    .select({ slug: repository.slug })
-    .from(repository)
-    .where(and(eq(repository.userId, owner.id), eq(repository.slug, slug)))
-    .limit(1);
-
-  if (!repo) notFound();
-
-  const [githubAccount] = await db
-    .select({ accessToken: account.accessToken })
-    .from(account)
-    .where(and(eq(account.userId, owner.id), eq(account.providerId, "github")))
-    .limit(1);
-
+  const { repo, githubRepo, accessToken } = context;
   let architecture = null;
-  try {
-    const githubRepo = await resolveGitHubRepository(
-      ownerHandle,
-      repo.slug,
-      githubAccount?.accessToken,
-    );
-    if (githubRepo) {
+  if (githubRepo) {
+    try {
       architecture = await getRepositoryArchitecture(
         githubRepo.owner,
         githubRepo.repository,
         architectureName,
-        githubAccount?.accessToken,
+        accessToken,
+        AbortSignal.timeout(10_000),
       );
+    } catch {
+      architecture = null;
     }
-  } catch {
-    architecture = null;
   }
 
   if (!architecture) notFound();
+
+  const serializationToken = architecture.source
+    ? createArchitectureSerializationHandoff({
+        username: ownerHandle,
+        repository: repo.slug,
+        architecture: architecture.name,
+        source: architecture.source,
+      })
+    : null;
 
   return (
     <div className="p-4 lg:p-6 max-w-4xl space-y-4">
@@ -74,22 +52,37 @@ export default async function ArchitecturePage({
         href={`/repos/${ownerHandle}/${repo.slug}/architectures`}
         className="inline-flex items-center gap-1.5 text-xs text-amber-400/50 hover:text-amber-200 transition-colors"
       >
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="m15 18-6-6 6-6" />
+        <svg
+          className="w-3 h-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="m15 18-6-6 6-6"
+          />
         </svg>
         Architectures
       </Link>
 
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-amber-100">{architecture.name}</h2>
-          <p className="text-xs text-amber-400/40 mt-1 font-mono">{architecture.path}</p>
+          <h2 className="text-xl font-semibold text-amber-100">
+            {architecture.name}
+          </h2>
+          <p className="text-xs text-amber-400/40 mt-1 font-mono">
+            {architecture.path}
+          </p>
         </div>
       </div>
 
       <ArchitectureDetail
         source={architecture.source}
         serializeUrl={`/api/repos/${encodeURIComponent(ownerHandle)}/${encodeURIComponent(repo.slug)}/architectures/${encodeURIComponent(architecture.name)}/serialize`}
+        serializationToken={serializationToken}
       />
     </div>
   );
