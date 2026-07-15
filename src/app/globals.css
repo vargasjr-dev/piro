@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .pricing-input {
+    @apply w-full rounded-xl border border-amber-900/30 bg-[#0d0a08] px-4 py-2.5 text-sm text-amber-50 placeholder:text-amber-900/70 focus:border-orange-500/60 focus:outline-none;
+  }
+}
+
 @keyframes ember-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }

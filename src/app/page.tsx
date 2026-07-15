@@ -20,6 +20,9 @@ export default async function HomePage() {
             <span className="font-bold text-amber-50 tracking-tight">Piro</span>
           </Link>
           <nav className="flex items-center gap-5 text-sm">
+            <Link href="/pricing" className="text-amber-300/60 hover:text-amber-100 transition-colors">
+              Pricing
+            </Link>
             <Link href="/docs" className="text-amber-300/60 hover:text-amber-100 transition-colors">
               Docs
             </Link>
@@ -307,10 +310,10 @@ export default async function HomePage() {
             </ul>
 
             <Link
-              href={isLoggedIn ? "/repos" : "/signup"}
+              href="/pricing"
               className="block text-center w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:to-red-500 transition-all ember-glow text-base"
             >
-              {isLoggedIn ? "Go To Models →" : "Build your model — start training →"}
+              See all plans →
             </Link>
           </div>
 
