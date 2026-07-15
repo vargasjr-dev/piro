@@ -17,13 +17,14 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
     try {
+      const callbackUrl = new URLSearchParams(window.location.search).get("callbackUrl") || "/dashboard";
       const { error: authError } = await authClient.signUp.email({
         name,
         email,
         password,
       });
       if (authError) throw new Error(authError.message || "Signup failed");
-      window.location.href = "/dashboard";
+      window.location.href = callbackUrl;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
