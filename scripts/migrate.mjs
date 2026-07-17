@@ -127,11 +127,25 @@ await sql`ALTER TABLE benchmark_run ADD COLUMN IF NOT EXISTS "costUsd" REAL`;
 console.log("✓ benchmark_run schema: dropped threshold/passed, added costUsd");
 
 // ── benchmark: add dataSourceId, r2Prefix, scriptR2Key, updatedAt ────────────
+// The benchmark table is created below for fresh databases. Existing databases
+// that never had the legacy table should still be able to reach later migrations.
+await sql`
+  CREATE TABLE IF NOT EXISTS "benchmark" (
+    "id"          text PRIMARY KEY,
+    "userId"      text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+    "name"        text NOT NULL,
+    "slug"        text NOT NULL,
+    "description" text,
+    "configJson"  text,
+    "createdAt"   timestamp NOT NULL DEFAULT now(),
+    UNIQUE ("userId", "slug")
+  )
+`;
 await sql`ALTER TABLE benchmark ADD COLUMN IF NOT EXISTS "dataSourceId" TEXT`;
 await sql`ALTER TABLE benchmark ADD COLUMN IF NOT EXISTS "r2Prefix" TEXT`;
 await sql`ALTER TABLE benchmark ADD COLUMN IF NOT EXISTS "scriptR2Key" TEXT`;
 await sql`ALTER TABLE benchmark ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()`;
-console.log("✓ benchmark: added dataSourceId, r2Prefix, scriptR2Key, updatedAt");
+console.log("✓ benchmark: table and columns ensured");
 
 // ── data_source table ─────────────────────────────────────────────────────────
 await sql`
@@ -381,7 +395,9 @@ await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
 await sql`ALTER TABLE benchmark ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
 await sql`ALTER TABLE model_class ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
 await sql`ALTER TABLE training_run ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
-console.log("✓ added repositoryId to data_source, benchmark, model_class, training_run");
+console.log(
+  "✓ added repositoryId to data_source, benchmark, model_class, training_run",
+);
 
 // ── dataset table (replaces data_source) ──────────────────────────────────────
 // Tracks generated data output in R2, referencing the repo + source script path.
