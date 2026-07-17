@@ -16,11 +16,6 @@ interface GitHubRequestOptions {
   signal?: AbortSignal;
 }
 
-interface GitHubRepositorySearchResult {
-  name: string;
-  owner: { login: string };
-}
-
 function githubHeaders(accessToken?: string | null): HeadersInit {
   const headers: HeadersInit = {
     Accept: "application/vnd.github+json",
@@ -60,60 +55,48 @@ async function fetchGitHubContents({
   return (await response.json()) as GitHubContentItem | GitHubContentItem[];
 }
 
-async function getAuthenticatedGitHubLogin(
-  accessToken: string,
-  signal?: AbortSignal,
-): Promise<string | null> {
-  const response = await fetch("https://api.github.com/user", {
-    headers: githubHeaders(accessToken),
-    cache: "no-store",
-    signal,
-  });
-  if (!response.ok) return null;
-  const body = (await response.json()) as { login?: string };
-  return body.login ?? null;
-}
-
 export interface GitHubRepositoryRef {
   owner: string;
   repository: string;
 }
 
-export async function resolveGitHubRepository(
-  piroOwner: string,
-  repository: string,
-  accessToken?: string | null,
-  signal?: AbortSignal,
-): Promise<GitHubRepositoryRef | null> {
-  const candidates: string[] = [];
-  if (accessToken) {
-    const login = await getAuthenticatedGitHubLogin(accessToken, signal);
-    if (login) candidates.push(login);
-  }
-  candidates.push(piroOwner);
+export function parseGitHubRepositoryRef(
+  value: string,
+): GitHubRepositoryRef | null {
+  const input = value.trim();
+  if (!input) return null;
 
-  const searchResponse = await fetch(
-    `https://api.github.com/search/repositories?q=${encodeURIComponent(`${repository} in:name`)}&per_page=20`,
-    { headers: githubHeaders(accessToken), cache: "no-store", signal },
-  );
-  if (searchResponse.ok) {
-    const searchBody = (await searchResponse.json()) as {
-      items?: GitHubRepositorySearchResult[];
-    };
-    for (const result of searchBody.items ?? []) {
-      if (result.name.toLowerCase() === repository.toLowerCase()) {
-        candidates.push(result.owner.login);
-      }
-    }
+  const candidate = input.includes("://")
+    ? input
+    : `https://github.com/${input}`;
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    return null;
   }
 
-  for (const owner of [...new Set(candidates)]) {
-    const ref = { owner, repository };
-    if (await fetchGitHubContents({ ...ref, path: "", accessToken, signal })) {
-      return ref;
-    }
+  if (
+    url.protocol !== "https:" ||
+    url.hostname.toLowerCase() !== "github.com"
+  ) {
+    return null;
   }
-  return null;
+
+  const parts = url.pathname.split("/").filter(Boolean);
+  if (parts.length !== 2) return null;
+
+  const repository = parts[1].replace(/\.git$/, "");
+  if (!parts[0] || !repository) return null;
+
+  return { owner: parts[0], repository };
+}
+
+export function githubRepositoryUrl({
+  owner,
+  repository,
+}: GitHubRepositoryRef): string {
+  return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}`;
 }
 
 export interface GitHubRepositoryComponent {

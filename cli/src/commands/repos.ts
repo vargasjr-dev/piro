@@ -7,7 +7,8 @@ import { piroFetch, resolveConfig } from "../client.js";
  * piro repos list / create / use
  *
  *   piro repos list
- *   piro repos create <id> --name <name> [--description <desc>]
+ *   piro repos create <id> --name <name> --github-repository <owner/repo> [--description <desc>]
+ *   piro repos link <id> --github-repository <owner/repo>
  *   piro repos use <id>     — sets active repo in .piro/config
  *
  * The active repo is stored in .piro/config as { "repoId": "<id>" }.
@@ -21,6 +22,8 @@ interface RepoSummary {
   slug: string;
   description: string | null;
   ownerUsername: string | null;
+  githubOwner: string | null;
+  githubRepository: string | null;
   createdAt: string;
 }
 
@@ -67,11 +70,15 @@ export async function reposList() {
 
 export async function reposCreate(
   id: string,
-  opts: { name: string; description?: string },
+  opts: { name: string; githubRepository: string; description?: string },
 ) {
   const config = resolveConfig();
 
-  const payload: Record<string, unknown> = { id, name: opts.name };
+  const payload: Record<string, unknown> = {
+    id,
+    name: opts.name,
+    githubRepository: opts.githubRepository,
+  };
   if (opts.description) payload.description = opts.description;
 
   const { ok, status, body } = await piroFetch(config, "/api/repos", {
@@ -86,6 +93,26 @@ export async function reposCreate(
   }
 
   console.log(`Created repository: ${id}`);
+}
+
+export async function reposLink(id: string, githubRepository: string) {
+  const config = resolveConfig();
+  const { ok, status, body } = await piroFetch(
+    config,
+    `/api/repos/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ githubRepository }),
+    },
+  );
+
+  if (!ok) {
+    const err = body as Record<string, unknown> | null;
+    console.error(`Error ${status}: ${err?.error ?? "link failed"}`);
+    process.exit(1);
+  }
+
+  console.log(`Linked repository: ${id}`);
 }
 
 export async function reposUse(id: string) {

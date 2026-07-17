@@ -1,4 +1,15 @@
-import { pgTable, text, timestamp, boolean, integer, bigint, real, unique, index, pgEnum } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  integer,
+  bigint,
+  real,
+  unique,
+  index,
+  pgEnum,
+} from "drizzle-orm/pg-core";
 
 // ── Billing ──────────────────────────────────────────────────────────────────
 
@@ -12,14 +23,14 @@ import { pgTable, text, timestamp, boolean, integer, bigint, real, unique, index
  *   Reset to 0 when currentPeriodEnd ticks over.
  */
 export const subscription = pgTable("subscription", {
-  id: text("id").primaryKey(),                    // Stripe subscription ID
+  id: text("id").primaryKey(), // Stripe subscription ID
   userId: text("userId")
     .notNull()
     .unique()
     .references(() => user.id, { onDelete: "cascade" }),
   stripeCustomerId: text("stripeCustomerId").notNull(),
   planId: text("planId").notNull().default("pro"), // 'pro' only for now
-  status: text("status").notNull(),                // 'active' | 'trialing' | 'past_due' | 'canceled'
+  status: text("status").notNull(), // 'active' | 'trialing' | 'past_due' | 'canceled'
   trainingRunsUsed: integer("trainingRunsUsed").notNull().default(0),
   trainingRunsLimit: integer("trainingRunsLimit").notNull().default(2),
   currentPeriodStart: timestamp("currentPeriodStart").notNull(),
@@ -53,6 +64,7 @@ export const user = pgTable("user", {
  * benchmarks, training configs, runs, and models. Everything co-evolves
  * within a repo and is version-controlled together.
  *
+ * githubOwner/githubRepository identify the external source-of-truth repository.
  * R2 prefix: repos/{id}/
  *   repos/{id}/data/{sourceId}/script.py
  *   repos/{id}/architectures/{classId}/model.py
@@ -69,16 +81,18 @@ export const repository = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    slug: text("slug").notNull(),             // URL-friendly id, unique per user
+    slug: text("slug").notNull(), // URL-friendly id, unique per user
     description: text("description"),
-    r2Prefix: text("r2Prefix"),               // repos/{id}/
+    githubOwner: text("githubOwner"),
+    githubRepository: text("githubRepository"),
+    r2Prefix: text("r2Prefix"), // repos/{id}/
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
   (t) => [
     index("repo_user_created").on(t.userId, t.createdAt),
     unique("repo_user_slug").on(t.userId, t.slug),
-  ]
+  ],
 );
 
 export const session = pgTable("session", {
@@ -138,7 +152,7 @@ export const mentor = pgTable("mentor", {
   model: text("model").notNull().default("claude-sonnet-4-5"),
   systemPrompt: text("systemPrompt").notNull(),
   temperature: real("temperature").notNull().default(0.2),
-  scoreCount: integer("scoreCount").notNull().default(0),  // total score calls
+  scoreCount: integer("scoreCount").notNull().default(0), // total score calls
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
@@ -155,13 +169,13 @@ export const benchmarkRun = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    suiteRunId: text("suiteRunId").notNull(),   // groups all rows from one script invocation
+    suiteRunId: text("suiteRunId").notNull(), // groups all rows from one script invocation
     benchmarkName: text("benchmarkName").notNull(), // e.g. "OODGeneralization"
-    target: text("target").notNull(),           // "gpt-4o-mini" | "gpt-4o" | "piro-student"
-    score: real("score").notNull(),             // 0.0 → 1.0
-    costUsd: real("costUsd"),                   // total API cost for this benchmark × target
+    target: text("target").notNull(), // "gpt-4o-mini" | "gpt-4o" | "piro-student"
+    score: real("score").notNull(), // 0.0 → 1.0
+    costUsd: real("costUsd"), // total API cost for this benchmark × target
     durationMs: integer("durationMs"),
-    metadata: text("metadata"),                 // JSON blob from BenchmarkResult.metadata
+    metadata: text("metadata"), // JSON blob from BenchmarkResult.metadata
     ranAt: timestamp("ranAt").notNull().defaultNow(),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
@@ -180,20 +194,18 @@ export const benchmarkRun = pgTable(
 export const benchmarkSuiteRun = pgTable(
   "benchmark_suite_run",
   {
-    id: text("id").primaryKey(),              // same value as suiteRunId on benchmark_run
+    id: text("id").primaryKey(), // same value as suiteRunId on benchmark_run
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     status: text("status").notNull().default("queued"), // 'queued' | 'complete' | 'error'
-    benchmarks: text("benchmarks"),           // JSON string[] | null = all
-    targets: text("targets"),                 // JSON string[] | null = all
+    benchmarks: text("benchmarks"), // JSON string[] | null = all
+    targets: text("targets"), // JSON string[] | null = all
     queuedAt: timestamp("queuedAt").notNull().defaultNow(),
     completedAt: timestamp("completedAt"),
     error: text("error"),
   },
-  (t) => [
-    index("bsr_user_queued").on(t.userId, t.queuedAt),
-  ],
+  (t) => [index("bsr_user_queued").on(t.userId, t.queuedAt)],
 );
 
 /**
@@ -228,9 +240,7 @@ export const dataset = pgTable(
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
-  (t) => [
-    index("ds_repo_created").on(t.repositoryId, t.createdAt),
-  ]
+  (t) => [index("ds_repo_created").on(t.repositoryId, t.createdAt)],
 );
 
 /**
@@ -250,8 +260,9 @@ export const trainingRun = pgTable(
     /** Path in the repo to the architecture (e.g. "architectures/ctm"). */
     architecturePath: text("architecturePath").notNull(),
     /** FK → dataset.id (which generated dataset to train on). */
-    datasetId: text("datasetId")
-      .references(() => dataset.id, { onDelete: "set null" }),
+    datasetId: text("datasetId").references(() => dataset.id, {
+      onDelete: "set null",
+    }),
     status: text("status").notNull().default("queued"),
     epochs: integer("epochs").notNull().default(10),
     configJson: text("configJson"),
@@ -265,9 +276,7 @@ export const trainingRun = pgTable(
     startedAt: timestamp("startedAt"),
     completedAt: timestamp("completedAt"),
   },
-  (t) => [
-    index("tr_user_queued").on(t.userId, t.queuedAt),
-  ]
+  (t) => [index("tr_user_queued").on(t.userId, t.queuedAt)],
 );
 
 /**
@@ -302,9 +311,7 @@ export const model = pgTable(
      */
     archivedAt: timestamp("archivedAt"),
   },
-  (t) => [
-    index("m_user_created").on(t.userId, t.createdAt),
-  ]
+  (t) => [index("m_user_created").on(t.userId, t.createdAt)],
 );
 
 /**
@@ -354,7 +361,7 @@ export const modelHostedApi = pgTable("model_hosted_api", {
     .notNull()
     .unique()
     .references(() => model.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(),        // 'openai' | 'anthropic'
+  provider: text("provider").notNull(), // 'openai' | 'anthropic'
   apiModelName: text("apiModelName").notNull(), // 'gpt-4o-mini' | 'gpt-4o'
   apiKeyEnvVar: text("apiKeyEnvVar").notNull(), // 'OPENAI_API_KEY'
 });
