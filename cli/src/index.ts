@@ -14,10 +14,31 @@
  *   PIRO_BASE_URL=<url> (optional, defaults to https://trainpiro.app)
  */
 
-import { classesSerialize, classesPull, classesPush } from "./commands/classes.js";
-import { sourcesList, sourcesCreate, sourcesGenerate, sourcesPull, sourcesPush } from "./commands/sources.js";
-import { benchmarksList, benchmarksCreate, benchmarksRun, benchmarksPull, benchmarksPush } from "./commands/benchmarks.js";
-import { reposList, reposCreate, reposUse } from "./commands/repos.js";
+import {
+  classesSerialize,
+  classesPull,
+  classesPush,
+} from "./commands/classes.js";
+import {
+  sourcesList,
+  sourcesCreate,
+  sourcesGenerate,
+  sourcesPull,
+  sourcesPush,
+} from "./commands/sources.js";
+import {
+  benchmarksList,
+  benchmarksCreate,
+  benchmarksRun,
+  benchmarksPull,
+  benchmarksPush,
+} from "./commands/benchmarks.js";
+import {
+  reposList,
+  reposCreate,
+  reposLink,
+  reposUse,
+} from "./commands/repos.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -43,17 +64,24 @@ function usage(msg?: string): never {
   console.error("  piro classes pull <id> [--out <file>]");
   console.error("  piro classes push <id> [--file <file>]");
   console.error("  piro sources list");
-  console.error("  piro sources create <id> --name <name> [--description <desc>] [--sample-count <n>]");
+  console.error(
+    "  piro sources create <id> --name <name> [--description <desc>] [--sample-count <n>]",
+  );
   console.error("  piro sources generate <id>");
   console.error("  piro sources pull <id> [--out <file>]");
   console.error("  piro sources push <id> [--file <file>]");
   console.error("  piro benchmarks list");
-  console.error("  piro benchmarks create <id> --name <name> [--source <source-id>] [--description <desc>]");
+  console.error(
+    "  piro benchmarks create <id> --name <name> [--source <source-id>] [--description <desc>]",
+  );
   console.error("  piro benchmarks run <id> [--model <model-id>]");
   console.error("  piro benchmarks pull <id> [--out <file>]");
   console.error("  piro benchmarks push <id> [--file <file>]");
   console.error("  piro repos list");
-  console.error("  piro repos create <id> --name <name> [--description <desc>]");
+  console.error(
+    "  piro repos create <id> --name <name> --github-repository <owner/repo> [--description <desc>]",
+  );
+  console.error("  piro repos link <id> --github-repository <owner/repo>");
   console.error("  piro repos use <id>");
   process.exit(msg ? 1 : 0);
 }
@@ -98,7 +126,9 @@ switch (subject) {
         const name = opt(rest, "name");
         if (!name) usage("--name is required for create");
         const sampleCountStr = opt(rest, "sample-count");
-        const sampleCount = sampleCountStr ? parseInt(sampleCountStr, 10) : undefined;
+        const sampleCount = sampleCountStr
+          ? parseInt(sampleCountStr, 10)
+          : undefined;
         await sourcesCreate(id, {
           name,
           description: opt(rest, "description"),
@@ -128,7 +158,7 @@ switch (subject) {
         usage(`unknown sources verb: ${verb}`);
     }
     break;
-  
+
   case "benchmarks":
     switch (verb) {
       case "list": {
@@ -169,7 +199,7 @@ switch (subject) {
         usage(`unknown benchmarks verb: ${verb}`);
     }
     break;
-  
+
   case "repos":
   case "repositories":
     switch (verb) {
@@ -182,10 +212,23 @@ switch (subject) {
         if (!id) usage("repo id is required");
         const name = opt(rest, "name");
         if (!name) usage("--name is required for create");
+        const githubRepository = opt(rest, "github-repository");
+        if (!githubRepository)
+          usage("--github-repository is required for create");
         await reposCreate(id, {
           name,
+          githubRepository,
           description: opt(rest, "description"),
         });
+        break;
+      }
+      case "link": {
+        const id = arg(rest, 0);
+        if (!id) usage("repo id is required");
+        const githubRepository = opt(rest, "github-repository");
+        if (!githubRepository)
+          usage("--github-repository is required for link");
+        await reposLink(id, githubRepository);
         break;
       }
       case "use": {
@@ -198,7 +241,7 @@ switch (subject) {
         usage(`unknown repos verb: ${verb}`);
     }
     break;
-  
+
   default:
     usage(`unknown subject: ${subject}`);
 }

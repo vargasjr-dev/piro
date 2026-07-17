@@ -4,6 +4,7 @@ import { db } from "../../../../data/db";
 import { repository, user } from "../../../../data/schema";
 import { eq, desc } from "drizzle-orm";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
+import { parseGitHubRepositoryRef } from "~/lib/github-repository";
 
 /**
  * GET /api/repos
@@ -14,7 +15,8 @@ import { extractBearer, validateApiKey } from "~/lib/api-auth";
  * POST /api/repos
  *
  * Creates a new repository. Body:
- *   { id, name, description?, slug? }
+ *   { id, name, githubRepository, description?, slug? }
+ * githubRepository accepts a GitHub URL or owner/repository.
  * slug defaults to id if not provided. r2Prefix auto-set to repos/{id}/.
  */
 
@@ -38,6 +40,8 @@ export async function GET(request: Request) {
       name: repository.name,
       slug: repository.slug,
       description: repository.description,
+      githubOwner: repository.githubOwner,
+      githubRepository: repository.githubRepository,
       r2Prefix: repository.r2Prefix,
       createdAt: repository.createdAt,
       updatedAt: repository.updatedAt,
@@ -55,6 +59,8 @@ export async function GET(request: Request) {
       slug: r.slug,
       description: r.description ?? null,
       ownerUsername: r.ownerUsername,
+      githubOwner: r.githubOwner,
+      githubRepository: r.githubRepository,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     })),
@@ -74,8 +80,20 @@ export async function POST(request: Request) {
 
   const id = body.id as string | undefined;
   const name = body.name as string | undefined;
-  if (!id || !name) {
-    return Response.json({ error: "id and name are required" }, { status: 400 });
+  const githubRepositoryInput = body.githubRepository as string | undefined;
+  if (!id || !name || !githubRepositoryInput) {
+    return Response.json(
+      { error: "id, name, and githubRepository are required" },
+      { status: 400 },
+    );
+  }
+
+  const githubRepo = parseGitHubRepositoryRef(githubRepositoryInput);
+  if (!githubRepo) {
+    return Response.json(
+      { error: "githubRepository must be a GitHub URL or owner/repository" },
+      { status: 400 },
+    );
   }
 
   const slug = (body.slug as string | undefined) ?? id;
@@ -89,12 +107,17 @@ export async function POST(request: Request) {
       name,
       slug,
       description,
+      githubOwner: githubRepo.owner,
+      githubRepository: githubRepo.repository,
       r2Prefix,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "insert failed";
     if (msg.includes("unique")) {
-      return Response.json({ error: `Repository '${id}' already exists` }, { status: 409 });
+      return Response.json(
+        { error: `Repository '${id}' already exists` },
+        { status: 409 },
+      );
     }
     return Response.json({ error: msg }, { status: 500 });
   }

@@ -84,6 +84,10 @@ class PiroClient:
         resp = self._request("PUT", path, **kwargs)
         return resp.json()
 
+    def _patch(self, path: str, **kwargs: Any) -> dict[str, Any]:
+        resp = self._request("PATCH", path, **kwargs)
+        return resp.json()
+
     # ── Repos ──────────────────────────────────────────────────────────────
 
     def list_repos(self) -> list[dict[str, Any]]:
@@ -94,12 +98,26 @@ class PiroClient:
         return self._get(f"/api/repos/{repo_id}")
 
     def create_repo(
-        self, id: str, name: str, description: str | None = None
+        self,
+        id: str,
+        name: str,
+        github_repository: str,
+        description: str | None = None,
     ) -> dict[str, Any]:
-        payload: dict[str, Any] = {"id": id, "name": name}
+        payload: dict[str, Any] = {
+            "id": id,
+            "name": name,
+            "githubRepository": github_repository,
+        }
         if description:
             payload["description"] = description
         return self._post("/api/repos", json=payload)
+
+    def link_repo(self, id: str, github_repository: str) -> dict[str, Any]:
+        return self._patch(
+            f"/api/repos/{id}",
+            json={"githubRepository": github_repository},
+        )
 
     # ── Data Sources ───────────────────────────────────────────────────────
 

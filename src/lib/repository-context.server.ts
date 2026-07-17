@@ -3,10 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../data/db";
 import { account, repository, user } from "../../data/schema";
-import {
-  resolveGitHubRepository,
-  type GitHubRepositoryRef,
-} from "~/lib/github-repository";
+import { type GitHubRepositoryRef } from "~/lib/github-repository";
 
 export async function getRepositoryContext(username: string, slug: string) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -20,7 +17,13 @@ export async function getRepositoryContext(username: string, slug: string) {
   if (!owner) return null;
 
   const [repo] = await db
-    .select({ id: repository.id, slug: repository.slug, name: repository.name })
+    .select({
+      id: repository.id,
+      slug: repository.slug,
+      name: repository.name,
+      githubOwner: repository.githubOwner,
+      githubRepository: repository.githubRepository,
+    })
     .from(repository)
     .where(and(eq(repository.userId, owner.id), eq(repository.slug, slug)))
     .limit(1);
@@ -32,17 +35,13 @@ export async function getRepositoryContext(username: string, slug: string) {
     .where(and(eq(account.userId, owner.id), eq(account.providerId, "github")))
     .limit(1);
 
-  let githubRepo: GitHubRepositoryRef | null = null;
-  try {
-    githubRepo = await resolveGitHubRepository(
-      username,
-      repo.slug,
-      githubAccount?.accessToken,
-      AbortSignal.timeout(10_000),
-    );
-  } catch {
-    githubRepo = null;
-  }
+  const githubRepo: GitHubRepositoryRef | null =
+    repo.githubOwner && repo.githubRepository
+      ? {
+          owner: repo.githubOwner,
+          repository: repo.githubRepository,
+        }
+      : null;
 
   return {
     owner,

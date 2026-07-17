@@ -104,12 +104,29 @@ def repos_list() -> None:
 @repos.command("create")
 @click.argument("repo_id")
 @click.option("--name", required=True, help="Display name")
+@click.option("--github-repository", required=True, help="GitHub URL or owner/repository")
 @click.option("--description", help="Repo description")
-def repos_create(repo_id: str, name: str, description: str | None) -> None:
-    """Create a new repository."""
+def repos_create(
+    repo_id: str,
+    name: str,
+    github_repository: str,
+    description: str | None,
+) -> None:
+    """Create a new repository linked to an external GitHub repository."""
     client = _get_client()
-    result = client.create_repo(repo_id, name, description)
+    client.create_repo(repo_id, name, github_repository, description)
     click.echo(f"Created repository: {repo_id}")
+    client.close()
+
+
+@repos.command("link")
+@click.argument("repo_id")
+@click.option("--github-repository", required=True, help="GitHub URL or owner/repository")
+def repos_link(repo_id: str, github_repository: str) -> None:
+    """Link an existing repository to its external GitHub repository."""
+    client = _get_client()
+    client.link_repo(repo_id, github_repository)
+    click.echo(f"Linked repository: {repo_id}")
     client.close()
 
 

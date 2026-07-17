@@ -356,14 +356,25 @@ await sql`
     name         text NOT NULL,
     slug         text NOT NULL,
     description  text,
+    "githubOwner" text,
+    "githubRepository" text,
     "r2Prefix"   text,
     "createdAt"  timestamp NOT NULL DEFAULT now(),
     "updatedAt"  timestamp NOT NULL DEFAULT now()
   )
 `;
+await sql`ALTER TABLE repository ADD COLUMN IF NOT EXISTS "githubOwner" TEXT`;
+await sql`ALTER TABLE repository ADD COLUMN IF NOT EXISTS "githubRepository" TEXT`;
+await sql`
+  UPDATE repository
+  SET "githubOwner" = 'vargasjr-dev', "githubRepository" = 'counter-experiment'
+  WHERE id = 'counter-experiment'
+    AND "githubOwner" IS NULL
+    AND "githubRepository" IS NULL
+`;
 await sql`CREATE INDEX IF NOT EXISTS repo_user_created ON repository ("userId", "createdAt" DESC)`;
 await sql`CREATE UNIQUE INDEX IF NOT EXISTS repo_user_slug ON repository ("userId", "slug")`;
-console.log("✓ repository table");
+console.log("✓ repository table and GitHub reference columns");
 
 // ── Add repositoryId to component tables (nullable for legacy rows) ───────────
 await sql`ALTER TABLE data_source ADD COLUMN IF NOT EXISTS "repositoryId" TEXT`;
