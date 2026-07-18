@@ -26,3 +26,11 @@ node_modules
 .vercel
 .env*
 tsconfig.tsbuildinfo
+
+# ── Terraform ────────────────────────────────────────────────
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraformrc
+terraform.rc
