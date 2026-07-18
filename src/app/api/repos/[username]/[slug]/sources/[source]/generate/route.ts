@@ -13,21 +13,25 @@ export async function POST(
   },
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const {
-    username,
-    slug,
-    source: encodedSource,
-  } = await params;
+  const { username, slug, source: encodedSource } = await params;
   const sourceName = decodeURIComponent(encodedSource);
   const context = await getRepositoryContext(username, slug);
-  if (!context) return Response.json({ error: "Repository not found" }, { status: 404 });
+  if (!context)
+    return Response.json({ error: "Repository not found" }, { status: 404 });
   if (context.owner.id !== session.user.id) {
-    return Response.json({ error: "Only the repository owner can generate datasets" }, { status: 403 });
+    return Response.json(
+      { error: "Only the repository owner can generate datasets" },
+      { status: 403 },
+    );
   }
   if (!context.githubRepo) {
-    return Response.json({ error: "Repository is not linked to GitHub" }, { status: 404 });
+    return Response.json(
+      { error: "Repository is not linked to GitHub" },
+      { status: 404 },
+    );
   }
 
   const endpoint = process.env.MODAL_SOURCE_ENDPOINT;
@@ -48,7 +52,8 @@ export async function POST(
     sourceName,
     accessToken: context.accessToken,
   });
-  if (!prepared) return Response.json({ error: "Source not found" }, { status: 404 });
+  if (!prepared)
+    return Response.json({ error: "Source not found" }, { status: 404 });
 
   const { component, datasetId, r2Prefix } = prepared;
 
@@ -66,13 +71,15 @@ export async function POST(
         r2Prefix,
         secret: process.env.MODAL_WEBHOOK_SECRET ?? "",
       }),
-    }).then(async (response) => {
-      if (!response.ok) {
-        console.error(`[dataset] Modal trigger returned ${response.status}`);
-      }
-    }).catch((error) => {
-      console.error("[dataset] Modal trigger failed:", error);
-    }),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          console.error(`[dataset] Modal trigger returned ${response.status}`);
+        }
+      })
+      .catch((error) => {
+        console.error("[dataset] Modal trigger failed:", error);
+      }),
   );
 
   return Response.json(

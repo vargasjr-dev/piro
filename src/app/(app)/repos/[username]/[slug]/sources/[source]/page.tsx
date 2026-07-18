@@ -9,11 +9,7 @@ export default async function SourcePage({
 }: {
   params: Promise<{ username: string; slug: string; source: string }>;
 }) {
-  const {
-    username: ownerHandle,
-    slug,
-    source: encodedSource,
-  } = await params;
+  const { username: ownerHandle, slug, source: encodedSource } = await params;
   const sourceName = decodeURIComponent(encodedSource);
   const context = await getRepositoryContext(ownerHandle, slug);
   if (!context) return null;
@@ -37,15 +33,29 @@ export default async function SourcePage({
         href={`/repos/${ownerHandle}/${context.repo.slug}/sources`}
         className="inline-flex items-center gap-1.5 text-xs text-amber-400/50 hover:text-amber-200 transition-colors"
       >
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="m15 18-6-6 6-6" />
+        <svg
+          className="w-3 h-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="m15 18-6-6 6-6"
+          />
         </svg>
         Sources
       </Link>
 
       <div>
-        <h2 className="text-xl font-semibold text-amber-100">{component.name}</h2>
-        <p className="text-xs text-amber-400/40 mt-1 font-mono">{component.path}/{component.entrypoint}</p>
+        <h2 className="text-xl font-semibold text-amber-100">
+          {component.name}
+        </h2>
+        <p className="text-xs text-amber-400/40 mt-1 font-mono">
+          {component.path}/{component.entrypoint}
+        </p>
       </div>
 
       <RepositoryComponentDetail

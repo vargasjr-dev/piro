@@ -20,21 +20,25 @@ export async function POST(
   },
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const {
-    username,
-    slug,
-    benchmark: encodedBenchmark,
-  } = await params;
+  const { username, slug, benchmark: encodedBenchmark } = await params;
   const benchmarkName = decodeURIComponent(encodedBenchmark);
   const context = await getRepositoryContext(username, slug);
-  if (!context) return Response.json({ error: "Repository not found" }, { status: 404 });
+  if (!context)
+    return Response.json({ error: "Repository not found" }, { status: 404 });
   if (context.owner.id !== session.user.id) {
-    return Response.json({ error: "Only the repository owner can run evaluations" }, { status: 403 });
+    return Response.json(
+      { error: "Only the repository owner can run evaluations" },
+      { status: 403 },
+    );
   }
   if (!context.githubRepo) {
-    return Response.json({ error: "Repository is not linked to GitHub" }, { status: 404 });
+    return Response.json(
+      { error: "Repository is not linked to GitHub" },
+      { status: 404 },
+    );
   }
 
   const component = await getRepositoryComponent(
@@ -45,10 +49,12 @@ export async function POST(
     context.accessToken,
     AbortSignal.timeout(10_000),
   ).catch(() => null);
-  if (!component) return Response.json({ error: "Benchmark not found" }, { status: 404 });
+  if (!component)
+    return Response.json({ error: "Benchmark not found" }, { status: 404 });
 
   const registered = BENCHMARKS.find(
-    (benchmark) => normalizeName(benchmark.name) === normalizeName(benchmarkName),
+    (benchmark) =>
+      normalizeName(benchmark.name) === normalizeName(benchmarkName),
   );
   if (!registered) {
     return Response.json(

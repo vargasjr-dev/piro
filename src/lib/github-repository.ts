@@ -216,7 +216,13 @@ export async function getRepositoryComponent(
             "utf8",
           )
         : null;
-    return { name, path: `${kind}/${name}`, htmlUrl: contents.html_url, entrypoint, source };
+    return {
+      name,
+      path: `${kind}/${name}`,
+      htmlUrl: contents.html_url,
+      entrypoint,
+      source,
+    };
   }
   return null;
 }
@@ -228,5 +234,12 @@ export async function getRepositoryArchitecture(
   accessToken?: string | null,
   signal?: AbortSignal,
 ): Promise<RepositoryArchitectureFile | null> {
-  return getRepositoryComponent(owner, repository, "architectures", name, accessToken, signal);
+  return getRepositoryComponent(
+    owner,
+    repository,
+    "architectures",
+    name,
+    accessToken,
+    signal,
+  );
 }

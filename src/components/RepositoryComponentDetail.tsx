@@ -27,8 +27,12 @@ export function RepositoryComponentDetail({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const [tab, setTab] = useState<Tab>(requestedTab === "code" ? "code" : "overview");
-  const [status, setStatus] = useState<"idle" | "working" | "success" | "error">("idle");
+  const [tab, setTab] = useState<Tab>(
+    requestedTab === "code" ? "code" : "overview",
+  );
+  const [status, setStatus] = useState<
+    "idle" | "working" | "success" | "error"
+  >("idle");
   const [message, setMessage] = useState<string | null>(null);
 
   function switchTab(nextTab: Tab) {
@@ -49,13 +53,16 @@ export function RepositoryComponentDetail({
         message?: string;
         error?: string;
       };
-      if (!response.ok) throw new Error(body.error ?? "Unable to start this job.");
+      if (!response.ok)
+        throw new Error(body.error ?? "Unable to start this job.");
       setStatus("success");
       setMessage(body.message ?? `${actionLabel} started.`);
       router.refresh();
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Unable to start this job.");
+      setMessage(
+        error instanceof Error ? error.message : "Unable to start this job.",
+      );
     }
   }
 
@@ -98,7 +105,9 @@ export function RepositoryComponentDetail({
         <div className="space-y-5">
           <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-4 space-y-3">
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-amber-600/45">Component</p>
+              <p className="text-[10px] uppercase tracking-widest text-amber-600/45">
+                Component
+              </p>
               <p className="mt-1 text-sm text-amber-200/80">
                 {isSource
                   ? "A data source produces training examples that can be materialized as a dataset."
@@ -107,12 +116,20 @@ export function RepositoryComponentDetail({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-amber-600/45">Path</p>
-                <p className="mt-1 text-xs font-mono text-amber-300/60 break-all">{path}</p>
+                <p className="text-[10px] uppercase tracking-widest text-amber-600/45">
+                  Path
+                </p>
+                <p className="mt-1 text-xs font-mono text-amber-300/60 break-all">
+                  {path}
+                </p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-amber-600/45">Entrypoint</p>
-                <p className="mt-1 text-xs font-mono text-amber-300/60">{entrypoint}</p>
+                <p className="text-[10px] uppercase tracking-widest text-amber-600/45">
+                  Entrypoint
+                </p>
+                <p className="mt-1 text-xs font-mono text-amber-300/60">
+                  {entrypoint}
+                </p>
               </div>
             </div>
           </div>

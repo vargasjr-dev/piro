@@ -63,7 +63,11 @@ export default async function BenchmarksPage({
                 strokeWidth="2"
                 viewBox="0 0 24 24"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m9 18 6-6-6-6"
+                />
               </svg>
             </Link>
           ))}

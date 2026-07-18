@@ -63,9 +63,7 @@ export default async function RepoLayout({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto">
-        {children}
-      </div>
+      <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
   );
 }
