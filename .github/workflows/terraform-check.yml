@@ -1,0 +1,37 @@
+name: Terraform Checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-check.yml"
+
+concurrency:
+  group: terraform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  foundation:
+    name: Terraform foundation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform/foundation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Format check
+        run: terraform fmt -check -recursive ../../
+
+      - name: Initialize without backend
+        run: terraform init -backend=false -input=false
+
+      - name: Validate
+        run: terraform validate
