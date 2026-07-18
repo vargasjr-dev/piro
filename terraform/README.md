@@ -9,9 +9,10 @@ Terraform root:    terraform/
 HCP workspace:     piro
 ```
 
-The root configuration intentionally manages zero resources until the HCP
-Terraform workspace is connected and the organization value in `main.tf` has
-been configured.
+The root configuration is connected to the `vargasjr-dev` HCP Terraform
+organization and manages organization-level infrastructure through the `piro`
+workspace. The first managed resource is the shared Cloudflare Tunnel used for
+public ingress to the Mac mini gateway.
 
 ## HCP Terraform workflow
 
@@ -51,17 +52,38 @@ terraform/
   providers.tf
   variables.tf
   cloudflare.tf
+  outputs.tf
+  modules/
+    cloudflare-tunnel/
   stripe.tf
   storage.tf
   telemetry.tf
-  modules/
-    telemetry/
 ```
 
 The one-workspace policy means Cloudflare, Stripe, storage, and telemetry share
 one state and one approval boundary. Keep production/test distinctions in
 provider aliases and explicit resource configuration, not additional HCP
 workspaces.
+
+## Cloudflare Tunnel
+
+The first module manages the Cloudflare-side pieces of the shared public
+ingress tunnel:
+
+- A remotely managed Cloudflare Tunnel named `vargasjr-mac-mini`.
+- A published application route for `assistant.vargasjr.dev`.
+- The proxied CNAME record pointing the hostname at the tunnel.
+- The connector token as a sensitive Terraform output for host bootstrap.
+
+Terraform does not install or supervise `cloudflared` on the Mac mini. After an
+approved apply, install `cloudflared` on the host and run it with the sensitive
+token from HCP Terraform. Keep the existing ngrok ingress active until the
+Cloudflare route has been tested; this PR does not change application webhook
+URLs or `publicBaseUrl`.
+
+The Cloudflare API token belongs in an HCP Terraform sensitive workspace
+variable named `cloudflare_api_token`. The account ID, zone ID, and hostname
+variables are ordinary workspace variables.
 
 ## Safety boundaries
 
@@ -79,8 +101,8 @@ credentials, or HCP tokens.
 
 ## Planned adoption order
 
-1. Import Cloudflare DNS and account resources.
-2. Import Backblaze bucket metadata only.
+1. Create and test the shared Cloudflare Tunnel, then import existing DNS records as needed.
+2. Import Cloudflare DNS and account resources.
 3. Import Stripe test product, price, and webhook configuration.
 4. Import Stripe live product, price, and webhook configuration.
 5. Create the R2 destination bucket and telemetry infrastructure.
