@@ -426,6 +426,28 @@ await sql`ALTER TABLE training_run DROP COLUMN IF EXISTS "modelTemplate"`;
 await sql`ALTER TABLE training_run DROP COLUMN IF EXISTS "dataSource"`;
 console.log("✓ training_run: dropped modelTemplate, dataSource");
 
+// ── generation_run table ─────────────────────────────────────────────────────
+// One persisted invocation of a repository source generation job.
+await sql`
+  CREATE TABLE IF NOT EXISTS generation_run (
+    id              text PRIMARY KEY,
+    "userId"        text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    "repositoryId"  text NOT NULL REFERENCES repository(id) ON DELETE CASCADE,
+    "datasetId"     text REFERENCES dataset(id) ON DELETE SET NULL,
+    "sourceName"    text NOT NULL,
+    "sourcePath"    text NOT NULL,
+    status          text NOT NULL DEFAULT 'queued',
+    "costUsd"       real,
+    error           text,
+    "queuedAt"      timestamp NOT NULL DEFAULT now(),
+    "startedAt"     timestamp,
+    "completedAt"   timestamp
+  )
+`;
+await sql`CREATE INDEX IF NOT EXISTS gr_repo_source_queued ON generation_run ("repositoryId", "sourcePath", "queuedAt" DESC)`;
+await sql`CREATE INDEX IF NOT EXISTS gr_user_queued ON generation_run ("userId", "queuedAt" DESC)`;
+console.log("✓ generation_run table");
+
 // ── Drop component tables (repo file structure is now source of truth) ─────────
 await sql`DROP TABLE IF EXISTS data_source CASCADE`;
 await sql`DROP TABLE IF EXISTS benchmark CASCADE`;
