@@ -88,7 +88,6 @@ export default function PricingPage() {
           </Link>
           <nav className="flex items-center gap-5 text-sm">
             <Link href="/docs" className="text-amber-300/60 hover:text-amber-100 transition-colors">Docs</Link>
-            <Link href="/" className="text-amber-300/60 hover:text-amber-100 transition-colors">Home</Link>
           </nav>
         </div>
       </header>
