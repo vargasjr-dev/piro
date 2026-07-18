@@ -8,9 +8,9 @@ import { repository, user } from "../../../../../../data/schema";
 
 const TABS = [
   { label: "Overview", href: "" },
+  { label: "Sources", href: "/sources" },
   { label: "Architectures", href: "/architectures" },
   { label: "Benchmarks", href: "/benchmarks" },
-  { label: "Sources", href: "/sources" },
   { label: "Datasets", href: "/datasets" },
   { label: "Models", href: "/models" },
 ];
