@@ -9,9 +9,9 @@ Terraform root:    terraform/
 HCP workspace:     piro
 ```
 
-The root configuration intentionally manages zero resources until the HCP
-Terraform workspace is connected and the organization value in `main.tf` has
-been configured.
+The root configuration currently manages zero resources. Provider plugins are
+declared and configured for discovery/import work, but no production resource is
+created or changed by this foundation.
 
 ## HCP Terraform workflow
 
@@ -27,11 +27,11 @@ Use the **VCS-driven workflow**:
    ```
 
 5. Set automatic run triggering to the `terraform/` path.
-6. Set the workspace Terraform version to `1.9.8` or newer within the pinned
-   `1.x` range.
+6. Set the workspace Terraform version to `1.15.8` (or another compatible
+   Terraform 1.x version).
 7. Set the apply method to **Manual apply** while importing existing resources.
-8. Replace `REPLACE_WITH_HCP_ORGANIZATION` in `main.tf` with the organization
-   slug and commit that change.
+8. Configure provider credentials as sensitive HCP Terraform workspace variables
+   (never commit them to Git).
 9. Open a pull request and confirm HCP Terraform posts a speculative plan.
 
 HCP Terraform's VCS workflow fetches configuration from GitHub and automatically
@@ -73,9 +73,16 @@ should not manage:
 - Application database records
 - Secrets committed to Git
 
-Store provider credentials as sensitive HCP Terraform workspace variables. Keep
-Terraform state in HCP Terraform; never commit `.tfstate`, plan files, provider
-credentials, or HCP tokens.
+Store provider credentials as sensitive HCP Terraform workspace variables. The
+current provider configuration expects:
+
+- `CLOUDFLARE_API_TOKEN` for Cloudflare
+- `B2_APPLICATION_KEY_ID` and `B2_APPLICATION_KEY` for Backblaze B2
+- Sensitive Terraform variable `stripe_test_api_key` for Stripe test mode
+- Sensitive Terraform variable `stripe_live_api_key` for Stripe live mode
+
+Keep Terraform state in HCP Terraform; never commit `.tfstate`, plan files,
+provider credentials, or HCP tokens.
 
 ## Planned adoption order
 
