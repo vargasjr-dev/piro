@@ -1,0 +1,4 @@
+# Do not put real credentials in this file. Configure these as sensitive
+# workspace variables in HCP Terraform instead.
+stripe_test_api_key = null
+stripe_live_api_key = null
