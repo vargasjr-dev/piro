@@ -8,9 +8,9 @@ import { repository, user } from "../../../../../../data/schema";
 
 const TABS = [
   { label: "Overview", href: "" },
+  { label: "Sources", href: "/sources" },
   { label: "Architectures", href: "/architectures" },
   { label: "Benchmarks", href: "/benchmarks" },
-  { label: "Sources", href: "/sources" },
   { label: "Datasets", href: "/datasets" },
   { label: "Models", href: "/models" },
 ];
@@ -63,9 +63,7 @@ export default async function RepoLayout({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto">
-        {children}
-      </div>
+      <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
   );
 }

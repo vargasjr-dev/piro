@@ -99,6 +99,11 @@ export function githubRepositoryUrl({
   return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}`;
 }
 
+export type RepositoryComponentKind =
+  | "architectures"
+  | "benchmarks"
+  | "sources";
+
 export interface GitHubRepositoryComponent {
   name: string;
   path: string;
@@ -175,22 +180,26 @@ export async function listRepositoryArchitectures(
   );
 }
 
-export interface RepositoryArchitectureFile {
+export interface RepositoryComponentFile {
   name: string;
   path: string;
   htmlUrl: string;
+  entrypoint: string;
   source: string | null;
 }
 
-export async function getRepositoryArchitecture(
+export type RepositoryArchitectureFile = RepositoryComponentFile;
+
+export async function getRepositoryComponent(
   owner: string,
   repository: string,
+  kind: RepositoryComponentKind,
   name: string,
   accessToken?: string | null,
   signal?: AbortSignal,
-): Promise<RepositoryArchitectureFile | null> {
+): Promise<RepositoryComponentFile | null> {
   for (const entrypoint of COMPONENT_ENTRYPOINTS) {
-    const path = `architectures/${name}/${entrypoint}`;
+    const path = `${kind}/${name}/${entrypoint}`;
     const contents = await fetchGitHubContents({
       owner,
       repository,
@@ -207,7 +216,30 @@ export async function getRepositoryArchitecture(
             "utf8",
           )
         : null;
-    return { name, path, htmlUrl: contents.html_url, source };
+    return {
+      name,
+      path: `${kind}/${name}`,
+      htmlUrl: contents.html_url,
+      entrypoint,
+      source,
+    };
   }
   return null;
+}
+
+export async function getRepositoryArchitecture(
+  owner: string,
+  repository: string,
+  name: string,
+  accessToken?: string | null,
+  signal?: AbortSignal,
+): Promise<RepositoryArchitectureFile | null> {
+  return getRepositoryComponent(
+    owner,
+    repository,
+    "architectures",
+    name,
+    accessToken,
+    signal,
+  );
 }

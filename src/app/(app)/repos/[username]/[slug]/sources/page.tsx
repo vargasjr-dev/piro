@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getRepositoryContext } from "~/lib/repository-context.server";
 import { listRepositoryComponents } from "~/lib/repository-components";
 
@@ -36,11 +37,9 @@ export default async function SourcesPage({
       ) : (
         <div className="space-y-2">
           {components.map((component) => (
-            <a
+            <Link
               key={component.path}
-              href={component.htmlUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={`${`/repos/${username}/${context.repo.slug}/sources`}/${encodeURIComponent(component.name)}`}
               className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-900/15 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
             >
               <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-300 flex items-center justify-center shrink-0">
@@ -56,8 +55,20 @@ export default async function SourcesPage({
                     : component.path}
                 </p>
               </div>
-              <span className="text-[10px] text-amber-600/40">GitHub</span>
-            </a>
+              <svg
+                className="w-4 h-4 text-amber-800/30 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m9 18 6-6-6-6"
+                />
+              </svg>
+            </Link>
           ))}
         </div>
       )}
