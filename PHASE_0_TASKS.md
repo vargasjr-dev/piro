@@ -46,7 +46,7 @@
 - Add `benchmark_run` table to Drizzle schema: `id`, `benchmark_id`, `ctm_score`, `gpt_mini_score`, `gpt_max_score`, `passed`, `metadata` (JSON), `run_at`
 - Add `POST /api/benchmarks` route: accepts `latest.json` payload from the CLI runner, validates shape, inserts one row per benchmark
 - Add `GET /api/benchmarks` route: returns all runs grouped by benchmark, ordered by `run_at` desc
-- Run `db:push` to apply schema changes
+- Run `db:generate` to create a migration, then apply it through the database migration workflow
 
 ## D2 — Live Benchmarks Dashboard
 

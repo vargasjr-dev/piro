@@ -114,7 +114,7 @@ console.log(`\nGenerating source: ${sourceIdArg}`);
 
 const rows = await sql`SELECT id, "userId" FROM data_source WHERE id = ${sourceIdArg} LIMIT 1`;
 if (rows.length === 0) {
-  console.error(`data_source row not found for id='${sourceIdArg}'. Run migrate.mjs first.`);
+  console.error(`data_source row not found for id='${sourceIdArg}'. Run the database migration workflow first.`);
   process.exit(1);
 }
 
