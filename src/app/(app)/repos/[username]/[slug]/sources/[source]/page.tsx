@@ -39,6 +39,7 @@ export default async function SourcePage({
     page: Number.isFinite(runsPage) ? runsPage : 1,
   });
   const sourceHref = `/repos/${encodeURIComponent(ownerHandle)}/${encodeURIComponent(context.repo.slug)}/sources/${encodeURIComponent(component.name)}`;
+  const generateEndpoint = `/api${sourceHref}/generate`;
 
   return (
     <div className="p-4 lg:p-6 max-w-4xl space-y-4">
@@ -77,7 +78,7 @@ export default async function SourcePage({
         path={component.path}
         entrypoint={component.entrypoint}
         source={component.source}
-        actionEndpoint={`${sourceHref}/generate`}
+        actionEndpoint={generateEndpoint}
         actionLabel="Generate dataset"
       />
 
