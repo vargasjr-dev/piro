@@ -244,6 +244,39 @@ export const dataset = pgTable(
 );
 
 /**
+ * One invocation of a source script. A source can have many runs, while each
+ * run points at the dataset row that receives its generated output.
+ */
+export const generationRun = pgTable(
+  "generation_run",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    repositoryId: text("repositoryId")
+      .notNull()
+      .references(() => repository.id, { onDelete: "cascade" }),
+    datasetId: text("datasetId").references(() => dataset.id, {
+      onDelete: "set null",
+    }),
+    sourceName: text("sourceName").notNull(),
+    sourcePath: text("sourcePath").notNull(),
+    /** 'queued' | 'running' | 'complete' | 'error'. */
+    status: text("status").notNull().default("queued"),
+    costUsd: real("costUsd"),
+    error: text("error"),
+    queuedAt: timestamp("queuedAt").notNull().defaultNow(),
+    startedAt: timestamp("startedAt"),
+    completedAt: timestamp("completedAt"),
+  },
+  (t) => [
+    index("gr_repo_source_queued").on(t.repositoryId, t.sourcePath, t.queuedAt),
+    index("gr_user_queued").on(t.userId, t.queuedAt),
+  ],
+);
+
+/**
  * A training run: one invocation against an architecture + dataset.
  * The architecture code lives in the repo (e.g. "architectures/ctm").
  * The dataset is a generated artifact tracked in the `dataset` table.

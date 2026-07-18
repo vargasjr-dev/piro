@@ -1,11 +1,14 @@
 import { waitUntil } from "@vercel/functions";
+import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
+import { db } from "../../../../../../../../../data/db";
+import { generationRun } from "../../../../../../../../../data/schema";
 import { getRepositoryContext } from "~/lib/repository-context.server";
 import { ensureRepositoryDataset } from "~/lib/repository-component-actions";
 
 export async function POST(
-  request: Request,
+  _request: Request,
   {
     params,
   }: {
@@ -34,17 +37,6 @@ export async function POST(
     );
   }
 
-  const endpoint = process.env.MODAL_SOURCE_ENDPOINT;
-  if (!endpoint) {
-    return Response.json(
-      {
-        error:
-          "Dataset generation is not configured yet. Set MODAL_SOURCE_ENDPOINT to enable source execution.",
-      },
-      { status: 503 },
-    );
-  }
-
   const prepared = await ensureRepositoryDataset({
     repositoryId: context.repo.id,
     userId: session.user.id,
@@ -56,12 +48,46 @@ export async function POST(
     return Response.json({ error: "Source not found" }, { status: 404 });
 
   const { component, datasetId, r2Prefix } = prepared;
+  const runId = crypto.randomUUID();
+  await db.insert(generationRun).values({
+    id: runId,
+    userId: session.user.id,
+    repositoryId: context.repo.id,
+    datasetId,
+    sourceName: component.name,
+    sourcePath: component.path,
+    status: "queued",
+  });
+
+  const endpoint = process.env.MODAL_SOURCE_ENDPOINT;
+  if (!endpoint) {
+    await db
+      .update(generationRun)
+      .set({
+        status: "error",
+        error:
+          "Dataset generation is not configured yet. Set MODAL_SOURCE_ENDPOINT to enable source execution.",
+        completedAt: new Date(),
+      })
+      .where(eq(generationRun.id, runId));
+
+    return Response.json(
+      {
+        runId,
+        datasetId,
+        message:
+          "Generation run created, but source execution is not configured yet.",
+      },
+      { status: 202 },
+    );
+  }
 
   waitUntil(
     fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        runId,
         datasetId,
         repositoryId: context.repo.id,
         githubOwner: context.githubRepo.owner,
@@ -69,21 +95,41 @@ export async function POST(
         sourcePath: component.path,
         entrypoint: component.entrypoint,
         r2Prefix,
+        callbackUrl: new URL(
+          `/api/generation-runs/${runId}`,
+          _request.url,
+        ).toString(),
         secret: process.env.MODAL_WEBHOOK_SECRET ?? "",
       }),
     })
       .then(async (response) => {
-        if (!response.ok) {
-          console.error(`[dataset] Modal trigger returned ${response.status}`);
-        }
+        if (response.ok) return;
+
+        console.error(`[dataset] Modal trigger returned ${response.status}`);
+        await db
+          .update(generationRun)
+          .set({
+            status: "error",
+            error: `Worker returned HTTP ${response.status}`,
+            completedAt: new Date(),
+          })
+          .where(eq(generationRun.id, runId));
       })
-      .catch((error) => {
+      .catch(async (error) => {
         console.error("[dataset] Modal trigger failed:", error);
+        await db
+          .update(generationRun)
+          .set({
+            status: "error",
+            error: "Unable to reach the source-generation worker",
+            completedAt: new Date(),
+          })
+          .where(eq(generationRun.id, runId));
       }),
   );
 
   return Response.json(
-    { datasetId, message: "Dataset generation started." },
+    { runId, datasetId, message: "Dataset generation started." },
     { status: 202 },
   );
 }
