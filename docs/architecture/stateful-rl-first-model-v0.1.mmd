@@ -1,0 +1,61 @@
+%% Piro Stateful RL-First Model v0.1
+%% Green = implemented CTM prototype
+%% Blue = proposed per-task state
+%% Orange = proposed delayed-learning path
+%% Purple = external observation/environment
+flowchart LR
+    classDef current fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
+    classDef proposed fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
+    classDef learning fill:#ffe4c7,stroke:#a85b00,color:#4d2900,stroke-width:1.5px
+    classDef external fill:#f2ddff,stroke:#7a3f9b,color:#32153f,stroke-width:1.5px
+    classDef boundary fill:#f7f7f7,stroke:#777,color:#222,stroke-dasharray:5 5
+
+    subgraph OBS[Observation and action loop]
+        I[Observation / tokens / tools / environment input]:::external --> E[Input embedding]:::current
+        E --> C
+        subgraph C[CTM core — repeated internal thought ticks]
+            direction TB
+            N[Neuron state update]:::current
+            H[History buffer]:::current
+            S[Sync-driven attention]:::current
+            R[Residual tick update]:::current
+            N --> H --> S --> R --> N
+            T[Adaptive tick controller]:::proposed -. decides whether to continue .-> R
+        end
+        C --> P[Policy / output head]:::current
+        P --> A[Action: token, tool call, or environment action]:::external
+        A --> ENV
+    end
+
+    subgraph ENV[Environment]
+        W[World / user / tools / tests / game]:::external
+        O[Later observation and consequence]:::external
+        W --> O
+    end
+
+    A -. records expectation .-> X[Pending prediction record]:::proposed
+    A -. leaves eligibility .-> Q[Eligibility trace]:::proposed
+    O --> D[Prediction error + value error]:::learning
+    O --> M[Episodic experience memory]:::proposed
+    X --> D
+    Q --> G[Hindsight credit attribution]:::learning
+    D --> G
+    M --> G
+
+    subgraph ADAPT[Online adaptation — state changes during the task]
+        G --> F[Fast policy / world-model adapter]:::learning
+        F --> C
+        F --> P
+        G --> B[Belief, plan, and value state]:::proposed
+        B --> C
+        B --> P
+    end
+
+    subgraph CONS[Slow consolidation — across tasks]
+        M --> Y[Replay and repeated-evidence filter]:::proposed
+        G --> Y
+        Y --> Z[Slow weight update / new training data]:::learning
+        Z -. periodic consolidation .-> C
+    end
+
+    class OBS,ENV boundary
