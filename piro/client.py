@@ -119,28 +119,6 @@ class PiroClient:
             json={"githubRepository": github_repository},
         )
 
-    # ── Data Sources ───────────────────────────────────────────────────────
-
-    def list_sources(self) -> list[dict[str, Any]]:
-        data = self._get("/api/data-sources")
-        return data.get("sources", [])
-
-    def get_source(self, source_id: str) -> dict[str, Any]:
-        return self._get(f"/api/data-sources/{source_id}")
-
-    def pull_source_script(self, source_id: str) -> str:
-        data = self._get(f"/api/data-sources/{source_id}/file", params={"path": "script.py"})
-        return data.get("content", "")
-
-    def push_source_script(self, source_id: str, content: str) -> dict[str, Any]:
-        return self._put(
-            f"/api/data-sources/{source_id}/file",
-            json={"path": "script.py", "content": content},
-        )
-
-    def generate_source(self, source_id: str) -> dict[str, Any]:
-        return self._post(f"/api/data-sources/{source_id}/generate")
-
     # ── Model Classes ──────────────────────────────────────────────────────
 
     def list_classes(self) -> list[dict[str, Any]]:
@@ -194,14 +172,14 @@ class PiroClient:
 
     def create_training_run(
         self,
-        model_template: str,
-        data_source: str,
+        architecture_path: str,
+        dataset_id: str,
         epochs: int = 10,
         model_name: str | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
-            "modelTemplate": model_template,
-            "dataSource": data_source,
+            "architecturePath": architecture_path,
+            "datasetId": dataset_id,
             "epochs": epochs,
         }
         if model_name:

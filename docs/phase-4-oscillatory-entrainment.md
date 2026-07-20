@@ -5,20 +5,21 @@
 
 ## Problem
 
-Biological brains don't just fire — they *oscillate*. Cortical neurons exhibit
+Biological brains don't just fire — they _oscillate_. Cortical neurons exhibit
 rhythmic activity across theta (4–8 Hz), alpha (8–12 Hz), beta (12–30 Hz), and
 gamma (30–80 Hz) bands. These oscillations synchronize across populations,
 creating transient assemblies that bind features, gate information flow, and
 enable sequence learning through phase precession.
 
-The current CTM (Phase 0–3) treats each neuron as an independent MLP with
+The current Python CTM treats each neuron as an independent MLP with
 history-based correlation. There is no intrinsic timing — no rhythm, no phase,
 no entrainment. Information is encoded purely in firing rates, not in the
-*relative timing* of spikes. This is a significant biological gap.
+_relative timing_ of spikes. This is a significant biological gap.
 
 ## Goal
 
 Add intrinsic oscillatory dynamics to each neuron so that:
+
 1. **Neurons oscillate** at learned or fixed frequencies
 2. **Phase-locking** emerges naturally through synaptic coupling
 3. **Information** can be encoded in phase relationships (not just rates)
@@ -26,7 +27,7 @@ Add intrinsic oscillatory dynamics to each neuron so that:
 
 ## Architecture
 
-### 1. Oscillator — `src/lib/model/oscillator.ts`
+### 1. Oscillator — `model/ctm.py` (`OscillatorBank`)
 
 Each neuron gets a damped harmonic oscillator that modulates its excitability:
 
@@ -35,6 +36,7 @@ d²θ/dt² + γ·dθ/dt + ω²·θ = I(t)   ← driven by input current
 ```
 
 Where:
+
 - `θ` = phase angle [0, 2π)
 - `ω` = intrinsic frequency (learned per neuron)
 - `γ` = damping coefficient (learned or fixed)
@@ -57,19 +59,19 @@ interface OscillatorConfig {
 }
 
 class OscillatorBank {
-  constructor(config: OscillatorConfig, numNeurons: number)
+  constructor(config: OscillatorConfig, numNeurons: number);
 
   /** Advance all oscillators one tick given input currents */
-  step(inputCurrents: Float64Array, dt: number): void
+  step(inputCurrents: Float64Array, dt: number): void;
 
   /** Get current gating signals [0, 1] for each neuron */
-  getGates(): Float64Array
+  getGates(): Float64Array;
 
   /** Get current phases [0, 2π) for each neuron */
-  getPhases(): Float64Array
+  getPhases(): Float64Array;
 
   /** Synchrony measure: mean pairwise cosine of phase differences */
-  synchronyIndex(): number
+  synchronyIndex(): number;
 }
 ```
 
@@ -159,8 +161,8 @@ With oscillation enabled, a CTM trained on sorting might evolve:
 - **Neuron 1** (medium oscillator, ω=2π/5): fires mid-sequence
 - **Neuron 2** (slow oscillator, ω=2π/7): fires late, holds the result
 
-The phase relationship encodes *where in the sort* each neuron contributes,
-not just *whether* it fires.
+The phase relationship encodes _where in the sort_ each neuron contributes,
+not just _whether_ it fires.
 
 ## Implementation Plan
 
@@ -170,11 +172,11 @@ The core oscillator bank with Kuramoto coupling. Pure math, no CTM dependency.
 
 ### Step 2: Gate integration in CTM forward pass (~80 LOC)
 
-Modify `CTM.step()` to apply oscillatory gating when `oscillatorConfig` is set.
+Modify `ContinuousThoughtModel.forward()` to apply oscillatory gating when `oscillatorConfig` is set.
 
 ### Step 3: Plastic coupling weights (~100 LOC)
 
-Add `W_couple[N×N]` as a learned parameter, updated via Oja's rule alongside
+Add a trainable coupling pathway alongside `OscillatorBank` as a learned parameter, updated via Oja's rule alongside
 the plastic synapse weights.
 
 ### Step 4: Theta precession (~120 LOC)
@@ -184,7 +186,7 @@ compression in `generate()`.
 
 ### Step 5: Benchmark integration (~40 LOC)
 
-Update benchmark adapters to pass through oscillator state for analysis.
+Update the Python benchmark adapters to pass through oscillator state for analysis.
 
 ## Open Questions
 
@@ -199,12 +201,12 @@ Update benchmark adapters to pass through oscillator state for analysis.
 
 4. **Relationship to BurstState** — Phase 1's BurstState modulates activation
    amplitude. Oscillation modulates phase. Do they compose? (Yes — burst
-   modulates *how much*, oscillation modulates *when*.)
+   modulates _how much_, oscillation modulates _when_.)
 
 ## References
 
-- Kuramoto, Y. (1984). *Chemical Oscillations, Waves, and Turbulence.*
-- Lisman, J. & Jensen, O. (2013). "The θ-γ neural code." *Neuron*, 77(6).
-- Buzsáki, G. (2002). "Theta oscillations in the hippocampus." *Neuron*, 33(3).
+- Kuramoto, Y. (1984). _Chemical Oscillations, Waves, and Turbulence._
+- Lisman, J. & Jensen, O. (2013). "The θ-γ neural code." _Neuron_, 77(6).
+- Buzsáki, G. (2002). "Theta oscillations in the hippocampus." _Neuron_, 33(3).
 - O'Keefe, J. & Recce, M.L. (1993). "Phase relationship between hippocampal
-  place units and the EEG theta rhythm." *Hippocampus*, 3(3).
+  place units and the EEG theta rhythm." _Hippocampus_, 3(3).
