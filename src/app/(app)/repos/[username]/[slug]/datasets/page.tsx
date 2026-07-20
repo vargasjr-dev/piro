@@ -42,15 +42,18 @@ export default async function DatasetsPage({
       <div>
         <h2 className="text-sm font-semibold text-amber-100">Datasets</h2>
         <p className="text-xs text-amber-400/40 mt-0.5">
-          Generated data outputs stored in R2. Created by running source scripts.
+          Generated data outputs stored in R2. Created by running source
+          scripts.
         </p>
       </div>
 
       {datasets.length === 0 ? (
         <div className="rounded-xl border border-amber-900/15 bg-amber-900/5 px-4 py-8 text-center">
-          <p className="text-sm text-amber-400/50">No datasets generated yet.</p>
+          <p className="text-sm text-amber-400/50">
+            No datasets generated yet.
+          </p>
           <p className="text-xs text-amber-600/30 mt-2">
-            Run <code className="font-mono text-amber-500/40">piro sources generate</code> to create one.
+            Generate it from the repository source page.
           </p>
         </div>
       ) : (
@@ -61,16 +64,24 @@ export default async function DatasetsPage({
               className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-900/15 bg-amber-900/5"
             >
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-amber-200/80">{d.name}</p>
+                <p className="text-sm font-medium text-amber-200/80">
+                  {d.name}
+                </p>
                 <div className="flex items-center gap-3 text-[11px] text-amber-700/30 mt-0.5">
                   <span className="font-mono">{d.sourcePath}</span>
-                  {d.sampleCount && <span>{d.sampleCount.toLocaleString()} samples</span>}
+                  {d.sampleCount && (
+                    <span>{d.sampleCount.toLocaleString()} samples</span>
+                  )}
                 </div>
               </div>
               {d.generatedAt ? (
-                <span className="text-[10px] text-emerald-400/50 font-medium">generated</span>
+                <span className="text-[10px] text-emerald-400/50 font-medium">
+                  generated
+                </span>
               ) : (
-                <span className="text-[10px] text-amber-600/40 italic">not generated</span>
+                <span className="text-[10px] text-amber-600/40 italic">
+                  not generated
+                </span>
               )}
             </div>
           ))}

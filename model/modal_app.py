@@ -160,6 +160,7 @@ class Trainer:
         model_name: str | None,
         model_template: str,
         data_source: str,
+        dataset_r2_prefix: str,
         epochs: int,
         seed: int,
     ) -> None:
@@ -175,11 +176,11 @@ class Trainer:
         torch = self._torch
 
         def _build_dataset(n: int, split: str) -> list:
-            if data_source != "sorting-sequences":
+            if data_source != "sorting-sequences" or not dataset_r2_prefix.rstrip("/").endswith("/sorting-sequences"):
                 raise ValueError(
-                    "associative-recall is a separate-invocation research task; "
-                    "the legacy Modal tensor trainer only supports sorting-sequences "
-                    "until a stateful training runner is added"
+                    "the legacy Modal tensor trainer only supports the repository "
+                    "sorting-sequences dataset; associative-recall requires the "
+                    "dedicated stateful runner"
                 )
             seqs = self._generate_sorting_dataset(
                 n=n, length=self._ctm_cfg.n_neurons, seed=seed, split=split
@@ -305,6 +306,8 @@ class Trainer:
                 conn.commit()
 
             # ── Serialize + upload model weights to R2 ───────────────────────
+            # Allocate the model ID before deriving its R2 prefix.
+            model_id = str(_uuid.uuid4())
             state = model.state_dict()
 
             # Binary .pt file for inference
@@ -369,7 +372,6 @@ class Trainer:
                 if model_name and model_name.strip()
                 else f"{model_template}-{run_id[:8]}"
             )
-            model_id = str(_uuid.uuid4())
             cur.execute(
                 """
                 INSERT INTO model (id, "userId", name, "parameterCount", "weightsR2Key", "inferenceEndpoint", "createdAt")
@@ -389,7 +391,7 @@ class Trainer:
                 f"[piro] run {run_id} complete — "
                 f"val_acc={last.val_accuracy:.3f}  val_loss={last.val_loss:.4f}  "
                 f"model_id={model_id}  name={resolved_name!r}  "
-                f"weights_b64_len={len(weights_b64)}"
+                f"weights_bytes={len(pt_bytes)}"
             )
 
         except BaseException as exc:
@@ -613,8 +615,8 @@ def trigger(body: dict) -> dict:
         {
             "runId":         str,
             "modelName":     str | null,
-            "modelTemplate": "ctm" | "baseline-transformer",
-            "dataSource":    "sorting-sequences",
+            "architecturePath": str,
+            "datasetR2Prefix": str,
             "epochs":        int,
             "seed":          int,
             "secret":        str,
@@ -631,12 +633,20 @@ def trigger(body: dict) -> dict:
     if not run_id:
         raise HTTPException(status_code=400, detail="runId required")
 
+    architecture_path = str(body.get("architecturePath", ""))
+    dataset_prefix = str(body.get("datasetR2Prefix", ""))
+    model_template = architecture_path.rstrip("/").rsplit("/", 1)[-1] or "ctm"
+    data_source = dataset_prefix.rstrip("/").rsplit("/", 1)[-1]
+    if not architecture_path or not dataset_prefix:
+        raise HTTPException(status_code=400, detail="architecturePath and datasetR2Prefix required")
+
     trainer = Trainer()
     trainer.run.spawn(
         run_id=run_id,
         model_name=body.get("modelName"),
-        model_template=body.get("modelTemplate", "ctm"),
-        data_source=body.get("dataSource", "sorting-sequences"),
+        model_template=model_template,
+        data_source=data_source,
+        dataset_r2_prefix=dataset_prefix,
         epochs=int(body.get("epochs", 10)),
         seed=int(body.get("seed", 42)),
     )

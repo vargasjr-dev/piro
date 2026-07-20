@@ -14,6 +14,7 @@ can be attributed to memory rather than ordinary context processing.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
 from typing import Any, Protocol
 
 from .base import Benchmark, BenchmarkResult
@@ -30,6 +31,82 @@ class StatefulMemoryModel(Protocol):
     def snapshot_state(self, state: Any) -> Any: ...
 
     def load_state(self, snapshot: Any) -> Any: ...
+
+
+class CTMStatefulMemoryAdapter:
+    """Adapt a ``ContinuousThoughtModel`` to the memory benchmark protocol.
+
+    CTM retains neural state internally, while the benchmark passes explicit
+    snapshots between calls so retained, reset, and restored conditions are
+    reproducible. This adapter is an execution bridge, not a claim that an
+    untrained CTM has learned associative recall.
+    """
+
+    def __init__(self, model: Any, *, value_count: int = 32) -> None:
+        self.model = model
+        self.value_count = value_count
+        if getattr(model, "config", None) is not None and model.config.n_classes < value_count:
+            raise ValueError("CTM n_classes must be at least value_count")
+
+    def _embedding(self, token: str):
+        torch = __import__("torch")
+        dimension = self.model.embed_dim
+        digest = sha256(token.encode("utf-8")).digest()
+        values = [((digest[i % len(digest)] / 255.0) * 2.0) - 1.0 for i in range(dimension)]
+        parameter = next(self.model.parameters())
+        return torch.tensor(values, dtype=parameter.dtype, device=parameter.device)
+
+    def _run(self, prompt: str) -> str:
+        answer = ""
+        for line in prompt.splitlines():
+            parts = line.split()
+            if not parts:
+                continue
+            command = parts[0]
+            if command == "WRITE" and len(parts) == 3:
+                self.model(self._embedding(f"{parts[1]}={parts[2]}"))
+            elif command == "DISTRACT" and len(parts) == 2:
+                self.model(self._embedding(parts[1]))
+            elif command == "QUERY" and len(parts) == 2:
+                output = self.model(self._embedding(f"QUERY:{parts[1]}"))
+                logits = output.logits if hasattr(output, "logits") else output
+                index = int(logits[: self.value_count].argmax().item())
+                answer = f"value_{index:03d}"
+        return answer
+
+    def initial_state(self) -> dict[str, Any]:
+        self.model.reset()
+        return self.model.snapshot_state()
+
+    def step(self, prompt: str, state: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        self.model.load_state(state)
+        answer = self._run(prompt)
+        return answer, self.model.snapshot_state()
+
+    def reset_state(self, state: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG002
+        self.model.reset()
+        return self.model.snapshot_state()
+
+    def snapshot_state(self, state: dict[str, Any]) -> dict[str, Any]:
+        return _clone_snapshot(state)
+
+    def load_state(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        return _clone_snapshot(snapshot)
+
+
+def _clone_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Clone tensor-containing CTM snapshots without requiring torch at import time."""
+    cloned: dict[str, Any] = {}
+    for key, value in snapshot.items():
+        if isinstance(value, list):
+            cloned[key] = [item.detach().clone() if hasattr(item, "detach") else item for item in value]
+        elif hasattr(value, "detach"):
+            cloned[key] = value.detach().clone()
+        elif isinstance(value, dict):
+            cloned[key] = _clone_snapshot(value)
+        else:
+            cloned[key] = value
+    return cloned
 
 
 @dataclass(frozen=True)

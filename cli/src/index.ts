@@ -6,8 +6,6 @@
  *   piro classes serialize <id> [--bust]
  *   piro classes pull <id> [--out <file>]
  *   piro classes push <id> [--file <file>]
- *   piro sources pull <id> [--out <file>]
- *   piro sources push <id> [--file <file>]
  *
  * Auth:
  *   PIRO_API_KEY=<key>  (required)
@@ -19,20 +17,6 @@ import {
   classesPull,
   classesPush,
 } from "./commands/classes.js";
-import {
-  sourcesList,
-  sourcesCreate,
-  sourcesGenerate,
-  sourcesPull,
-  sourcesPush,
-} from "./commands/sources.js";
-import {
-  benchmarksList,
-  benchmarksCreate,
-  benchmarksRun,
-  benchmarksPull,
-  benchmarksPush,
-} from "./commands/benchmarks.js";
 import {
   reposList,
   reposCreate,
@@ -63,20 +47,6 @@ function usage(msg?: string): never {
   console.error("  piro classes serialize <id> [--bust]");
   console.error("  piro classes pull <id> [--out <file>]");
   console.error("  piro classes push <id> [--file <file>]");
-  console.error("  piro sources list");
-  console.error(
-    "  piro sources create <id> --name <name> [--description <desc>] [--sample-count <n>]",
-  );
-  console.error("  piro sources generate <id>");
-  console.error("  piro sources pull <id> [--out <file>]");
-  console.error("  piro sources push <id> [--file <file>]");
-  console.error("  piro benchmarks list");
-  console.error(
-    "  piro benchmarks create <id> --name <name> [--source <source-id>] [--description <desc>]",
-  );
-  console.error("  piro benchmarks run <id> [--model <model-id>]");
-  console.error("  piro benchmarks pull <id> [--out <file>]");
-  console.error("  piro benchmarks push <id> [--file <file>]");
   console.error("  piro repos list");
   console.error(
     "  piro repos create <id> --name <name> --github-repository <owner/repo> [--description <desc>]",
@@ -111,92 +81,6 @@ switch (subject) {
       }
       default:
         usage(`unknown classes verb: ${verb}`);
-    }
-    break;
-
-  case "sources":
-    switch (verb) {
-      case "list": {
-        await sourcesList();
-        break;
-      }
-      case "create": {
-        const id = arg(rest, 0);
-        if (!id) usage("source id is required");
-        const name = opt(rest, "name");
-        if (!name) usage("--name is required for create");
-        const sampleCountStr = opt(rest, "sample-count");
-        const sampleCount = sampleCountStr
-          ? parseInt(sampleCountStr, 10)
-          : undefined;
-        await sourcesCreate(id, {
-          name,
-          description: opt(rest, "description"),
-          sampleCount,
-        });
-        break;
-      }
-      case "generate": {
-        const id = arg(rest, 0);
-        if (!id) usage("source id is required");
-        await sourcesGenerate(id);
-        break;
-      }
-      case "pull": {
-        const id = arg(rest, 0);
-        if (!id) usage("source id is required");
-        await sourcesPull(id, { out: opt(rest, "out") });
-        break;
-      }
-      case "push": {
-        const id = arg(rest, 0);
-        if (!id) usage("source id is required");
-        await sourcesPush(id, { file: opt(rest, "file") });
-        break;
-      }
-      default:
-        usage(`unknown sources verb: ${verb}`);
-    }
-    break;
-
-  case "benchmarks":
-    switch (verb) {
-      case "list": {
-        await benchmarksList();
-        break;
-      }
-      case "create": {
-        const id = arg(rest, 0);
-        if (!id) usage("benchmark id is required");
-        const name = opt(rest, "name");
-        if (!name) usage("--name is required for create");
-        await benchmarksCreate(id, {
-          name,
-          source: opt(rest, "source"),
-          description: opt(rest, "description"),
-        });
-        break;
-      }
-      case "run": {
-        const id = arg(rest, 0);
-        if (!id) usage("benchmark id is required");
-        await benchmarksRun(id, { model: opt(rest, "model") });
-        break;
-      }
-      case "pull": {
-        const id = arg(rest, 0);
-        if (!id) usage("benchmark id is required");
-        await benchmarksPull(id, { out: opt(rest, "out") });
-        break;
-      }
-      case "push": {
-        const id = arg(rest, 0);
-        if (!id) usage("benchmark id is required");
-        await benchmarksPush(id, { file: opt(rest, "file") });
-        break;
-      }
-      default:
-        usage(`unknown benchmarks verb: ${verb}`);
     }
     break;
 

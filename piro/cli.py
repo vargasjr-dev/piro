@@ -3,7 +3,6 @@ piro/cli.py — CLI entry point for the piro package.
 
     piro login            — save API key to ~/.piro/config.json
     piro repos list       — list your repositories
-    piro sources list     — list data sources
     piro classes list     — list model classes
     piro classes push     — push model.py to a class
     piro classes pull     — pull model.py from a class
@@ -130,61 +129,7 @@ def repos_link(repo_id: str, github_repository: str) -> None:
     client.close()
 
 
-# ── Sources ───────────────────────────────────────────────────────────────────
-
-
-@cli.group()
-def sources() -> None:
-    """Manage data sources."""
-
-
-@sources.command("list")
-def sources_list() -> None:
-    """List data sources."""
-    client = _get_client()
-    sources = client.list_sources()
-    _print_table(
-        [{"id": s["id"], "name": s["name"], "samples": s.get("sampleCount", 0)} for s in sources],
-        ["id", "name", "samples"],
-    )
-    client.close()
-
-
-@sources.command("pull")
-@click.argument("source_id")
-@click.option("--out", default="script.py", help="Output file path")
-def sources_pull(source_id: str, out: str) -> None:
-    """Pull the generation script for a data source."""
-    client = _get_client()
-    content = client.pull_source_script(source_id)
-    Path(out).write_text(content)
-    click.echo(f"Pulled {len(content):,} bytes → {out}")
-    client.close()
-
-
-@sources.command("push")
-@click.argument("source_id")
-@click.option("--file", "file_", default="script.py", help="File to push")
-def sources_push(source_id: str, file_: str) -> None:
-    """Push a generation script to a data source."""
-    client = _get_client()
-    content = Path(file_).read_text()
-    client.push_source_script(source_id, content)
-    click.echo(f"Pushed {len(content):,} bytes → {source_id}")
-    client.close()
-
-
-@sources.command("generate")
-@click.argument("source_id")
-def sources_generate(source_id: str) -> None:
-    """Trigger data generation for a source."""
-    client = _get_client()
-    result = client.generate_source(source_id)
-    click.echo(f"Generation triggered: {json.dumps(result)}")
-    client.close()
-
-
-# ── Classes ───────────────────────────────────────────────────────────────────
+# ── Classes ─
 
 
 @cli.group()
@@ -298,20 +243,20 @@ def benchmarks_run(benchmark_id: str, model_id: str | None) -> None:
 
 
 @cli.command()
-@click.option("--model", "model_template", required=True, help="Model class slug (e.g. ctm-tiny)")
-@click.option("--data", "data_source", required=True, help="Data source ID")
+@click.option("--architecture", "architecture_path", required=True, help="Repository architecture path (e.g. architectures/ctm)")
+@click.option("--dataset", "dataset_id", required=True, help="Generated dataset ID")
 @click.option("--epochs", default=10, help="Number of training epochs")
 @click.option("--name", "model_name", help="Name for the trained model")
-def train(model_template: str, data_source: str, epochs: int, model_name: str | None) -> None:
+def train(architecture_path: str, dataset_id: str, epochs: int, model_name: str | None) -> None:
     """Launch a training run on the Piro platform.
 
     \b
-    piro train --model ctm-tiny --data sorting-sequences --epochs 20
+    piro train --architecture architectures/ctm --dataset <dataset-id> --epochs 20
     """
     client = _get_client()
     result = client.create_training_run(
-        model_template=model_template,
-        data_source=data_source,
+        architecture_path=architecture_path,
+        dataset_id=dataset_id,
         epochs=epochs,
         model_name=model_name,
     )

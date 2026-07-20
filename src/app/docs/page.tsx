@@ -47,7 +47,7 @@ export default function DocsPage() {
           <pre className="rounded-xl border border-amber-900/20 bg-amber-950/30 px-5 py-4 text-[13px] font-mono leading-relaxed text-amber-200/70 overflow-x-auto">{`my-experiment/
 ├── sources/
 │   └── associative-recall/
-│       └── main.py          # generates WRITE / QUERY data (JSONL → R2)
+│       └── main.py          # generates WRITE / DISTRACT / QUERY data (JSONL → R2)
 ├── architectures/
 │   ├── ctm/
 │   │   └── main.py          # defines a PiroModel subclass
@@ -74,12 +74,8 @@ export default function DocsPage() {
             <strong className="text-amber-200">dataset</strong>.
           </p>
           <p className="text-sm text-amber-400/60 leading-relaxed">
-            Generate a dataset by running{" "}
-            <code className="font-mono text-amber-300/70">
-              piro sources generate
-            </code>{" "}
-            — Piro executes the script, uploads the output to R2, and records a
-            row in the{" "}
+            Generate a dataset from the repository source page — Piro executes
+            the script, uploads the output to R2, and records a row in the{" "}
             <code className="font-mono text-amber-300/70">dataset</code> table.
           </p>
         </section>
@@ -166,11 +162,7 @@ export default function DocsPage() {
                   2
                 </span>
                 <span>
-                  Run{" "}
-                  <code className="font-mono text-amber-300/70">
-                    piro sources generate
-                  </code>{" "}
-                  to produce a{" "}
+                  Generate the source from its repository page to produce a{" "}
                   <strong className="text-amber-200">dataset</strong> in R2.
                 </span>
               </li>

@@ -138,7 +138,7 @@ def _parse_range(value: str) -> int | tuple[int, int]:
     return int(low), int(high)
 
 
-def _main() -> None:
+def main() -> None:
     parser = argparse.ArgumentParser(description="Generate persistent write/query memory episodes")
     parser.add_argument("--n", type=int, default=1000)
     parser.add_argument("--n-writes", type=_parse_range, default="2-6")
@@ -161,4 +161,4 @@ def _main() -> None:
 
 
 if __name__ == "__main__":
-    _main()
+    main()

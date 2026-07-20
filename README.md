@@ -68,16 +68,16 @@ piro login
 # Push your model class
 piro classes push <class-id> --file model.py
 
-# Materialize the persistent-memory source
-piro sources generate --source associative-recall
+# Generate the repository-defined source from the Piro source page
+# (the source lives at sources/associative-recall/main.py)
 
 # The legacy tensor trainer remains available for sorting-sequences.
 # Persistent-memory training requires the stateful runner described in
 # docs/research-persistent-memory.md.
-piro train --model my-model --data sorting-sequences --epochs 20
+piro train --architecture architectures/ctm --dataset <dataset-id> --epochs 20
 
-# Run the persistent-memory benchmark once a stateful model checkpoint exists
-piro eval persistent-memory --model <model-id>
+# Run the dedicated stateful persistent-memory benchmark
+python model/run_persistent_memory.py --episodes 200 --delay 8 --writes 3
 ```
 
 ## Package Layout

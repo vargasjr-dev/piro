@@ -15,7 +15,7 @@ Public API
 ----------
 CLI
 ---
-    # Emit JSONL to stdout (used by scripts/generate-source.mjs)
+    # Emit JSONL to stdout
     uv run python -m model.data.sequences --split train --n 5000 --seed 42
     uv run python -m model.data.sequences --split test  --n 1000 --seed 42
 

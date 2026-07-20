@@ -43,5 +43,7 @@ write transcript.
 
 The result is evidence for memory only when retained/restored state succeeds,
 while reset or discarded state fails, and the query input itself does not reveal
-the answer. The existing single-call tensor trainer is intentionally not used
-for this task; it cannot preserve the write/query boundary during optimization.
+the answer. The existing single-call tensor benchmark suite is intentionally
+separate; it cannot preserve the write/query boundary during optimization.
+Use the dedicated stateful runner with `CTMStatefulMemoryAdapter` when evaluating
+a CTM checkpoint.
