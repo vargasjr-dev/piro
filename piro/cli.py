@@ -306,7 +306,7 @@ def train(model_template: str, data_source: str, epochs: int, model_name: str | 
     """Launch a training run on the Piro platform.
 
     \b
-    piro train --model ctm-tiny --data counter-sequences --epochs 20
+    piro train --model ctm-tiny --data sorting-sequences --epochs 20
     """
     client = _get_client()
     result = client.create_training_run(
@@ -329,7 +329,7 @@ def eval(benchmark_id: str, model_id: str | None) -> None:
     """Run a benchmark against a model.
 
     \b
-    piro eval length-generalization --model <model-id>
+    piro eval persistent-memory --model <model-id>
     """
     client = _get_client()
     result = client.run_benchmark(benchmark_id, model_id)

@@ -175,6 +175,12 @@ class Trainer:
         torch = self._torch
 
         def _build_dataset(n: int, split: str) -> list:
+            if data_source != "sorting-sequences":
+                raise ValueError(
+                    "associative-recall is a separate-invocation research task; "
+                    "the legacy Modal tensor trainer only supports sorting-sequences "
+                    "until a stateful training runner is added"
+                )
             seqs = self._generate_sorting_dataset(
                 n=n, length=self._ctm_cfg.n_neurons, seed=seed, split=split
             )

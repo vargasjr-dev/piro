@@ -229,9 +229,9 @@ export const dataset = pgTable(
     repositoryId: text("repositoryId")
       .notNull()
       .references(() => repository.id, { onDelete: "cascade" }),
-    /** Display name — derived from the source directory (e.g. "counter"). */
+    /** Display name — derived from the source directory (e.g. "associative-recall"). */
     name: text("name").notNull(),
-    /** Path in the repo to the source script (e.g. "sources/counter/main.py"). */
+    /** Path in the repo to the source script (e.g. "sources/associative-recall/main.py"). */
     sourcePath: text("sourcePath").notNull(),
     /** R2 prefix for generated data (e.g. "repos/{repoId}/datasets/{name}/"). */
     r2Prefix: text("r2Prefix").notNull(),

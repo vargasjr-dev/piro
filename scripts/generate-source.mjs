@@ -7,7 +7,7 @@
  * sampleCount, and generatedAt.
  *
  * Usage:
- *   node scripts/generate-source.mjs [--source sorting-sequences]
+ *   node scripts/generate-source.mjs [--source associative-recall]
  *
  * Requires env vars:
  *   DATABASE_URL         — Neon connection string
@@ -29,7 +29,7 @@ const repoRoot = resolve(__dirname, "..");
 // ── Args ──────────────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
-const sourceIdArg = args[args.indexOf("--source") + 1] ?? "sorting-sequences";
+const sourceIdArg = args[args.indexOf("--source") + 1] ?? "associative-recall";
 
 // ── Env ───────────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,12 @@ try {
   // No .env.local — rely on environment
 }
 
-const { DATABASE_URL, BUCKET_ENDPOINT_URL, BUCKET_KEY_ID, BUCKET_APPLICATION_SECRET } = process.env;
+const {
+  DATABASE_URL,
+  BUCKET_ENDPOINT_URL,
+  BUCKET_KEY_ID,
+  BUCKET_APPLICATION_SECRET,
+} = process.env;
 
 for (const [name, val] of [
   ["DATABASE_URL", DATABASE_URL],
@@ -69,14 +74,24 @@ const r2 = new S3Client({
   endpoint: BUCKET_ENDPOINT_URL.startsWith("http")
     ? BUCKET_ENDPOINT_URL
     : `https://${BUCKET_ENDPOINT_URL}`,
-  credentials: { accessKeyId: BUCKET_KEY_ID, secretAccessKey: BUCKET_APPLICATION_SECRET },
+  credentials: {
+    accessKeyId: BUCKET_KEY_ID,
+    secretAccessKey: BUCKET_APPLICATION_SECRET,
+  },
   forcePathStyle: true,
 });
 
 const BUCKET = "piro-kb";
 
 async function r2Upload(key, body, contentType) {
-  await r2.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: body, ContentType: contentType }));
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
 }
 
 // ── Source config ─────────────────────────────────────────────────────────────
@@ -88,15 +103,20 @@ const SOURCE_CONFIGS = {
     trainArgs: ["--split", "train", "--n", "5000", "--seed", "42"],
     trainCount: 5000,
   },
-  "counter-sequences": {
-    scriptPath: "model/data/counter.py",
-    module: "model.data.counter",
+  "associative-recall": {
+    scriptPath: "model/data/associative_recall.py",
+    module: "model.data.associative_recall",
     trainArgs: [
-      "--split", "train",
-      "--n", "50000",
-      "--length-min", "2",
-      "--length-max", "8",
-      "--seed", "42",
+      "--split",
+      "train",
+      "--n",
+      "50000",
+      "--n-writes",
+      "2-6",
+      "--delay",
+      "4-16",
+      "--seed",
+      "42",
     ],
     trainCount: 50000,
   },
@@ -104,7 +124,9 @@ const SOURCE_CONFIGS = {
 
 const config = SOURCE_CONFIGS[sourceIdArg];
 if (!config) {
-  console.error(`Unknown source: ${sourceIdArg}. Known: ${Object.keys(SOURCE_CONFIGS).join(", ")}`);
+  console.error(
+    `Unknown source: ${sourceIdArg}. Known: ${Object.keys(SOURCE_CONFIGS).join(", ")}`,
+  );
   process.exit(1);
 }
 
@@ -112,9 +134,12 @@ if (!config) {
 
 console.log(`\nGenerating source: ${sourceIdArg}`);
 
-const rows = await sql`SELECT id, "userId" FROM data_source WHERE id = ${sourceIdArg} LIMIT 1`;
+const rows =
+  await sql`SELECT id, "userId" FROM data_source WHERE id = ${sourceIdArg} LIMIT 1`;
 if (rows.length === 0) {
-  console.error(`data_source row not found for id='${sourceIdArg}'. Run the database migration workflow first.`);
+  console.error(
+    `data_source row not found for id='${sourceIdArg}'. Run the database migration workflow first.`,
+  );
   process.exit(1);
 }
 
@@ -125,11 +150,11 @@ const scriptR2Key = `${userId}/${r2Prefix}script.py`;
 // ── Run Python generator ──────────────────────────────────────────────────────
 
 function runPython(extraArgs) {
-  const result = spawnSync(
-    "python3",
-    ["-m", config.module, ...extraArgs],
-    { cwd: repoRoot, encoding: "utf-8", maxBuffer: 50 * 1024 * 1024 },
-  );
+  const result = spawnSync("python3", ["-m", config.module, ...extraArgs], {
+    cwd: repoRoot,
+    encoding: "utf-8",
+    maxBuffer: 50 * 1024 * 1024,
+  });
   if (result.status !== 0) {
     console.error("Python error:", result.stderr);
     process.exit(1);
@@ -143,7 +168,9 @@ function runPython(extraArgs) {
 
 console.log(`  Generating train split (${config.trainCount} samples)…`);
 const trainJsonl = runPython(config.trainArgs);
-console.log(`  ✓ ${trainJsonl.split("\n").filter(Boolean).length} train samples`);
+console.log(
+  `  ✓ ${trainJsonl.split("\n").filter(Boolean).length} train samples`,
+);
 
 // ── Build metadata.json ───────────────────────────────────────────────────────
 
@@ -165,10 +192,17 @@ const dataPrefix = `${userId}/${r2Prefix}data/`;
 await r2Upload(`${dataPrefix}train.jsonl`, trainJsonl, "application/x-ndjson");
 console.log(`  ✓ ${userId}/${r2Prefix}data/train.jsonl`);
 
-await r2Upload(`${dataPrefix}metadata.json`, JSON.stringify(metadata, null, 2), "application/json");
+await r2Upload(
+  `${dataPrefix}metadata.json`,
+  JSON.stringify(metadata, null, 2),
+  "application/json",
+);
 console.log(`  ✓ ${userId}/${r2Prefix}data/metadata.json`);
 
-const scriptContent = readFileSync(resolve(repoRoot, config.scriptPath), "utf-8");
+const scriptContent = readFileSync(
+  resolve(repoRoot, config.scriptPath),
+  "utf-8",
+);
 await r2Upload(scriptR2Key, scriptContent, "text/x-python");
 console.log(`  ✓ ${scriptR2Key}`);
 

@@ -2,6 +2,7 @@ from .base import Benchmark, BenchmarkResult
 from .models import GPTBaseline, ModelProtocol
 from .ood_generalization import OODGeneralization
 from .adaptive_compute import AdaptiveCompute
+from .persistent_memory import PersistentMemoryBenchmark
 
 __all__ = [
     "Benchmark",
@@ -10,4 +11,5 @@ __all__ = [
     "ModelProtocol",
     "OODGeneralization",
     "AdaptiveCompute",
+    "PersistentMemoryBenchmark",
 ]

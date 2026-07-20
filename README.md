@@ -43,18 +43,21 @@ class MyModel(PiroModel):
         return self.linear(embeddings)
 ```
 
-### Train locally
+### Generate persistent-memory episodes locally
 
 ```python
-from piro import Trainer, TrainerConfig
-from piro.data.counter import generate_counter_dataset
+from piro.data.associative_recall import generate_associative_recall_dataset
 
-train = generate_counter_dataset(n=1000, length=(2, 8), seed=0, split="train")
-val = generate_counter_dataset(n=200, length=(2, 8), seed=1, split="val")
-
-model = MyModel()
-history = Trainer(model, TrainerConfig(epochs=20, lr=1e-3)).fit(train, val)
+episodes = generate_associative_recall_dataset(1000, n_writes=(2, 6), delay=(4, 16), seed=0)
+episode = episodes[0]
+print(episode.write_prompt)
+print(episode.distractor_prompt)
+print(episode.query_prompt, "→", episode.answer)
 ```
+
+The persistent-memory benchmark sends those prompts as separate invocations
+through a stateful model protocol. It intentionally does not pass these
+episodes to the legacy single-call tensor trainer.
 
 ### Deploy to the platform
 
@@ -65,14 +68,16 @@ piro login
 # Push your model class
 piro classes push <class-id> --file model.py
 
-# Launch a training run
-piro train --model my-model --data counter-sequences --epochs 20
+# Materialize the persistent-memory source
+piro sources generate --source associative-recall
 
-# Run benchmarks
-piro eval length-generalization --model <model-id>
+# The legacy tensor trainer remains available for sorting-sequences.
+# Persistent-memory training requires the stateful runner described in
+# docs/research-persistent-memory.md.
+piro train --model my-model --data sorting-sequences --epochs 20
 
-# Run inference
-piro infer <model-id> --prompt "INC DEC INC INC DEC"
+# Run the persistent-memory benchmark once a stateful model checkpoint exists
+piro eval persistent-memory --model <model-id>
 ```
 
 ## Package Layout
@@ -88,12 +93,12 @@ piro/
 ├── input.py             # PiroInput — base class for model inputs
 ├── layer.py             # PiroLayer — base class for serializable layers
 ├── data/
-│   ├── counter.py       # Counter task data generation
-│   └── sequences.py     # Sorting task data generation
+│   ├── associative_recall.py # Persistent WRITE / DISTRACT / QUERY episodes
+│   └── sequences.py          # Sorting task data generation
 └── benchmarks/
     ├── base.py          # Benchmark, BenchmarkResult
     ├── models.py        # GPTBaseline, ModelProtocol
-    ├── length_generalization.py
+    ├── persistent_memory.py
     ├── ood_generalization.py
     └── adaptive_compute.py
 ```

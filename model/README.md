@@ -9,9 +9,13 @@ training, and experiments belong here.
 - `ctm.py` — Continuous Thought Model with neuron MLPs, rolling history,
   synchrony, burst state, optional oscillators, and Oja plasticity.
 - `baseline_transformer.py` — matched fixed-depth transformer baseline.
-- `data/counter.py` — deterministic INC/DEC working-memory task.
-- `benchmarks/length_generalization.py` — length-generalization evaluation.
+- `data/associative_recall.py` — deterministic WRITE / DISTRACT / QUERY episodes.
+- `benchmarks/persistent_memory.py` — retained, reset, and serialized-state recall evaluation.
 - `trainer.py` — shared supervised training loop.
+
+## Persistent-memory experiment
+
+See `docs/research-persistent-memory.md` for the falsifiable WRITE / DISTRACT / QUERY protocol and required controls.
 
 ## Stateful model contract
 
@@ -31,7 +35,9 @@ model.load_state(saved)
 ```
 
 The reset boundary is explicit so experiments can distinguish stateless,
-within-sequence, and persistent-episode behavior.
+within-sequence, and persistent-episode behavior. The persistent-memory task
+never concatenates the write and query prompts: the query only succeeds if the
+model retained or restored state from the write episode.
 
 ## Validation
 

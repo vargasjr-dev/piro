@@ -4,7 +4,7 @@ import { piroFetch, resolveConfig } from "../client.js";
 /**
  * Create / list / pull / push data sources — mirrors `piro classes` pattern.
  *
- *   piro sources create <id> --name "Counter Sequences" [--description "..."]
+ *   piro sources create <id> --name "Associative Recall" [--description "..."]
  *   piro sources list
  *   piro sources pull <id> [--out <file>]
  *   piro sources push <id> [--file <file>]
@@ -43,7 +43,9 @@ export async function sourcesList() {
   }
 
   for (const s of sources) {
-    const samples = s.sampleCount ? `${s.sampleCount.toLocaleString()} samples` : "no data";
+    const samples = s.sampleCount
+      ? `${s.sampleCount.toLocaleString()} samples`
+      : "no data";
     const desc = s.description ? ` — ${s.description.slice(0, 60)}` : "";
     console.log(`${s.id}  ${s.name}  (${samples})${desc}`);
   }
@@ -96,7 +98,9 @@ export async function sourcesGenerate(id: string) {
   }
 
   const { sampleCount } = body as { ok: boolean; sampleCount: number };
-  console.log(`Generated ${sampleCount.toLocaleString()} samples → source ${id}`);
+  console.log(
+    `Generated ${sampleCount.toLocaleString()} samples → source ${id}`,
+  );
 }
 
 export async function sourcesPull(id: string, opts: { out?: string }) {
@@ -155,5 +159,7 @@ export async function sourcesPush(id: string, opts: { file?: string }) {
   }
 
   const { size } = body as { size: number };
-  console.log(`Pushed ${size.toLocaleString()} bytes from ${inFile} → source ${id}`);
+  console.log(
+    `Pushed ${size.toLocaleString()} bytes from ${inFile} → source ${id}`,
+  );
 }
