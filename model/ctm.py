@@ -108,43 +108,49 @@ class NeuronLayer(nn.Module):
 
 
 class NeuronHistory:
+    """Rolling activation history with graph-safe sequence boundaries.
+
+    Existing state is detached at the beginning of each invocation, while
+    activations produced during the current invocation retain their autograd
+    graph so the neuron layer remains trainable.
+    """
+
     def __init__(self, n_neurons: int, window_size: int) -> None:
         self.n_neurons = n_neurons
         self.window_size = window_size
-        self.buffer = torch.zeros(window_size, n_neurons)
-        self.write_index = 0
-        self.filled = False
+        self.entries: list[torch.Tensor] = []
 
     @property
     def size(self) -> int:
-        return self.window_size if self.filled else self.write_index
+        return len(self.entries)
 
     @property
     def is_warm(self) -> bool:
-        return self.filled
+        return len(self.entries) >= self.window_size
+
+    def begin_invocation(self) -> None:
+        """Detach retained state before building a new autograd graph."""
+        self.entries = [entry.detach().clone() for entry in self.entries[-self.window_size :]]
 
     def push(self, activations: torch.Tensor) -> None:
         if activations.numel() != self.n_neurons:
             raise ValueError("activation size does not match history")
-        self.buffer[self.write_index].copy_(activations.detach().cpu())
-        self.write_index = (self.write_index + 1) % self.window_size
-        self.filled = self.filled or self.write_index == 0
+        self.entries.append(activations.reshape(-1))
+        if len(self.entries) > self.window_size:
+            self.entries.pop(0)
 
     def matrix(self) -> torch.Tensor:
-        size = self.size
-        if size == 0:
+        if not self.entries:
             return torch.empty(self.n_neurons, 0)
-        rows = torch.cat((self.buffer[self.write_index:], self.buffer[:self.write_index])) if self.filled else self.buffer[:size]
-        return rows.T.contiguous()
+        return torch.stack(self.entries, dim=0).T.contiguous()
 
     def latest(self) -> torch.Tensor:
-        index = (self.write_index - 1) % self.window_size
-        return self.buffer[index].clone()
+        if not self.entries:
+            return torch.zeros(self.n_neurons)
+        return self.entries[-1].detach().clone()
 
     def clear(self) -> None:
-        self.buffer.zero_()
-        self.write_index = 0
-        self.filled = False
+        self.entries.clear()
 
 
 def correlation_matrix(activations: torch.Tensor) -> torch.Tensor:
@@ -388,13 +394,17 @@ class ContinuousThoughtModel(PiroModel):
         self._state = self._new_state()
 
     def snapshot_state(self) -> dict[str, Any]:
-        result: dict[str, Any] = {"previous_activations": self._state.previous_activations}
+        result: dict[str, Any] = {
+            "previous_activations": (
+                self._state.previous_activations.detach().clone()
+                if self._state.previous_activations is not None
+                else None
+            )
+        }
         if self._state.plastic:
             result["plastic_weights"] = self._state.plastic.snapshot()
             result["plastic_ticks"] = self._state.plastic.ticks_since_reset
-        result["history_buffer"] = self._state.history.buffer.clone()
-        result["history_write_index"] = self._state.history.write_index
-        result["history_filled"] = self._state.history.filled
+        result["history_entries"] = [entry.detach().clone() for entry in self._state.history.entries]
         if self._state.burst:
             result["burst_counter"] = self._state.burst.burst_counter.clone()
             result["refractory_counter"] = self._state.burst.refractory_counter.clone()
@@ -403,10 +413,10 @@ class ContinuousThoughtModel(PiroModel):
         return result
 
     def load_state(self, snapshot: dict[str, Any]) -> None:
-        self._state.history.buffer.copy_(snapshot["history_buffer"])
-        self._state.history.write_index = int(snapshot["history_write_index"])
-        self._state.history.filled = bool(snapshot["history_filled"])
-        self._state.previous_activations = snapshot.get("previous_activations")
+        entries = snapshot.get("history_entries", [])
+        self._state.history.entries = [entry.detach().clone() for entry in entries]
+        previous = snapshot.get("previous_activations")
+        self._state.previous_activations = previous.detach().clone() if previous is not None else None
         if self._state.plastic and "plastic_weights" in snapshot:
             self._state.plastic.load(snapshot["plastic_weights"])
             self._state.plastic.ticks_since_reset = int(snapshot.get("plastic_ticks", 0))
@@ -433,6 +443,10 @@ class ContinuousThoughtModel(PiroModel):
     def forward(self, embeddings: torch.Tensor, *, reset: bool = False) -> CTMOutput:
         if reset:
             self.reset()
+        else:
+            self._state.history.begin_invocation()
+            if self._state.previous_activations is not None:
+                self._state.previous_activations = self._state.previous_activations.detach().clone()
         if embeddings.ndim == 1:
             embeddings = embeddings.unsqueeze(0)
         if embeddings.ndim != 2 or embeddings.shape[1] != self.embed_dim:

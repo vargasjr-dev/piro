@@ -7,9 +7,9 @@ def test_ctm_forward_has_expected_shape_and_persistent_state():
     model = ContinuousThoughtModel(n_neurons=4, embed_dim=3, query_dim=3, value_dim=3, n_classes=2)
     sample = torch.randn(2, 3)
     first = model(sample)
-    before = model.snapshot_state()["history_buffer"].clone()
+    before = model.snapshot_state()["history_entries"][-1].clone()
     model(sample)
-    after = model.snapshot_state()["history_buffer"]
+    after = model.snapshot_state()["history_entries"][-1]
     assert first.logits.shape == (2,)
     assert not torch.equal(before, after)
 
@@ -22,5 +22,5 @@ def test_plastic_state_updates_and_can_be_reset():
     after = model.snapshot_state()["plastic_weights"]
     assert not torch.equal(before, after)
     model.reset()
-    reset = model.snapshot_state()["history_buffer"]
-    assert torch.count_nonzero(reset) == 0
+    reset = model.snapshot_state()["history_entries"]
+    assert reset == []
