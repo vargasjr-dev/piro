@@ -16,8 +16,8 @@ The Trainer wraps that interface and runs:
 Usage
 -----
     from piro.trainer import Trainer, TrainerConfig
-    from piro.ctm import ContinuousThoughtModel, CTMConfig
-    from piro.baseline_transformer import BaselineTransformer, TransformerConfig
+    from model.ctm import ContinuousThoughtModel, CTMConfig
+    from model.baseline_transformer import BaselineTransformer, TransformerConfig
 
     # Build models
     ctm  = ContinuousThoughtModel(CTMConfig())

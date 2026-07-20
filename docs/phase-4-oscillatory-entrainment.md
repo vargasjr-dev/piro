@@ -11,7 +11,7 @@ gamma (30–80 Hz) bands. These oscillations synchronize across populations,
 creating transient assemblies that bind features, gate information flow, and
 enable sequence learning through phase precession.
 
-The current CTM (Phase 0–3) treats each neuron as an independent MLP with
+The current Python CTM treats each neuron as an independent MLP with
 history-based correlation. There is no intrinsic timing — no rhythm, no phase,
 no entrainment. Information is encoded purely in firing rates, not in the
 *relative timing* of spikes. This is a significant biological gap.
@@ -26,7 +26,7 @@ Add intrinsic oscillatory dynamics to each neuron so that:
 
 ## Architecture
 
-### 1. Oscillator — `src/lib/model/oscillator.ts`
+### 1. Oscillator — `model/ctm.py` (`OscillatorBank`)
 
 Each neuron gets a damped harmonic oscillator that modulates its excitability:
 
@@ -170,11 +170,11 @@ The core oscillator bank with Kuramoto coupling. Pure math, no CTM dependency.
 
 ### Step 2: Gate integration in CTM forward pass (~80 LOC)
 
-Modify `CTM.step()` to apply oscillatory gating when `oscillatorConfig` is set.
+Modify `ContinuousThoughtModel.forward()` to apply oscillatory gating when `oscillatorConfig` is set.
 
 ### Step 3: Plastic coupling weights (~100 LOC)
 
-Add `W_couple[N×N]` as a learned parameter, updated via Oja's rule alongside
+Add a trainable coupling pathway alongside `OscillatorBank` as a learned parameter, updated via Oja's rule alongside
 the plastic synapse weights.
 
 ### Step 4: Theta precession (~120 LOC)
@@ -184,7 +184,7 @@ compression in `generate()`.
 
 ### Step 5: Benchmark integration (~40 LOC)
 
-Update benchmark adapters to pass through oscillator state for analysis.
+Update the Python benchmark adapters to pass through oscillator state for analysis.
 
 ## Open Questions
 

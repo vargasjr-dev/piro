@@ -23,7 +23,10 @@ try {
     const eqIdx = trimmed.indexOf("=");
     if (eqIdx === -1) continue;
     const key = trimmed.slice(0, eqIdx).trim();
-    const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
+    const val = trimmed
+      .slice(eqIdx + 1)
+      .trim()
+      .replace(/^["']|["']$/g, "");
     if (!process.env[key]) process.env[key] = val;
   }
 } catch {
@@ -45,10 +48,13 @@ interface ClassManifest {
   parameterCount: number;
   module: string;
   modelClass: string;
-  configClass: string;
 }
 
-const MODULES: Array<{ slug: string; sourcePath: string; manifest: ClassManifest }> = [
+const MODULES: Array<{
+  slug: string;
+  sourcePath: string;
+  manifest: ClassManifest;
+}> = [
   {
     slug: "ctm",
     sourcePath: join(import.meta.dir, "../model/ctm.py"),
@@ -72,7 +78,6 @@ const MODULES: Array<{ slug: string; sourcePath: string; manifest: ClassManifest
       parameterCount: 870,
       module: "model.ctm",
       modelClass: "ContinuousThoughtModel",
-      configClass: "CTMConfig",
     },
   },
   {
@@ -95,14 +100,16 @@ const MODULES: Array<{ slug: string; sourcePath: string; manifest: ClassManifest
       parameterCount: 857,
       module: "model.baseline_transformer",
       modelClass: "BaselineTransformer",
-      configClass: "TransformerConfig",
     },
   },
 ];
 
 // ── Find the single user (or require USER_ID) ─────────────────────────────────
 const { user } = await import("../data/schema");
-const users = await db.select({ id: user.id, email: user.email }).from(user).limit(10);
+const users = await db
+  .select({ id: user.id, email: user.email })
+  .from(user)
+  .limit(10);
 
 if (users.length === 0) {
   console.error("No users found in DB. Seed aborted.");
@@ -111,7 +118,9 @@ if (users.length === 0) {
 
 // Use USER_ID env var or the first user
 const userId = process.env.USER_ID ?? users[0].id;
-console.log(`Seeding for user ${userId} (${users.find((u) => u.id === userId)?.email ?? "?"})`);
+console.log(
+  `Seeding for user ${userId} (${users.find((u) => u.id === userId)?.email ?? "?"})`,
+);
 
 // ── Upload + update ───────────────────────────────────────────────────────────
 
@@ -139,7 +148,11 @@ for (const def of MODULES) {
 
   // Upload manifest.json
   const manifestJson = JSON.stringify(def.manifest, null, 2);
-  await r2PutText(`${r2Key}/manifest.json`, manifestJson, "application/json; charset=utf-8");
+  await r2PutText(
+    `${r2Key}/manifest.json`,
+    manifestJson,
+    "application/json; charset=utf-8",
+  );
   console.log(`  [ok] Uploaded ${r2Key}/manifest.json`);
 
   // Stamp the DB row
