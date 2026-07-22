@@ -10,10 +10,11 @@ Piro currently has a **Continuous Thought Model (CTM)** prototype:
 
 ```text
 input embeddings
-  -> neuron state / history
+  -> neuron state
+  -> history buffer
   -> sync-driven attention
-  -> repeated internal ticks
-  -> output head
+  -> repeated thought ticks
+  -> output
 ```
 
 The central architectural question for this notebook is what Piro is made of as

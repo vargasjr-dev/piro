@@ -26,7 +26,7 @@ computed by the model’s internal learning mechanism.
 ## Diagram
 
 ```mermaid
-%% Source: docs/architecture/stateful-rl-first-model-v0.1.mmd
+%% Structural view: inference dynamics and learning during inference
 flowchart LR
     classDef current fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
     classDef proposed fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
@@ -35,47 +35,24 @@ flowchart LR
     classDef boundary fill:#f7f7f7,stroke:#777,color:#222,stroke-dasharray:5 5
 
     subgraph PIRO[Piro model]
-        I[PiroInput / parts + metadata]:::external --> E[Modality-specific input encoders]:::current
-        E --> R[Shared Piro representation]:::current
-        R --> C
+        I[PiroInput / parts + metadata]:::external --> E[Input embedding]:::current
+        E --> N[Neuron state]:::current
+        N --> H[History buffer]:::current
+        H --> A[Sync attention]:::current
+        A --> T[Thought ticks]:::current
+        T --> O[Output]:::current
 
-        subgraph C[Stateful CTM]
-            direction TB
-            N[Recurrent neural dynamics]:::current
-            H[Working activations and history]:::current
-            S[Sync-driven attention]:::current
-            T[Repeated thought ticks]:::current
-            N --> H --> S --> T --> N
-        end
-
-        C --> O[Output / action heads]:::current
-        O --> X[Text · tool · environment outputs]:::external
-
-        subgraph MEM[Internal memory substrate]
-            direction TB
-            F[Plastic weights]:::proposed
-            D[Durable weights]:::proposed
-            F --> D
-        end
-
-        subgraph LEARN[Learned self-update mechanism]
-            direction TB
-            P[Prediction and value signals]:::learning
-            Q[Eligibility and credit signals]:::learning
-            U[Plasticity and consolidation rules]:::learning
-            P --> U
-            Q --> U
-        end
-
-        C -. internal signals .-> P
-        C -. internal signals .-> Q
-        U --> F
-        F -. shapes dynamics .-> C
-        D -. shapes dynamics .-> C
+        T -. prediction signals .-> P[Prediction + value]:::learning
+        T -. active pathways .-> Q[Eligibility + credit]:::learning
+        P --> U[Plasticity controller]:::learning
+        Q --> U
+        U --> W[Internal memory / weights]:::proposed
+        W -. shapes dynamics .-> N
+        W -. shapes dynamics .-> A
     end
 
-    W[External world / user / tools / environment]:::external --> I
-    X --> W
+    X[External world / user / tools / environment]:::external --> I
+    O --> X
 ```
 
 
@@ -142,9 +119,10 @@ requiring every input to become a text token sequence.
 
 ### 2. The Stateful CTM is the reasoning substrate
 
-The CTM contains recurrent neural dynamics, working activations, history,
-sync-driven attention, and repeated internal thought ticks. This is where the
-model turns the shared representation into evolving internal activity.
+The CTM is represented here as first-class components: neuron state, a history
+buffer, synchronization-driven attention, and repeated thought ticks. These are
+not hidden inside one box because they are the mechanisms through which Piro
+performs inference.
 
 ### 3. Internal memory is made of weights
 
@@ -161,7 +139,7 @@ both are part of Piro’s own learned state.
 
 The learned self-update mechanism receives internal prediction, value,
 eligibility, and credit signals. It determines how plasticity and consolidation
-modify the model’s weights. This is different from a conventional deployed
+modify the model’s weights while inference is running. This is different from a conventional deployed
 frontier model whose optimizer is external and whose weights remain fixed during
 ordinary use.
 
@@ -191,7 +169,7 @@ the persistent components that make the behavior possible.
 | Plastic weights | Fast internal memory | What should be eligible for rapid update? |
 | Durable weights | Long-term internal memory | What evidence warrants slower consolidation? |
 | Learned self-update | Controls weight changes | How should prediction, value, eligibility, and credit shape plasticity? |
-| Output / action heads | Emit text, tool, and environment actions | How should one shared state support multiple output types? |
+| Output | Emit text, tool, and environment actions | How should one shared state support multiple output types? |
 
 
 ## Proposed first experiment

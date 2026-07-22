@@ -2,7 +2,7 @@ import Link from "next/link";
 import FlameLogo from "~/components/FlameLogo";
 import ZoomedArchitectureDiagram from "~/components/ZoomedArchitectureDiagram";
 
-const supportedNodes = ["observation", "embedding", "ctm", "output", "weights", "update"] as const;
+const supportedNodes = ["observation", "embedding", "ctm", "neuron", "history", "attention", "ticks", "prediction", "eligibility", "output", "weights", "update"] as const;
 type SupportedNode = (typeof supportedNodes)[number];
 
 export function generateStaticParams() {
@@ -15,9 +15,15 @@ export async function generateMetadata({ params }: { params: Promise<{ node: str
     observation: "PiroInput",
     embedding: "Input embedding",
     ctm: "Stateful CTM",
+    neuron: "Neuron state",
+    history: "History buffer",
+    attention: "Sync attention",
+    ticks: "Thought ticks",
+    prediction: "Prediction + value",
+    eligibility: "Eligibility + credit",
     output: "Output",
     weights: "Internal memory",
-    update: "Learned self-update",
+    update: "Plasticity controller",
   };
   const title = titles[node as SupportedNode] ?? "Architecture";
   return {

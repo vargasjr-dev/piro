@@ -2,7 +2,19 @@
 
 import Link from "next/link";
 
-type DiagramKind = "observation" | "embedding" | "ctm" | "output" | "weights" | "update";
+type DiagramKind =
+  | "observation"
+  | "embedding"
+  | "ctm"
+  | "neuron"
+  | "history"
+  | "attention"
+  | "ticks"
+  | "prediction"
+  | "eligibility"
+  | "output"
+  | "weights"
+  | "update";
 
 const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   observation: {
@@ -26,8 +38,32 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
     subtitle: "How changing weights carry what Piro has learned across inputs.",
   },
   update: {
-    title: "Learned self-update",
+    title: "Plasticity controller",
     subtitle: "How Piro’s architecture determines which internal weights change and when.",
+  },
+  neuron: {
+    title: "Neuron state",
+    subtitle: "The recurrent state variables that carry active model dynamics from one thought tick to the next.",
+  },
+  history: {
+    title: "History buffer",
+    subtitle: "The short-term trajectory that lets each thought tick see how the internal state has been changing.",
+  },
+  attention: {
+    title: "Sync attention",
+    subtitle: "How synchronized neural activity couples features into temporary reasoning assemblies.",
+  },
+  ticks: {
+    title: "Thought ticks",
+    subtitle: "Repeated internal state updates that let Piro spend more computation before producing output.",
+  },
+  prediction: {
+    title: "Prediction + value",
+    subtitle: "The internal expectations that turn inference into a source of learning signals.",
+  },
+  eligibility: {
+    title: "Eligibility + credit",
+    subtitle: "The internal signals that determine which active pathways remain eligible for weight updates.",
   },
 };
 
@@ -278,6 +314,67 @@ function UpdateDiagram() {
 }
 
 
+const componentDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "ctm" | "output" | "weights" | "update">, { input: string; output: string; relation: string; tone: "green" | "blue" | "orange" }> = {
+  neuron: {
+    input: "shared CTM input + prior state",
+    output: "updated activation and phase",
+    relation: "feeds the next internal state",
+    tone: "green",
+  },
+  history: {
+    input: "recent neuron-state trajectory",
+    output: "short-term temporal context",
+    relation: "makes change over time visible",
+    tone: "blue",
+  },
+  attention: {
+    input: "state history + synchronization",
+    output: "coupled feature assemblies",
+    relation: "selects what participates together",
+    tone: "orange",
+  },
+  ticks: {
+    input: "attention context + neuron state",
+    output: "repeated thought updates",
+    relation: "returns to neuron state until output is ready",
+    tone: "green",
+  },
+  prediction: {
+    input: "current state + selected action",
+    output: "expected outcomes and value",
+    relation: "creates signals the model can learn from",
+    tone: "orange",
+  },
+  eligibility: {
+    input: "active pathways + prediction mismatch",
+    output: "credit eligibility over pathways",
+    relation: "routes learning to the responsible dynamics",
+    tone: "orange",
+  },
+};
+
+function ComponentDiagram({ kind }: { kind: Exclude<DiagramKind, "observation" | "embedding" | "ctm" | "output" | "weights" | "update"> }) {
+  const detail = componentDetails[kind];
+  return (
+    <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label={`${details[kind].title} architecture`}>
+      <defs>
+        <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
+        <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
+        <marker id="zoom-arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+      </defs>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">STATEFUL CTM COMPONENT</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">This component is part of Piro’s inference-and-learning substrate.</text>
+      <Box x={54} y={232} width={250} height={122} title="Incoming signal" detail={detail.input} tone="violet" />
+      <Arrow d="M304 293H425" marker="gold" />
+      <Box x={425} y={214} width={260} height={158} title={details[kind].title} detail={detail.relation} tone={detail.tone} />
+      <Arrow d="M685 293H806" marker={detail.tone === "blue" ? "blue" : detail.tone === "orange" ? "orange" : "gold"} color={detail.tone === "blue" ? "rgb(125 211 252 / 0.72)" : detail.tone === "orange" ? "rgb(253 186 116 / 0.76)" : undefined} />
+      <Box x={806} y={232} width={240} height={122} title="Outgoing signal" detail={detail.output} tone={detail.tone} />
+      <text x="54" y="520" fill="rgb(253 230 138 / 0.62)" fontSize="13">The component’s output becomes another internal signal, not a separate external service.</text>
+    </svg>
+  );
+}
+
+
 function ObservationApiReference() {
   return (
     <div className="mt-8 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
@@ -332,6 +429,10 @@ export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind 
         {kind === "observation" && <ObservationDiagram />}
         {kind === "embedding" && <EmbeddingDiagram />}
         {kind === "ctm" && <CtmDiagram />}
+        {(kind === "neuron" || kind === "history" || kind === "attention" || kind === "ticks" || kind === "prediction" || kind === "eligibility") && <ComponentDiagram kind={kind} />}
+        {kind === "output" && <OutputDiagram />}
+        {kind === "weights" && <WeightsDiagram />}
+        {kind === "update" && <UpdateDiagram />}
       </div>
       {kind === "observation" && <ObservationApiReference />}
     </>
