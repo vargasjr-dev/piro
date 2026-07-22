@@ -11,7 +11,7 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   embedding: {
     title: "Input embedding",
-    subtitle: "How raw events become a structured representation for the thought loop.",
+    subtitle: "How PiroInput becomes the numerical signal consumed by the CTM.",
   },
   ctm: {
     title: "CTM core",
@@ -120,26 +120,44 @@ function ObservationDiagram() {
 
 function EmbeddingDiagram() {
   return (
-    <svg viewBox="0 0 1000 500" className="mx-auto block h-auto w-full min-w-[700px]" role="img" aria-label="Input embedding zoomed architecture">
+    <svg viewBox="0 0 1200 900" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label="PiroInput to CTM input embedding architecture">
       <defs>
-        <marker id="zoom-arrow-gold" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
-        <marker id="zoom-arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
-        <marker id="zoom-arrow-orange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
-        <marker id="zoom-arrow-violet" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(192 132 252 / 0.72)" /></marker>
+        <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
+        <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
+        <marker id="zoom-arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+        <marker id="zoom-arrow-violet" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(192 132 252 / 0.72)" /></marker>
+        <marker id="zoom-arrow-green" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(110 231 183 / 0.72)" /></marker>
       </defs>
-      <text x="36" y="38" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">OBSERVATION → STRUCTURED INTERNAL SIGNAL</text>
-      <Box x={36} y={160} width={184} height={102} title="Observation" detail="event + context" tone="violet" />
-      <Box x={284} y={160} width={184} height={102} title="Symbol / feature IDs" detail="discrete + continuous" tone="blue" />
-      <Box x={532} y={160} width={184} height={102} title="Embedding lookup" detail="learned feature vectors" tone="green" />
-      <Box x={780} y={160} width={184} height={102} title="Input signal" detail="per-neuron currents" tone="orange" />
-      <Arrow d="M220 211H284" marker="violet" color="rgb(192 132 252 / 0.72)" />
-      <Arrow d="M468 211H532" marker="blue" color="rgb(125 211 252 / 0.72)" />
-      <Arrow d="M716 211H780" marker="orange" color="rgb(253 186 116 / 0.76)" />
-      <Box x={214} y={356} width={232} height={94} title="Time / order channels" detail="position · recency · phase" tone="blue" />
-      <Box x={554} y={356} width={232} height={94} title="Goal / memory channels" detail="intent · retrieved episodes" tone="orange" />
-      <Arrow d="M872 262V312H330V356" dashed marker="blue" color="rgb(125 211 252 / 0.72)" />
-      <Arrow d="M330 450V470H670V450" dashed marker="orange" color="rgb(253 186 116 / 0.76)" />
-      <text x="214" y="316" fill="rgb(125 211 252 / 0.56)" fontSize="12">the signal carries more than token identity</text>
+
+      <text x="36" y="38" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">PIROINPUT → CTM INPUT SIGNAL</text>
+      <text x="36" y="72" fill="rgb(253 230 138 / 0.72)" fontSize="15">Embedding is the translation layer from the multimodal API object into neural state dynamics.</text>
+
+      <Box x={36} y={146} width={260} height={120} title="PiroInput" detail="parts + metadata" tone="orange" />
+      <Arrow d="M296 206H380" marker="gold" />
+      <text x="338" y="190" fill="rgb(251 191 36 / 0.62)" fontSize="12" textAnchor="middle">split by type</text>
+
+      <rect x="380" y="108" width="438" height="540" rx="28" fill="rgb(23 35 43 / 0.18)" stroke="rgb(125 211 252 / 0.62)" strokeWidth="2" strokeDasharray="8 7" />
+      <text x="410" y="146" fill="rgb(125 211 252 / 0.9)" fontSize="20" fontWeight="650">Modality-specific encoders</text>
+      <text x="410" y="174" fill="rgb(125 211 252 / 0.55)" fontSize="13">Each input type gets the frontend it needs.</text>
+
+      <Box x={410} y={202} width={180} height={76} title="Text encoder" detail="tokens → vectors" tone="green" />
+      <Box x={608} y={202} width={180} height={76} title="Image encoder" detail="pixels → features" tone="violet" />
+      <Box x={410} y={302} width={180} height={76} title="Audio encoder" detail="waveform → features" tone="blue" />
+      <Box x={608} y={302} width={180} height={76} title="Video encoder" detail="visual + time" tone="orange" />
+      <Box x={410} y={402} width={180} height={76} title="File encoder" detail="document / code" tone="blue" />
+      <Box x={608} y={402} width={180} height={76} title="Environment encoder" detail="events → features" tone="orange" />
+      <Box x={410} y={502} width={180} height={76} title="Tool-result encoder" detail="structured output" tone="violet" />
+      <Box x={608} y={502} width={180} height={76} title="Metadata encoder" detail="time · source · order" tone="green" />
+
+      <Arrow d="M599 648V704" marker="blue" color="rgb(125 211 252 / 0.72)" />
+      <Arrow d="M599 704H884" marker="gold" />
+      <text x="599" y="684" fill="rgb(125 211 252 / 0.66)" fontSize="13" textAnchor="middle">align modality features</text>
+
+      <Box x={884} y={650} width={280} height={112} title="Shared Piro representation" detail="aligned multimodal vectors + markers" tone="green" />
+      <Arrow d="M1024 762V820" marker="orange" color="rgb(253 186 116 / 0.76)" />
+      <Box x={884} y={820} width={280} height={72} title="CTM input signal" detail="numerical currents / features" tone="orange" />
+
+      <text x="36" y="744" fill="rgb(253 230 138 / 0.62)" fontSize="13">The output preserves modality boundaries, ordering, timing, and provenance so the CTM can reason over the whole turn.</text>
     </svg>
   );
 }

@@ -102,6 +102,32 @@ structured JSON/environment data. A tool result may appear as a part when the
 environment has just produced it, but the caller does not replay the complete
 tool-call history.
 
+## Input embedding contract
+
+`PiroInput` is the boundary between the API and the neural model. The embedding
+stage does not treat every modality as a text token sequence. It routes each part
+through a modality-specific encoder, then aligns the resulting features into a
+shared representation for the CTM.
+
+```text
+PiroInput
+  ├── text              → text encoder
+  ├── image             → vision encoder
+  ├── audio             → audio encoder
+  ├── video             → vision + temporal encoder
+  ├── file/document     → document/code encoder
+  ├── environment event→ structured event encoder
+  ├── tool result       → structured output encoder
+  └── metadata          → time/source/order signals
+
+modality features → shared Piro representation → CTM input signal
+```
+
+The shared representation should preserve modality boundaries, ordering,
+timing, and provenance. This is analogous to frontier multimodal models using
+separate frontends for text, vision, audio, or tools before projecting those
+features into a representation their shared reasoning backbone can consume.
+
 ## Reading the diagram
 
 ### 1. The black/green path is the model we already have

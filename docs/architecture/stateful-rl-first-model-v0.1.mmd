@@ -11,7 +11,7 @@ flowchart LR
     classDef boundary fill:#f7f7f7,stroke:#777,color:#222,stroke-dasharray:5 5
 
     subgraph OBS[Observation and action loop]
-        I[Observation / tokens / tools / environment input]:::external --> E[Input embedding]:::current
+        I[PiroInput / parts + metadata]:::external --> E[Input embedding]:::current
         E --> C
         subgraph C[CTM core — repeated internal thought ticks]
             direction TB
