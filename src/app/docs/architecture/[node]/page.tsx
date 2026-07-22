@@ -9,16 +9,19 @@ export function generateStaticParams() {
   return supportedNodes.map((node) => ({ node }));
 }
 
-export function generateMetadata({ params }: { params: { node: string } }) {
-  const title = params.node === "ctm" ? "CTM core" : params.node === "embedding" ? "Input embedding" : "Observation";
+export async function generateMetadata({ params }: { params: Promise<{ node: string }> }) {
+  const { node } = await params;
+  const title = node === "ctm" ? "CTM core" : node === "embedding" ? "Input embedding" : "Observation";
   return {
     title: `${title} — Piro Architecture`,
     description: `Zoomed-in architecture diagram for ${title}.`,
   };
 }
 
-export default function ArchitectureNodePage({ params }: { params: { node: string } }) {
-  if (!supportedNodes.includes(params.node as SupportedNode)) {
+export default async function ArchitectureNodePage({ params }: { params: Promise<{ node: string }> }) {
+  const { node } = await params;
+
+  if (!supportedNodes.includes(node as SupportedNode)) {
     return (
       <main className="min-h-screen bg-[#0d0a08] px-6 py-16 text-amber-100">
         <div className="mx-auto max-w-2xl">
@@ -43,7 +46,7 @@ export default function ArchitectureNodePage({ params }: { params: { node: strin
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-6 py-12 lg:px-10">
-        <ZoomedArchitectureDiagram kind={params.node as SupportedNode} />
+        <ZoomedArchitectureDiagram kind={node as SupportedNode} />
       </div>
     </main>
   );
