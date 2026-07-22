@@ -2,7 +2,22 @@ import Link from "next/link";
 import FlameLogo from "~/components/FlameLogo";
 import ZoomedArchitectureDiagram from "~/components/ZoomedArchitectureDiagram";
 
-const supportedNodes = ["observation", "embedding", "ctm", "neuron", "history", "attention", "ticks", "prediction", "eligibility", "output", "weights", "update"] as const;
+const supportedNodes = [
+  "observation",
+  "embedding",
+  "initialize",
+  "attention",
+  "delta",
+  "residual",
+  "history",
+  "prediction",
+  "value",
+  "output",
+  "halt",
+  "shouldHalt",
+  "weights",
+  "plasticity",
+] as const;
 type SupportedNode = (typeof supportedNodes)[number];
 
 export function generateStaticParams() {
@@ -13,17 +28,19 @@ export async function generateMetadata({ params }: { params: Promise<{ node: str
   const { node } = await params;
   const titles: Record<SupportedNode, string> = {
     observation: "PiroInput",
-    embedding: "Input embedding",
-    ctm: "Stateful CTM",
-    neuron: "Neuron state",
-    history: "History buffer",
-    attention: "Sync attention",
-    ticks: "Thought ticks",
-    prediction: "Prediction + value",
-    eligibility: "Eligibility + credit",
-    output: "Output",
-    weights: "Internal memory",
-    update: "Plasticity controller",
+    embedding: "Embed(PiroInput)",
+    initialize: "InitializeOrRetrieveState",
+    attention: "Attention",
+    delta: "ComputeStateDelta",
+    residual: "ApplyGatedResidual",
+    history: "UpdateHistory",
+    prediction: "PredictionHead",
+    value: "ValueHead",
+    output: "OutputHead",
+    halt: "HaltHead",
+    shouldHalt: "ShouldHalt",
+    weights: "Weights",
+    plasticity: "PlasticityController",
   };
   const title = titles[node as SupportedNode] ?? "Architecture";
   return {

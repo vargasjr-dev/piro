@@ -1,28 +1,43 @@
 %% Piro Stateful RL-First Model v0.1
-%% Structural view: inference dynamics and learning during inference
+%% Pseudocode view: transformations with explicit state/data edges
 flowchart LR
     classDef current fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
     classDef proposed fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
     classDef learning fill:#ffe4c7,stroke:#a85b00,color:#4d2900,stroke-width:1.5px
     classDef external fill:#f2ddff,stroke:#7a3f9b,color:#32153f,stroke-width:1.5px
-    classDef boundary fill:#f7f7f7,stroke:#777,color:#222,stroke-dasharray:5 5
+    classDef control fill:#fff0d9,stroke:#a85b00,color:#4d2900,stroke-width:1.5px
 
-    subgraph PIRO[Piro model]
-        I[PiroInput / parts + metadata]:::external --> E[Input embedding]:::current
-        E --> N[Neuron state]:::current
-        N --> H[History buffer]:::current
-        H --> A[Sync attention]:::current
-        A --> T[Thought ticks]:::current
-        T --> O[Output]:::current
-
-        T -. prediction signals .-> P[Prediction + value]:::learning
-        T -. active pathways .-> Q[Eligibility + credit]:::learning
-        P --> U[Plasticity controller]:::learning
-        Q --> U
-        U --> W[Internal memory / weights]:::proposed
-        W -. shapes dynamics .-> N
-        W -. shapes dynamics .-> A
-    end
-
-    X[External world / user / tools / environment]:::external --> I
+    X[External world / user / tools / environment]:::external --> I[PiroInput]:::external
+    I -->|PiroInput| E[Embed(PiroInput)]:::current
+    E -->|x| S[InitializeOrRetrieveState]:::proposed
+    W[Weights]:::proposed -->|weights| S
+    S -->|h₀| A[Attention]:::current
+    E -->|x| A
+    W -->|weights| A
+    H[historyₖ]:::proposed -->|historyₖ| A
+    A -->|contextₖ| D[ComputeStateDelta]:::current
+    S -->|hₖ| D
+    E -->|x| D
+    W -->|weights| D
+    H -->|historyₖ| D
+    D -->|deltaₖ| R[ApplyGatedResidual]:::current
+    S -->|hₖ| R
+    W -->|weights · internal gate| R
+    R -->|hₖ₊₁| N[UpdateHistory]:::current
+    H -->|historyₖ| N
+    N -->|historyₖ₊₁ → historyₖ| A
+    N -->|historyₖ₊₁ → historyₖ| D
+    R -->|hₖ₊₁| P[PredictionHead]:::learning
+    R -->|hₖ₊₁| V[ValueHead]:::learning
+    R -->|hₖ₊₁| Ha[HaltHead]:::control
+    S -->|hₖ| Ha
+    P -->|predictionₖ| Ha
+    Ha -->|haltₖ| Sh[ShouldHalt]:::control
+    Sh -->|continue| A
+    K[k / Kmax]:::proposed -->|loop exit condition| Sh
+    Sh -->|exit with hₖ₊₁| O[OutputHead]:::current
+    P -->|prediction signal| Pc[PlasticityController]:::learning
+    V -->|value signal| Pc
+    Ha -->|learning signals| Pc
+    Pc -->|updated weights| W
     O --> X

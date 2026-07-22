@@ -41,7 +41,7 @@ export default function ArchitecturePage() {
         </section>
 
         <p className="mt-5 text-center text-xs text-amber-400/45">
-          Click PiroInput, Input embedding, or Stateful CTM to open its zoomed-in diagram.
+          Click any method node to open its zoomed-in contract diagram.
         </p>
 
         <div className="mt-12 border-t border-amber-900/20 pt-6">
