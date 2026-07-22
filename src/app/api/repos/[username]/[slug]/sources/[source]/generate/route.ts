@@ -41,7 +41,8 @@ export async function POST(
     repositoryId: context.repo.id,
     userId: session.user.id,
     githubRepo: context.githubRepo,
-    sourceName,
+    sourceName: sourceName.split("/").at(-1) ?? sourceName,
+    sourcePath: sourceName,
     accessToken: context.accessToken,
   });
   if (!prepared)

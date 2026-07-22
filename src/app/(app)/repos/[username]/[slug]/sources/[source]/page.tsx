@@ -38,7 +38,7 @@ export default async function SourcePage({
     sourcePath: component.path,
     page: Number.isFinite(runsPage) ? runsPage : 1,
   });
-  const sourceHref = `/repos/${encodeURIComponent(ownerHandle)}/${encodeURIComponent(context.repo.slug)}/sources/${encodeURIComponent(component.name)}`;
+  const sourceHref = `/repos/${encodeURIComponent(ownerHandle)}/${encodeURIComponent(context.repo.slug)}/sources/${encodeURIComponent(component.path)}`;
   const generateEndpoint = `/api${sourceHref}/generate`;
 
   return (
