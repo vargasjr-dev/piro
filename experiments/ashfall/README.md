@@ -24,5 +24,6 @@ Each JSONL record has exactly this top-level shape:
 ```
 
 The source does not emit `write`, `distractors`, `query`, `label`, or role
-metadata fields. The semantic role of each observation is inferable from its
+metadata fields, and the observation text contains no `WRITE`, `DISTRACT`, or
+`QUERY` markers. The semantic role of each observation is inferable from its
 content and ordered position in the input sequence.

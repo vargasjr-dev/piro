@@ -1,16 +1,12 @@
 """Persistent associative-recall episodes as ordered PiroInput packets.
 
-Each episode has three invocation boundaries:
+Each episode has three invocation boundaries: a key/value observation, a
+distractor observation, and a key-only observation. The public JSONL contract
+intentionally exposes only ``{"inputs": PiroInput[]}``; semantic roles are
+inferable from observation content and ordering rather than role fields.
 
-1. a write packet stores key/value facts,
-2. a distractor packet creates a delay without exposing the answer, and
-3. a query packet asks for one value after the write context is gone.
-
-The JSONL contract intentionally exposes only ``{"inputs": PiroInput[]}``.
 Each PiroInput follows the architecture-page observation contract:
 ``{"parts": [{"type": "text", "text": "..."}]}``.
-The semantic role of each packet is expressed by its observation text and
-ordering, not by a role field in the training record.
 """
 
 from __future__ import annotations
