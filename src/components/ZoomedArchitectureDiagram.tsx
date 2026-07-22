@@ -61,7 +61,7 @@ function Arrow({
   d: string;
   color?: string;
   dashed?: boolean;
-  marker?: "gold" | "blue" | "orange" | "violet";
+  marker?: "gold" | "blue" | "orange" | "violet" | "green";
 }) {
   return (
     <path
@@ -77,48 +77,43 @@ function Arrow({
 
 function ObservationDiagram() {
   return (
-    <svg viewBox="0 0 1200 920" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label="Piro stateful observation input API">
+    <svg viewBox="0 0 1200 860" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label="Piro stateful observation input API">
       <defs>
         <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
         <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
         <marker id="zoom-arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
         <marker id="zoom-arrow-violet" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(192 132 252 / 0.72)" /></marker>
+        <marker id="zoom-arrow-green" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(110 231 183 / 0.72)" /></marker>
       </defs>
 
-      <text x="36" y="38" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">ONE TURN IN · STATE LIVES OUTSIDE THE REQUEST</text>
-      <text x="36" y="72" fill="rgb(253 230 138 / 0.72)" fontSize="15">Piro does not resend the system prompt, conversation history, or previous tool calls.</text>
-      <text x="36" y="98" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each turn supplies the new observation; Piro’s hidden state carries continuity.</text>
+      <text x="36" y="38" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">STATEFUL OBSERVATION REQUEST</text>
+      <text x="36" y="72" fill="rgb(253 230 138 / 0.72)" fontSize="15">A session selects Piro’s persistent runtime; this request describes the current turn.</text>
 
-      <rect x="36" y="136" width="1128" height="470" rx="28" fill="rgb(16 12 10 / 0.55)" stroke="rgb(251 191 36 / 0.2)" strokeWidth="2" strokeDasharray="8 8" />
-      <text x="64" y="172" fill="rgb(251 191 36 / 0.64)" fontSize="12" letterSpacing="2">OBSERVATION REQUEST · JSON-LIKE API SHAPE</text>
+      <rect x="36" y="116" width="1128" height="492" rx="28" fill="rgb(16 12 10 / 0.55)" stroke="rgb(251 191 36 / 0.2)" strokeWidth="2" strokeDasharray="8 8" />
+      <text x="64" y="152" fill="rgb(251 191 36 / 0.64)" fontSize="12" letterSpacing="2">REQUEST BODY · JSON-LIKE API SHAPE</text>
 
-      <Box x={72} y={212} width={244} height={118} title="Text" detail="the user’s current turn" tone="green" />
-      <Box x={348} y={212} width={244} height={118} title="Image" detail="photo · screenshot · frame" tone="violet" />
-      <Box x={624} y={212} width={244} height={118} title="Audio" detail="speech · sound · recording" tone="blue" />
-      <Box x={900} y={212} width={220} height={118} title="Video" detail="short temporal evidence" tone="orange" />
+      <rect x="64" y="182" width="816" height="388" rx="24" fill="rgb(23 35 43 / 0.18)" stroke="rgb(125 211 252 / 0.62)" strokeWidth="2" strokeDasharray="8 7" />
+      <text x="92" y="218" fill="rgb(125 211 252 / 0.9)" fontSize="20" fontWeight="650">parts</text>
+      <text x="168" y="218" fill="rgb(125 211 252 / 0.55)" fontSize="13">array of multimodal input items</text>
 
-      <Box x={72} y={392} width={244} height={118} title="File / document" detail="PDF · code · structured data" tone="blue" />
-      <Box x={348} y={392} width={244} height={118} title="Environment event" detail="browser · game · sensor" tone="orange" />
-      <Box x={624} y={392} width={244} height={118} title="Tool result" detail="only when a tool just ran" tone="violet" />
-      <Box x={900} y={392} width={220} height={118} title="Metadata" detail="mime · timestamp · source" tone="green" />
+      <Box x={92} y={246} width={224} height={90} title="Text" detail="the user’s current turn" tone="green" />
+      <Box x={348} y={246} width={224} height={90} title="Image" detail="photo · screenshot · frame" tone="violet" />
+      <Box x={604} y={246} width={224} height={90} title="Audio" detail="speech · sound · recording" tone="blue" />
+      <Box x={92} y={366} width={224} height={90} title="Video" detail="short temporal evidence" tone="orange" />
+      <Box x={348} y={366} width={224} height={90} title="File / document" detail="PDF · code · structured data" tone="blue" />
+      <Box x={604} y={366} width={224} height={90} title="Environment event" detail="browser · game · sensor" tone="orange" />
+      <Box x={348} y={486} width={224} height={64} title="Tool result" detail="fresh output from an action" tone="violet" />
 
-      {[
-        "M194 330V392",
-        "M470 330V392",
-        "M746 330V392",
-        "M1010 330V392",
-      ].map((d) => <Arrow key={d} d={d} dashed marker="blue" color="rgb(125 211 252 / 0.5)" />)}
+      <Box x={920} y={286} width={208} height={124} title="metadata" detail="mime · timestamp · source" tone="green" />
+      <text x="920" y="438" fill="rgb(110 231 183 / 0.62)" fontSize="13">request-level context</text>
 
-      <path d="M316 568H884" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#zoom-arrow-gold)" />
-      <text x="600" y="552" fill="rgb(251 191 36 / 0.64)" fontSize="13" textAnchor="middle">one observation packet for this turn</text>
-      <Box x={884} y={524} width={236} height={88} title="PiroInput" detail="multimodal observation packet" tone="orange" />
+      <Arrow d="M472 570V654" marker="blue" color="rgb(125 211 252 / 0.72)" />
+      <Arrow d="M1024 410V520H728V654" marker="green" color="rgb(110 231 183 / 0.72)" />
+      <text x="472" y="632" fill="rgb(125 211 252 / 0.66)" fontSize="13" textAnchor="middle">parts</text>
+      <text x="840" y="508" fill="rgb(110 231 183 / 0.66)" fontSize="13" textAnchor="middle">metadata</text>
 
-      <text x="36" y="680" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">NOT PART OF THE REQUEST</text>
-      <Box x={72} y={718} width={244} height={106} title="System policy" detail="stable model configuration" tone="blue" />
-      <Box x={348} y={718} width={244} height={106} title="Conversation memory" detail="carried in recurrent state" tone="green" />
-      <Box x={624} y={718} width={244} height={106} title="Previous tool calls" detail="already absorbed into state" tone="violet" />
-      <Box x={900} y={718} width={220} height={106} title="Current belief" detail="updated after input" tone="orange" />
-      <text x="72" y="866" fill="rgb(125 211 252 / 0.65)" fontSize="13">These are maintained by the stateful runtime, not repeated by the caller.</text>
+      <Box x={450} y={654} width={300} height={96} title="PiroInput" detail="normalized observation packet" tone="orange" />
+      <text x="600" y="800" fill="rgb(251 191 36 / 0.62)" fontSize="13" textAnchor="middle">the single input object consumed by the model for this turn</text>
     </svg>
   );
 }
@@ -213,9 +208,6 @@ function ObservationApiReference() {
           <div><code className="text-orange-200">video</code><span className="ml-3 text-amber-200/55">short temporal visual input</span></div>
           <div><code className="text-sky-200">file</code><span className="ml-3 text-amber-200/55">PDF, code, or document</span></div>
           <div><code className="text-amber-200">json</code><span className="ml-3 text-amber-200/55">structured environment data</span></div>
-        </div>
-        <div className="mt-6 border-t border-sky-400/15 pt-4 text-xs leading-6 text-amber-200/55">
-          <strong className="text-amber-100/80">Not sent every turn:</strong> system prompt, conversation transcript, previous tool calls, or durable memory. Those belong to the stateful runtime.
         </div>
       </section>
     </div>
