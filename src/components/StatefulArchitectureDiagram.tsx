@@ -78,6 +78,7 @@ const nodes: DiagramNode[] = [
     width: 270,
     height: 108,
     tone: "blue",
+    zoomable: true,
   },
   {
     id: "update",
@@ -88,6 +89,7 @@ const nodes: DiagramNode[] = [
     width: 296,
     height: 108,
     tone: "orange",
+    zoomable: true,
   },
 ];
 
