@@ -95,6 +95,7 @@ export async function POST(
         githubRepository: context.githubRepo.repository,
         sourcePath: component.path,
         entrypoint: component.entrypoint,
+        source: component.source,
         r2Prefix,
         callbackUrl: new URL(
           `/api/generation-runs/${runId}`,

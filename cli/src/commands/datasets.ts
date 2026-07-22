@@ -45,3 +45,14 @@ export async function datasetsGet(id: string): Promise<void> {
   if (!response.ok) fail(response.status, response.body, "dataset lookup failed");
   console.log(JSON.stringify(response.body, null, 2));
 }
+
+export async function datasetHead(id: string): Promise<void> {
+  const config = resolveConfig();
+  await activeRepo(config);
+  const response = await piroFetch(
+    config,
+    `/api/datasets/${encodeURIComponent(id)}/head`,
+  );
+  if (!response.ok) fail(response.status, response.body, "dataset head failed");
+  console.log(JSON.stringify(response.body, null, 2));
+}

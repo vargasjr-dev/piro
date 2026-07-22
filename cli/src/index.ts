@@ -24,7 +24,7 @@ import {
   reposUse,
 } from "./commands/repos.js";
 import { sourcesList, sourcesGet, sourcesGenerate } from "./commands/sources.js";
-import { datasetsList, datasetsGet } from "./commands/datasets.js";
+import { datasetHead, datasetsList, datasetsGet } from "./commands/datasets.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -60,6 +60,7 @@ function usage(msg?: string): never {
   console.error("  piro sources generate <name>");
   console.error("  piro datasets list");
   console.error("  piro datasets get <id>");
+  console.error("  piro dataset head <id>");
   process.exit(msg ? 1 : 0);
 }
 
@@ -110,6 +111,19 @@ switch (subject) {
       }
       default:
         usage(`unknown sources verb: ${verb}`);
+    }
+    break;
+
+  case "dataset":
+    switch (verb) {
+      case "head": {
+        const id = arg(rest, 0);
+        if (!id) usage("dataset id is required");
+        await datasetHead(id);
+        break;
+      }
+      default:
+        usage(`unknown dataset verb: ${verb}`);
     }
     break;
 
