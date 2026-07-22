@@ -5,15 +5,18 @@ import { useRouter } from "next/navigation";
 type NodeId =
   | "observation"
   | "embedding"
-  | "neuron"
-  | "history"
+  | "initialize"
   | "attention"
-  | "ticks"
+  | "delta"
+  | "residual"
+  | "history"
   | "prediction"
-  | "eligibility"
-  | "update"
+  | "value"
+  | "halt"
+  | "shouldHalt"
+  | "output"
   | "weights"
-  | "output";
+  | "plasticity";
 
 type Tone = "violet" | "green" | "blue" | "orange";
 
@@ -33,122 +36,155 @@ const nodes: DiagramNode[] = [
   {
     id: "observation",
     title: "PiroInput",
-    lines: ["parts + metadata", "stateful input boundary"],
-    x: 32,
-    y: 500,
-    width: 210,
-    height: 112,
+    lines: ["parts + metadata", "input boundary"],
+    x: 28,
+    y: 330,
+    width: 220,
+    height: 110,
     tone: "violet",
     zoomable: true,
   },
   {
     id: "embedding",
-    title: "Input embedding",
-    lines: ["modality encoders", "shared representation"],
-    x: 286,
-    y: 500,
-    width: 220,
-    height: 112,
+    title: "Embed(PiroInput)",
+    lines: ["→ x", "modality encoders"],
+    x: 300,
+    y: 330,
+    width: 250,
+    height: 110,
     tone: "green",
     zoomable: true,
   },
   {
-    id: "neuron",
-    title: "Neuron state",
-    lines: ["recurrent state update"],
-    x: 600,
-    y: 300,
-    width: 190,
-    height: 112,
+    id: "initialize",
+    title: "InitializeOrRetrieveState",
+    lines: ["(x, weights) → h₀"],
+    x: 650,
+    y: 150,
+    width: 330,
+    height: 110,
+    tone: "blue",
+    zoomable: true,
+  },
+  {
+    id: "attention",
+    title: "Attention",
+    lines: ["(hₖ, historyₖ, x, weights)", "→ contextₖ"],
+    x: 1050,
+    y: 150,
+    width: 340,
+    height: 110,
+    tone: "green",
+    zoomable: true,
+  },
+  {
+    id: "delta",
+    title: "ComputeStateDelta",
+    lines: ["(hₖ, x, contextₖ, historyₖ, weights)", "→ deltaₖ"],
+    x: 1460,
+    y: 150,
+    width: 390,
+    height: 110,
+    tone: "green",
+    zoomable: true,
+  },
+  {
+    id: "residual",
+    title: "ApplyGatedResidual",
+    lines: ["(hₖ, deltaₖ, weights)", "→ hₖ₊₁ · gate internal"],
+    x: 1920,
+    y: 150,
+    width: 300,
+    height: 110,
     tone: "green",
     zoomable: true,
   },
   {
     id: "history",
-    title: "History buffer",
-    lines: ["short-term temporal context"],
-    x: 830,
-    y: 300,
-    width: 190,
-    height: 112,
-    tone: "green",
-    zoomable: true,
-  },
-  {
-    id: "attention",
-    title: "Sync attention",
-    lines: ["couples active features"],
-    x: 1060,
-    y: 300,
-    width: 190,
-    height: 112,
-    tone: "green",
-    zoomable: true,
-  },
-  {
-    id: "ticks",
-    title: "Thought ticks",
-    lines: ["repeated internal updates"],
-    x: 1290,
-    y: 300,
-    width: 190,
-    height: 112,
-    tone: "green",
-    zoomable: true,
-  },
-  {
-    id: "output",
-    title: "Output",
-    lines: ["text · tool · environment"],
-    x: 1570,
-    y: 500,
-    width: 190,
-    height: 112,
-    tone: "green",
+    title: "UpdateHistory",
+    lines: ["(historyₖ, hₖ₊₁)", "→ historyₖ₊₁"],
+    x: 1920,
+    y: 430,
+    width: 300,
+    height: 110,
+    tone: "blue",
     zoomable: true,
   },
   {
     id: "prediction",
-    title: "Prediction + value",
-    lines: ["what the model expects"],
-    x: 600,
-    y: 700,
-    width: 210,
-    height: 112,
+    title: "PredictionHead",
+    lines: ["(hₖ₊₁) → predictionₖ"],
+    x: 760,
+    y: 770,
+    width: 300,
+    height: 110,
     tone: "orange",
     zoomable: true,
   },
   {
-    id: "eligibility",
-    title: "Eligibility + credit",
-    lines: ["what can still be updated"],
-    x: 850,
-    y: 700,
-    width: 210,
-    height: 112,
+    id: "value",
+    title: "ValueHead",
+    lines: ["(hₖ₊₁) → valueₖ"],
+    x: 1110,
+    y: 770,
+    width: 270,
+    height: 110,
     tone: "orange",
     zoomable: true,
   },
   {
-    id: "update",
-    title: "Plasticity controller",
-    lines: ["learned weight-update rule"],
-    x: 1100,
-    y: 700,
-    width: 230,
-    height: 112,
+    id: "halt",
+    title: "HaltHead",
+    lines: ["(hₖ₊₁, hₖ, predictionₖ)", "→ haltₖ"],
+    x: 1430,
+    y: 770,
+    width: 340,
+    height: 110,
     tone: "orange",
+    zoomable: true,
+  },
+  {
+    id: "shouldHalt",
+    title: "ShouldHalt",
+    lines: ["(haltₖ) → continue / exit", "Kmax is a loop exit"],
+    x: 1800,
+    y: 770,
+    width: 340,
+    height: 110,
+    tone: "orange",
+    zoomable: true,
+  },
+  {
+    id: "output",
+    title: "OutputHead",
+    lines: ["(hₖ₊₁) → outputₖ", "called after the loop exits"],
+    x: 1430,
+    y: 1010,
+    width: 300,
+    height: 110,
+    tone: "green",
     zoomable: true,
   },
   {
     id: "weights",
-    title: "Internal memory",
-    lines: ["plastic + durable weights"],
-    x: 1370,
-    y: 700,
-    width: 210,
-    height: 112,
+    title: "Weights",
+    lines: ["plastic + durable memory"],
+    x: 28,
+    y: 760,
+    width: 270,
+    height: 110,
     tone: "blue",
+    zoomable: true,
+  },
+  {
+    id: "plasticity",
+    title: "PlasticityController",
+    lines: ["prediction + value + learning signals", "→ updated weights"],
+    x: 330,
+    y: 760,
+    width: 360,
+    height: 110,
+    tone: "orange",
     zoomable: true,
   },
 ];
@@ -205,8 +241,6 @@ function DiagramNodeCard({
   onClick: () => void;
 }) {
   const style = toneStyles[node.tone];
-  const titleY = node.y + 38;
-
   return (
     <g
       role={node.zoomable ? "button" : undefined}
@@ -236,15 +270,23 @@ function DiagramNodeCard({
         strokeWidth="2"
         className={node.zoomable ? "transition hover:brightness-125" : undefined}
       />
-      <text x={node.x + 18} y={titleY} fill={style.title} fontSize="17" fontWeight="650">
+      <text x={node.x + 18} y={node.y + 36} fill={style.title} fontSize="16" fontWeight="650">
         {node.title}
       </text>
       {node.lines.map((line, index) => (
-        <text key={line} x={node.x + 18} y={node.y + 66 + index * 23} fill={style.detail} fontSize="12">
+        <text key={line} x={node.x + 18} y={node.y + 66 + index * 22} fill={style.detail} fontSize="12">
           {line}
         </text>
       ))}
     </g>
+  );
+}
+
+function InputLabel({ x, y, children }: { x: number; y: number; children: string }) {
+  return (
+    <text x={x} y={y} fill="rgb(253 230 138 / 0.62)" fontSize="11" textAnchor="middle">
+      {children}
+    </text>
   );
 }
 
@@ -254,58 +296,92 @@ export default function StatefulArchitectureDiagram() {
   return (
     <div className="overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#100c0a] p-3 sm:p-5">
       <svg
-        className="mx-auto block h-auto w-full min-w-[1050px]"
-        viewBox="0 0 1800 1060"
+        className="mx-auto block h-auto w-full min-w-[1100px]"
+        viewBox="0 0 2320 1210"
         role="img"
-        aria-label="Structural architecture of Piro as a stateful self-updating model"
+        aria-label="Piro CTM pseudocode mapped to method nodes and data flow"
       >
         <defs>
-          <marker id="arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
+          <marker id="arrow-gold" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
           <marker id="arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
           <marker id="arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
         </defs>
 
-        <text x="24" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">STRUCTURAL VIEW · INFERENCE + LEARNING</text>
-        <text x="24" y="72" fill="rgb(253 230 138 / 0.72)" fontSize="15">Piro’s inference dynamics and weight updates are part of one model.</text>
+        <text x="24" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">PSEUDOCODE VIEW · METHOD INPUTS ARE EXPLICIT EDGES</text>
+        <text x="24" y="74" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each node is a transformation; state and data values travel on the edges between transformations.</text>
 
-        <text x="32" y="470" fill="rgb(192 132 252 / 0.62)" fontSize="12" letterSpacing="2">EXTERNAL INPUT</text>
-        <text x="1570" y="470" fill="rgb(192 132 252 / 0.62)" fontSize="12" letterSpacing="2">EXTERNAL OUTPUT</text>
+        <rect x="610" y="92" width="1660" height="610" rx="30" fill="rgb(21 42 34 / 0.1)" stroke="rgb(110 231 183 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
+        <text x="642" y="128" fill="rgb(110 231 183 / 0.7)" fontSize="12" letterSpacing="1.8">RECURRENT CTM TICK · k</text>
 
-        <rect x="260" y="110" width="1300" height="910" rx="30" fill="rgb(16 12 10 / 0.4)" stroke="rgb(251 191 36 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
-        <text x="290" y="146" fill="rgb(251 191 36 / 0.68)" fontSize="13" letterSpacing="2">PIRO MODEL</text>
+        <rect x="720" y="730" width="1540" height="390" rx="30" fill="rgb(57 39 24 / 0.1)" stroke="rgb(253 186 116 / 0.3)" strokeWidth="2" strokeDasharray="7 7" />
+        <text x="752" y="766" fill="rgb(253 186 116 / 0.72)" fontSize="12" letterSpacing="1.8">READOUTS, HALTING, AND ONLINE WEIGHT UPDATE</text>
 
-        <rect x="560" y="178" width="960" height="300" rx="26" fill="rgb(21 42 34 / 0.12)" stroke="rgb(110 231 183 / 0.28)" strokeWidth="1.5" strokeDasharray="7 7" />
-        <text x="590" y="210" fill="rgb(110 231 183 / 0.7)" fontSize="12" letterSpacing="1.8">STATEFUL CTM · INFERENCE DYNAMICS</text>
+        {arrowPath("M248 385H300", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={274} y={368}>PiroInput</InputLabel>
 
-        <rect x="560" y="570" width="960" height="380" rx="26" fill="rgb(57 39 24 / 0.1)" stroke="rgb(253 186 116 / 0.3)" strokeWidth="1.5" strokeDasharray="7 7" />
-        <text x="590" y="602" fill="rgb(253 186 116 / 0.72)" fontSize="12" letterSpacing="1.8">LEARNING DURING INFERENCE</text>
+        {arrowPath("M550 385V205H650", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={594} y={310}>x</InputLabel>
+        {arrowPath("M298 815H330", "rgb(253 186 116 / 0.78)")}
+        <InputLabel x={314} y={798}>updated weights</InputLabel>
+        {arrowPath("M690 815H820V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={755} y={800}>weights</InputLabel>
 
-        {arrowPath("M242 556H286", "rgb(251 191 36 / 0.72)")}
-        {arrowPath("M506 556H560V356H600", "rgb(251 191 36 / 0.72)")}
-        {arrowPath("M790 356H830", "rgb(251 191 36 / 0.72)")}
-        {arrowPath("M1020 356H1060", "rgb(251 191 36 / 0.72)")}
-        {arrowPath("M1250 356H1290", "rgb(251 191 36 / 0.72)")}
-        {arrowPath("M1480 356H1520V556H1570", "rgb(251 191 36 / 0.72)")}
+        {arrowPath("M980 205H1050", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={1015} y={188}>h₀ enters as hₖ</InputLabel>
+        {arrowPath("M980 205V300H1420V260", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={1220} y={292}>hₖ</InputLabel>
+        {arrowPath("M980 205V350H1880V260", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={1410} y={342}>hₖ</InputLabel>
 
-        {arrowPath("M1385 412V650H705V700", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
-        {arrowPath("M1385 412V620H955V700", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
-        <text x="1190" y="548" fill="rgb(253 186 116 / 0.68)" fontSize="12">internal prediction signals</text>
+        {arrowPath("M1390 205H1460", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={1425} y={188}>contextₖ</InputLabel>
+        {arrowPath("M1850 205H1920", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={1885} y={188}>deltaₖ</InputLabel>
 
-        {arrowPath("M810 756H850", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        {arrowPath("M1060 756H1100", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        <text x="930" y="738" fill="rgb(253 186 116 / 0.68)" fontSize="12" textAnchor="middle">assign update signal</text>
+        {arrowPath("M2220 260V430H2070", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={2150} y={410}>hₖ₊₁</InputLabel>
+        {arrowPath("M2070 540V640H1010V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1530} y={625}>historyₖ₊₁ becomes historyₖ</InputLabel>
+        {arrowPath("M2070 540V665H1395V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1730} y={650}>historyₖ</InputLabel>
 
-        {arrowPath("M1330 756H1370", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        <text x="1350" y="738" fill="rgb(253 186 116 / 0.68)" fontSize="12" textAnchor="middle">change weights</text>
+        {arrowPath("M2220 205H2280V82H1010V150", "rgb(110 231 183 / 0.72)", { dashed: true, marker: "arrow-gold" })}
+        {arrowPath("M2220 205H2290V68H1420V150", "rgb(110 231 183 / 0.72)", { dashed: true, marker: "arrow-gold" })}
+        {arrowPath("M2220 205H2300V54H1880V150", "rgb(110 231 183 / 0.72)", { dashed: true, marker: "arrow-gold" })}
+        <InputLabel x={2140} y={72}>hₖ₊₁ → hₖ on next tick</InputLabel>
+        <InputLabel x={2170} y={98}>recurrent state loop</InputLabel>
 
-        {arrowPath("M1475 700V650H695V412", "rgb(125 211 252 / 0.72)", { marker: "arrow-blue" })}
-        <text x="1010" y="638" fill="rgb(125 211 252 / 0.68)" fontSize="12" textAnchor="middle">memory shapes future inference dynamics</text>
+        {arrowPath("M2220 540V700H910V770", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
+        {arrowPath("M2220 540V685H1245V770", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
+        {arrowPath("M2220 540V670H1560V770", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
+        <InputLabel x={1080} y={690}>hₖ₊₁</InputLabel>
+        <InputLabel x={1390} y={675}>hₖ₊₁</InputLabel>
+        <InputLabel x={1710} y={660}>hₖ₊₁</InputLabel>
+
+        {arrowPath("M1060 825H1110", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
+        {arrowPath("M1380 825H1430", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
+        {arrowPath("M1770 825H1800", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
+        <InputLabel x={1785} y={808}>haltₖ</InputLabel>
+
+        {arrowPath("M690 815H1050V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={870} y={800}>weights</InputLabel>
+        {arrowPath("M690 815H1460V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1080} y={830}>weights</InputLabel>
+        {arrowPath("M690 815H1920V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1300} y={850}>weights · gate is internal to ApplyGatedResidual</InputLabel>
+
+        {arrowPath("M1770 825H1800", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
+        {arrowPath("M1970 880V1010H1730", "rgb(110 231 183 / 0.72)", { marker: "arrow-gold" })}
+        <text x="1840" y="965" fill="rgb(110 231 183 / 0.68)" fontSize="12">exit → OutputHead</text>
+        {arrowPath("M2070 260V960H1580V1010", "rgb(110 231 183 / 0.72)", { dashed: true, marker: "arrow-gold" })}
+        <InputLabel x={1830} y={945}>hₖ₊₁ held for output</InputLabel>
+        <text x="2150" y="610" fill="rgb(110 231 183 / 0.68)" fontSize="12" textAnchor="middle">continue while k &lt; Kmax</text>
 
         {nodes.map((node) => (
           <DiagramNodeCard key={node.id} node={node} onClick={() => router.push(`/docs/architecture/${node.id}`)} />
         ))}
 
-        <text x="560" y="990" fill="rgb(253 230 138 / 0.62)" fontSize="13">The model predicts, evaluates, and updates its own weights as part of its design.</text>
+        <text x="650" y="1180" fill="rgb(253 230 138 / 0.62)" fontSize="13">OutputHead runs after ShouldHalt selects the exit; plasticity remains a parallel model-internal path for later deep dive.</text>
       </svg>
     </div>
   );

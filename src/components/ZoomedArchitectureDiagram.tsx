@@ -5,16 +5,18 @@ import Link from "next/link";
 type DiagramKind =
   | "observation"
   | "embedding"
-  | "ctm"
-  | "neuron"
-  | "history"
+  | "initialize"
   | "attention"
-  | "ticks"
+  | "delta"
+  | "residual"
+  | "history"
   | "prediction"
-  | "eligibility"
+  | "value"
   | "output"
+  | "halt"
+  | "shouldHalt"
   | "weights"
-  | "update";
+  | "plasticity";
 
 const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   observation: {
@@ -22,48 +24,56 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
     subtitle: "The structured multimodal object that crosses into Piro’s stateful model.",
   },
   embedding: {
-    title: "Input embedding",
-    subtitle: "How PiroInput becomes the numerical signal consumed by the CTM.",
+    title: "Embed(PiroInput)",
+    subtitle: "The method that translates the current multimodal input into x.",
   },
-  ctm: {
-    title: "Stateful CTM",
-    subtitle: "The recurrent thought dynamics that transform internal signals into model activity.",
-  },
-  output: {
-    title: "Output",
-    subtitle: "How Piro exposes its internal state as text, tool, and environment outputs.",
-  },
-  weights: {
-    title: "Internal memory",
-    subtitle: "How changing weights carry what Piro has learned across inputs.",
-  },
-  update: {
-    title: "Plasticity controller",
-    subtitle: "How Piro’s architecture determines which internal weights change and when.",
-  },
-  neuron: {
-    title: "Neuron state",
-    subtitle: "The recurrent state variables that carry active model dynamics from one thought tick to the next.",
-  },
-  history: {
-    title: "History buffer",
-    subtitle: "The short-term trajectory that lets each thought tick see how the internal state has been changing.",
+  initialize: {
+    title: "InitializeOrRetrieveState",
+    subtitle: "The method that produces h₀ from the embedded input and internal weights.",
   },
   attention: {
-    title: "Sync attention",
-    subtitle: "How synchronized neural activity couples features into temporary reasoning assemblies.",
+    title: "Attention",
+    subtitle: "The method that combines current state, history, input, and weights into contextₖ.",
   },
-  ticks: {
-    title: "Thought ticks",
-    subtitle: "Repeated internal state updates that let Piro spend more computation before producing output.",
+  delta: {
+    title: "ComputeStateDelta",
+    subtitle: "The method that computes the candidate state change deltaₖ from the current tick inputs.",
+  },
+  residual: {
+    title: "ApplyGatedResidual",
+    subtitle: "The method that applies a learned internal gate to deltaₖ and produces hₖ₊₁.",
+  },
+  history: {
+    title: "UpdateHistory",
+    subtitle: "The method that records the new state as the next temporal context.",
   },
   prediction: {
-    title: "Prediction + value",
-    subtitle: "The internal expectations that turn inference into a source of learning signals.",
+    title: "PredictionHead",
+    subtitle: "The readout method that produces predictionₖ from hₖ₊₁.",
   },
-  eligibility: {
-    title: "Eligibility + credit",
-    subtitle: "The internal signals that determine which active pathways remain eligible for weight updates.",
+  value: {
+    title: "ValueHead",
+    subtitle: "The readout method that produces valueₖ from hₖ₊₁.",
+  },
+  output: {
+    title: "OutputHead",
+    subtitle: "The readout method that runs after the recurrent loop exits and produces outputₖ from hₖ₊₁.",
+  },
+  halt: {
+    title: "HaltHead",
+    subtitle: "The method that estimates haltₖ from current state, prior state, and prediction.",
+  },
+  shouldHalt: {
+    title: "ShouldHalt",
+    subtitle: "The control method that chooses whether to continue the recurrent loop or exit.",
+  },
+  weights: {
+    title: "Weights",
+    subtitle: "The model parameters that provide memory and shape every method invocation.",
+  },
+  plasticity: {
+    title: "PlasticityController",
+    subtitle: "The model-internal method that turns learning signals into updated weights.",
   },
 };
 
@@ -210,39 +220,6 @@ function EmbeddingDiagram() {
   );
 }
 
-function CtmDiagram() {
-  return (
-    <svg viewBox="0 0 1000 620" className="mx-auto block h-auto w-full min-w-[700px]" role="img" aria-label="CTM core zoomed architecture">
-      <defs>
-        <marker id="zoom-arrow-gold" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
-        <marker id="zoom-arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
-        <marker id="zoom-arrow-orange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
-        <marker id="zoom-arrow-violet" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(192 132 252 / 0.72)" /></marker>
-      </defs>
-      <text x="36" y="38" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">CTM CORE · REPEATED INTERNAL THOUGHT TICKS</text>
-      <Box x={36} y={220} width={176} height={102} title="Input signal" detail="per-neuron currents" tone="violet" />
-      <Box x={286} y={150} width={194} height={102} title="Neuron state" detail="activation + phase" tone="green" />
-      <Box x={286} y={300} width={194} height={102} title="History buffer" detail="recent state trajectory" tone="blue" />
-      <Box x={286} y={450} width={194} height={102} title="Sync attention" detail="coupling + assemblies" tone="orange" />
-      <Box x={568} y={260} width={214} height={112} title="Residual tick update" detail="state ← state + update" tone="green" />
-      <Box x={864} y={150} width={100} height={102} title="Output" detail="action" tone="violet" />
-      <Box x={864} y={450} width={100} height={102} title="Stop?" detail="confidence" tone="orange" />
-      <Arrow d="M212 271H250V201H286" marker="gold" />
-      <Arrow d="M383 252V300" marker="blue" color="rgb(125 211 252 / 0.72)" />
-      <Arrow d="M383 402V450" marker="orange" color="rgb(253 186 116 / 0.76)" />
-      <Arrow d="M480 501H530V316H568" marker="orange" color="rgb(253 186 116 / 0.76)" />
-      <Arrow d="M480 201H568V316" marker="gold" />
-      <Arrow d="M782 316H864V201" marker="gold" />
-      <Arrow d="M782 316H820V501H864" marker="orange" color="rgb(253 186 116 / 0.76)" />
-      <Arrow d="M864 501H820V316H782" dashed marker="blue" color="rgb(125 211 252 / 0.72)" />
-      <path d="M568 260C520 90 760 70 820 180C850 235 820 316 782 316" fill="none" stroke="rgb(110 231 183 / 0.72)" strokeWidth="2" strokeDasharray="8 7" markerEnd="url(#zoom-arrow-gold)" />
-      <text x="580" y="108" fill="rgb(167 243 208 / 0.7)" fontSize="12">repeat until confident or budget exhausted</text>
-      <text x="36" y="590" fill="rgb(253 230 138 / 0.62)" fontSize="12">The CTM is not one pass: it is a recurrent state transition that can spend more internal compute when the problem demands it.</text>
-    </svg>
-  );
-}
-
-
 function OutputDiagram() {
   return (
     <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Piro output architecture">
@@ -289,91 +266,89 @@ function WeightsDiagram() {
   );
 }
 
-function UpdateDiagram() {
-  return (
-    <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Piro learned self-update architecture">
-      <defs>
-        <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
-        <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
-        <marker id="zoom-arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
-      </defs>
-      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">MODEL-INTERNAL LEARNING</text>
-      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Piro contains the mechanism that decides how its own weights change.</text>
-      <Box x={48} y={220} width={220} height={100} title="CTM activity" detail="state, predictions, values" tone="green" />
-      <Box x={48} y={366} width={220} height={100} title="Input evidence" detail="new PiroInput" tone="violet" />
-      <Arrow d="M268 270H410" marker="gold" />
-      <Arrow d="M268 416H410" marker="blue" color="rgb(125 211 252 / 0.72)" />
-      <Box x={410} y={276} width={260} height={122} title="Learned self-update" detail="eligibility · credit · plasticity" tone="orange" />
-      <Arrow d="M670 337H820" marker="orange" color="rgb(253 186 116 / 0.76)" />
-      <Box x={820} y={220} width={230} height={100} title="Plastic weights" detail="fast update" tone="blue" />
-      <Box x={820} y={366} width={230} height={100} title="Durable weights" detail="slow update" tone="orange" />
-      <Arrow d="M935 320V366" marker="orange" color="rgb(253 186 116 / 0.76)" />
-      <text x="48" y="540" fill="rgb(253 230 138 / 0.62)" fontSize="13">The update rule is architectural: it is not an external optimizer attached after deployment.</text>
-    </svg>
-  );
-}
-
-
-const componentDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "ctm" | "output" | "weights" | "update">, { input: string; output: string; relation: string; tone: "green" | "blue" | "orange" }> = {
-  neuron: {
-    input: "shared CTM input + prior state",
-    output: "updated activation and phase",
-    relation: "feeds the next internal state",
-    tone: "green",
-  },
-  history: {
-    input: "recent neuron-state trajectory",
-    output: "short-term temporal context",
-    relation: "makes change over time visible",
+const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights">, { input: string; output: string; relation: string; tone: "green" | "blue" | "orange" }> = {
+  initialize: {
+    input: "x + weights",
+    output: "h₀",
+    relation: "starts or retrieves the state for this input",
     tone: "blue",
   },
   attention: {
-    input: "state history + synchronization",
-    output: "coupled feature assemblies",
-    relation: "selects what participates together",
-    tone: "orange",
-  },
-  ticks: {
-    input: "attention context + neuron state",
-    output: "repeated thought updates",
-    relation: "returns to neuron state until output is ready",
+    input: "hₖ + historyₖ + x + weights",
+    output: "contextₖ",
+    relation: "builds the context used by ComputeStateDelta",
     tone: "green",
   },
+  delta: {
+    input: "hₖ + x + contextₖ + historyₖ + weights",
+    output: "deltaₖ",
+    relation: "computes the candidate state change",
+    tone: "green",
+  },
+  residual: {
+    input: "hₖ + deltaₖ + weights",
+    output: "hₖ₊₁",
+    relation: "applies a learned internal gate to the residual update",
+    tone: "green",
+  },
+  history: {
+    input: "historyₖ + hₖ₊₁",
+    output: "historyₖ₊₁",
+    relation: "records the new state trajectory",
+    tone: "blue",
+  },
   prediction: {
-    input: "current state + selected action",
-    output: "expected outcomes and value",
-    relation: "creates signals the model can learn from",
+    input: "hₖ₊₁",
+    output: "predictionₖ",
+    relation: "reads the model's current prediction",
     tone: "orange",
   },
-  eligibility: {
-    input: "active pathways + prediction mismatch",
-    output: "credit eligibility over pathways",
-    relation: "routes learning to the responsible dynamics",
+  value: {
+    input: "hₖ₊₁",
+    output: "valueₖ",
+    relation: "reads the current value estimate",
+    tone: "orange",
+  },
+  halt: {
+    input: "hₖ₊₁ + hₖ + predictionₖ",
+    output: "haltₖ",
+    relation: "estimates whether this tick is ready to stop",
+    tone: "orange",
+  },
+  shouldHalt: {
+    input: "haltₖ + k + budget",
+    output: "continue / exit",
+    relation: "controls the recurrent loop or returns outputₖ",
+    tone: "orange",
+  },
+  plasticity: {
+    input: "prediction + value + credit signals",
+    output: "updated weights",
+    relation: "changes the model's own memory parameters",
     tone: "orange",
   },
 };
 
-function ComponentDiagram({ kind }: { kind: Exclude<DiagramKind, "observation" | "embedding" | "ctm" | "output" | "weights" | "update"> }) {
-  const detail = componentDetails[kind];
+function MethodDiagram({ kind }: { kind: Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights"> }) {
+  const detail = methodDetails[kind];
   return (
-    <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label={`${details[kind].title} architecture`}>
+    <svg viewBox="0 0 1200 620" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label={`${details[kind].title} method architecture`}>
       <defs>
-        <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
-        <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
-        <marker id="zoom-arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+        <marker id="zoom-arrow-gold" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
+        <marker id="zoom-arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
+        <marker id="zoom-arrow-orange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
       </defs>
-      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">STATEFUL CTM COMPONENT</text>
-      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">This component is part of Piro’s inference-and-learning substrate.</text>
-      <Box x={54} y={232} width={250} height={122} title="Incoming signal" detail={detail.input} tone="violet" />
-      <Arrow d="M304 293H425" marker="gold" />
-      <Box x={425} y={214} width={260} height={158} title={details[kind].title} detail={detail.relation} tone={detail.tone} />
-      <Arrow d="M685 293H806" marker={detail.tone === "blue" ? "blue" : detail.tone === "orange" ? "orange" : "gold"} color={detail.tone === "blue" ? "rgb(125 211 252 / 0.72)" : detail.tone === "orange" ? "rgb(253 186 116 / 0.76)" : undefined} />
-      <Box x={806} y={232} width={240} height={122} title="Outgoing signal" detail={detail.output} tone={detail.tone} />
-      <text x="54" y="520" fill="rgb(253 230 138 / 0.62)" fontSize="13">The component’s output becomes another internal signal, not a separate external service.</text>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">METHOD INVOCATION · EXPLICIT ARGUMENTS</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">The incoming signals are the arguments; the outgoing signal is the method result.</text>
+      <Box x={52} y={222} width={300} height={138} title="Arguments" detail={detail.input} tone="violet" />
+      <Arrow d="M352 291H480" marker="gold" />
+      <Box x={480} y={198} width={300} height={186} title={details[kind].title} detail={detail.relation} tone={detail.tone} />
+      <Arrow d="M780 291H908" marker={detail.tone === "blue" ? "blue" : detail.tone === "orange" ? "orange" : "gold"} color={detail.tone === "blue" ? "rgb(125 211 252 / 0.72)" : detail.tone === "orange" ? "rgb(253 186 116 / 0.76)" : undefined} />
+      <Box x={908} y={222} width={240} height={138} title="Result" detail={detail.output} tone={detail.tone} />
+      <text x="52" y="520" fill="rgb(253 230 138 / 0.62)" fontSize="13">This is a zoomed-in contract view, not a claim that the implementation has one literal function per box.</text>
     </svg>
   );
 }
-
 
 function ObservationApiReference() {
   return (
@@ -428,11 +403,9 @@ export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind 
       <div className="mt-10 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#100c0a] p-3 sm:p-6">
         {kind === "observation" && <ObservationDiagram />}
         {kind === "embedding" && <EmbeddingDiagram />}
-        {kind === "ctm" && <CtmDiagram />}
-        {(kind === "neuron" || kind === "history" || kind === "attention" || kind === "ticks" || kind === "prediction" || kind === "eligibility") && <ComponentDiagram kind={kind} />}
+        {kind !== "observation" && kind !== "embedding" && kind !== "output" && kind !== "weights" && <MethodDiagram kind={kind} />}
         {kind === "output" && <OutputDiagram />}
         {kind === "weights" && <WeightsDiagram />}
-        {kind === "update" && <UpdateDiagram />}
       </div>
       {kind === "observation" && <ObservationApiReference />}
     </>
