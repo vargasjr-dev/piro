@@ -55,6 +55,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       githubRepository: repo.githubRepository,
       sourcePath: prepared.component.path,
       entrypoint: prepared.component.entrypoint,
+      source: prepared.component.source,
       r2Prefix: prepared.r2Prefix,
       callbackUrl: new URL(`/api/generation-runs/${runId}`, request.url).toString(),
       secret: process.env.MODAL_WEBHOOK_SECRET ?? "",
