@@ -185,6 +185,7 @@ class Trainer:
         from datetime import datetime, timezone
 
         import psycopg2
+        from model.weight_serialization import round_nested_numbers
 
         torch = self._torch
 
