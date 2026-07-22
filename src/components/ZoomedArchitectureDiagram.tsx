@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-type DiagramKind = "observation" | "embedding" | "ctm";
+type DiagramKind = "observation" | "embedding" | "ctm" | "output" | "weights" | "update";
 
 const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   observation: {
@@ -14,8 +14,20 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
     subtitle: "How PiroInput becomes the numerical signal consumed by the CTM.",
   },
   ctm: {
-    title: "CTM core",
-    subtitle: "How Piro repeatedly updates internal state before committing to an action.",
+    title: "Stateful CTM",
+    subtitle: "The recurrent thought dynamics that transform internal signals into model activity.",
+  },
+  output: {
+    title: "Output",
+    subtitle: "How Piro exposes its internal state as text, tool, and environment outputs.",
+  },
+  weights: {
+    title: "Internal memory",
+    subtitle: "How changing weights carry what Piro has learned across inputs.",
+  },
+  update: {
+    title: "Learned self-update",
+    subtitle: "How Piro’s architecture determines which internal weights change and when.",
   },
 };
 
@@ -190,6 +202,77 @@ function CtmDiagram() {
       <path d="M568 260C520 90 760 70 820 180C850 235 820 316 782 316" fill="none" stroke="rgb(110 231 183 / 0.72)" strokeWidth="2" strokeDasharray="8 7" markerEnd="url(#zoom-arrow-gold)" />
       <text x="580" y="108" fill="rgb(167 243 208 / 0.7)" fontSize="12">repeat until confident or budget exhausted</text>
       <text x="36" y="590" fill="rgb(253 230 138 / 0.62)" fontSize="12">The CTM is not one pass: it is a recurrent state transition that can spend more internal compute when the problem demands it.</text>
+    </svg>
+  );
+}
+
+
+function OutputDiagram() {
+  return (
+    <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Piro output architecture">
+      <defs>
+        <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
+        <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
+        <marker id="zoom-arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+      </defs>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">STATEFUL CTM → OUTPUT</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">One internal model state can drive several output interfaces.</text>
+      <Box x={48} y={224} width={230} height={118} title="Stateful CTM" detail="shared internal activity" tone="green" />
+      <Arrow d="M278 283H430" marker="gold" />
+      <Box x={430} y={224} width={230} height={118} title="Output" detail="select and format a response" tone="orange" />
+      <Arrow d="M660 283H820" marker="orange" color="rgb(253 186 116 / 0.76)" />
+      <rect x="820" y="150" width="230" height="300" rx="24" fill="rgb(23 35 43 / 0.18)" stroke="rgb(125 211 252 / 0.62)" strokeWidth="2" strokeDasharray="8 7" />
+      <text x="850" y="188" fill="rgb(125 211 252 / 0.9)" fontSize="18" fontWeight="650">Output forms</text>
+      <Box x={850} y={214} width={170} height={62} title="Text" detail="tokens" tone="green" />
+      <Box x={850} y={294} width={170} height={62} title="Tool" detail="structured call" tone="violet" />
+      <Box x={850} y={374} width={170} height={62} title="Environment" detail="external action" tone="blue" />
+      <text x="48" y="520" fill="rgb(253 230 138 / 0.62)" fontSize="13">The output head is an interface boundary, not a second reasoning core.</text>
+    </svg>
+  );
+}
+
+function WeightsDiagram() {
+  return (
+    <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Piro internal memory architecture">
+      <defs>
+        <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
+        <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
+        <marker id="zoom-arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+      </defs>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">INTERNAL MEMORY · WEIGHT TIMESCALES</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Piro remembers by changing the parameters that shape future dynamics.</text>
+      <Box x={60} y={232} width={230} height={118} title="Stateful CTM" detail="activations and dynamics" tone="green" />
+      <Arrow d="M290 291H430" marker="blue" color="rgb(125 211 252 / 0.72)" />
+      <Box x={430} y={178} width={230} height={118} title="Plastic weights" detail="fast adaptation" tone="blue" />
+      <Box x={430} y={354} width={230} height={118} title="Durable weights" detail="slow consolidation" tone="orange" />
+      <Arrow d="M545 296V354" marker="orange" color="rgb(253 186 116 / 0.76)" />
+      <Arrow d="M660 413H820V350H660" dashed marker="gold" color="rgb(251 191 36 / 0.72)" />
+      <Box x={820} y={232} width={230} height={118} title="Future dynamics" detail="changed interpretation and action" tone="violet" />
+      <text x="60" y="540" fill="rgb(253 230 138 / 0.62)" fontSize="13">The weights are not a memory database beside Piro; they are part of Piro.</text>
+    </svg>
+  );
+}
+
+function UpdateDiagram() {
+  return (
+    <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Piro learned self-update architecture">
+      <defs>
+        <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
+        <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
+        <marker id="zoom-arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+      </defs>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">MODEL-INTERNAL LEARNING</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Piro contains the mechanism that decides how its own weights change.</text>
+      <Box x={48} y={220} width={220} height={100} title="CTM activity" detail="state, predictions, values" tone="green" />
+      <Box x={48} y={366} width={220} height={100} title="Input evidence" detail="new PiroInput" tone="violet" />
+      <Arrow d="M268 270H410" marker="gold" />
+      <Arrow d="M268 416H410" marker="blue" color="rgb(125 211 252 / 0.72)" />
+      <Box x={410} y={276} width={260} height={122} title="Learned self-update" detail="eligibility · credit · plasticity" tone="orange" />
+      <Arrow d="M670 337H820" marker="orange" color="rgb(253 186 116 / 0.76)" />
+      <Box x={820} y={220} width={230} height={100} title="Plastic weights" detail="fast update" tone="blue" />
+      <Box x={820} y={366} width={230} height={100} title="Durable weights" detail="slow update" tone="orange" />
+      <Arrow d="M935 320V366" marker="orange" color="rgb(253 186 116 / 0.76)" />
+      <text x="48" y="540" fill="rgb(253 230 138 / 0.62)" fontSize="13">The update rule is architectural: it is not an external optimizer attached after deployment.</text>
     </svg>
   );
 }

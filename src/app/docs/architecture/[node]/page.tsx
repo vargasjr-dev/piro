@@ -2,7 +2,7 @@ import Link from "next/link";
 import FlameLogo from "~/components/FlameLogo";
 import ZoomedArchitectureDiagram from "~/components/ZoomedArchitectureDiagram";
 
-const supportedNodes = ["observation", "embedding", "ctm"] as const;
+const supportedNodes = ["observation", "embedding", "ctm", "output", "weights", "update"] as const;
 type SupportedNode = (typeof supportedNodes)[number];
 
 export function generateStaticParams() {
@@ -11,7 +11,15 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ node: string }> }) {
   const { node } = await params;
-  const title = node === "ctm" ? "CTM core" : node === "embedding" ? "Input embedding" : "PiroInput";
+  const titles: Record<SupportedNode, string> = {
+    observation: "PiroInput",
+    embedding: "Input embedding",
+    ctm: "Stateful CTM",
+    output: "Output",
+    weights: "Internal memory",
+    update: "Learned self-update",
+  };
+  const title = titles[node as SupportedNode] ?? "Architecture";
   return {
     title: `${title} — Piro Architecture`,
     description: `Zoomed-in architecture diagram for ${title}.`,

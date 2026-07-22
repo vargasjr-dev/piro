@@ -60,13 +60,14 @@ const nodes: DiagramNode[] = [
   },
   {
     id: "output",
-    title: "Output / action heads",
+    title: "Output",
     lines: ["text · tool · environment"],
     x: 866,
     y: 302,
-    width: 138,
+    width: 156,
     height: 108,
     tone: "green",
+    zoomable: true,
   },
   {
     id: "weights",
@@ -239,13 +240,8 @@ export default function StatefulArchitectureDiagram() {
         <text x="24" y="72" fill="rgb(253 230 138 / 0.72)" fontSize="15">Piro is a multimodal, stateful CTM whose internal weights serve as memory.</text>
 
         <text x="36" y="278" fill="rgb(192 132 252 / 0.62)" fontSize="12" letterSpacing="2">EXTERNAL INPUT</text>
-        <text x="1034" y="278" fill="rgb(192 132 252 / 0.62)" fontSize="12" letterSpacing="2">EXTERNAL OUTPUT</text>
-
         <rect x="252" y="112" width="770" height="610" rx="30" fill="rgb(16 12 10 / 0.4)" stroke="rgb(251 191 36 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
         <text x="282" y="148" fill="rgb(251 191 36 / 0.68)" fontSize="13" letterSpacing="2">PIRO MODEL</text>
-
-        <rect x="500" y="162" width="368" height="292" rx="26" fill="rgb(21 42 34 / 0.16)" stroke="rgb(110 231 183 / 0.28)" strokeWidth="1.5" strokeDasharray="7 7" />
-        <text x="524" y="184" fill="rgb(110 231 183 / 0.62)" fontSize="11" letterSpacing="1.8">STATEFUL THOUGHT DYNAMICS</text>
 
         <text x="306" y="532" fill="rgb(125 211 252 / 0.56)" fontSize="11" letterSpacing="1.5">MEMORY SUBSTRATE</text>
         <text x="646" y="532" fill="rgb(253 186 116 / 0.62)" fontSize="11" letterSpacing="1.5">MODEL-INTERNAL LEARNING</text>
@@ -253,14 +249,13 @@ export default function StatefulArchitectureDiagram() {
         {arrowPath("M234 356H286", "rgb(251 191 36 / 0.72)")}
         {arrowPath("M484 356H528", "rgb(251 191 36 / 0.72)")}
         {arrowPath("M840 356H866", "rgb(251 191 36 / 0.72)")}
-        {arrowPath("M1004 356H1032", "rgb(192 132 252 / 0.72)", { marker: "arrow-violet" })}
 
         {arrowPath("M684 420V548", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
         <text x="700" y="486" fill="rgb(253 186 116 / 0.68)" fontSize="12">internal learning signals</text>
         {arrowPath("M646 602H576", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
         <text x="611" y="586" fill="rgb(253 186 116 / 0.68)" fontSize="12" textAnchor="middle">updates weights</text>
-        {arrowPath("M440 548V454", "rgb(125 211 252 / 0.72)", { marker: "arrow-blue" })}
-        <text x="458" y="504" fill="rgb(125 211 252 / 0.68)" fontSize="12">memory shapes dynamics</text>
+        {arrowPath("M441 548V490H684V420", "rgb(125 211 252 / 0.72)", { marker: "arrow-blue" })}
+        <text x="560" y="478" fill="rgb(125 211 252 / 0.68)" fontSize="12">weights shape dynamics</text>
 
         {nodes.map((node) => (
           <DiagramNodeCard
