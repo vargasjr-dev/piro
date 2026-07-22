@@ -125,6 +125,7 @@ class Trainer:
         from piro.ctm import ContinuousThoughtModel, CTMConfig
         from piro.baseline_transformer import BaselineTransformer, TransformerConfig
         from model.memory_encoding import memory_embedding
+        from model.weight_serialization import round_nested_numbers
 
         # Expose to run()
         self._torch = torch
@@ -413,12 +414,7 @@ class Trainer:
 
             # JSON file for visualization: {key: [[...], ...] or [...]}
             weights_json_str = json.dumps({
-                k: (
-                    [[round(float(x), 6) for x in row] for row in v.tolist()]
-                    if v.ndim == 2
-                    else [round(float(x), 6) for x in v.tolist()]
-                )
-                for k, v in state.items()
+                k: round_nested_numbers(v.tolist()) for k, v in state.items()
             })
 
             r2_prefix = f"models/{model_id}"
