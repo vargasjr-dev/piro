@@ -12,13 +12,13 @@ whose architecture includes the mechanism that updates those weights.
 ## Structural architecture
 
 The main diagram describes what Piro is made of, rather than narrating a
-particular sequence of moments. `PiroInput` is the external input boundary;
+particular sequence of moments. `Observation` is the external input boundary;
 modality-specific encoders produce a shared representation; the stateful CTM
 performs recurrent thought dynamics; output heads expose text, tool, and
 environment actions; and the model-internal learning mechanism updates the
 weights that carry memory.
 
-The external world may provide ordinary inputs through `PiroInput`. The model
+The external world may provide ordinary inputs through `Observation`. `PiroInput` is the implementation-level data object used to represent that boundary. The model
 itself does not need to classify an input as a “later consequence” at the API
 boundary. If an input becomes relevant to a prior prediction, that relation is
 computed by the model’s internal learning mechanism.
@@ -35,8 +35,10 @@ flowchart LR
     classDef external fill:#f2ddff,stroke:#7a3f9b,color:#32153f,stroke-width:1.5px
     classDef control fill:#fff0d9,stroke:#a85b00,color:#4d2900,stroke-width:1.5px
 
-    X[External world / user / tools / environment]:::external --> I[PiroInput]:::external
-    I -->|PiroInput| E[Embed(PiroInput)]:::current
+    X[External world / user / tools / environment]:::external --> I[Observation]:::external
+
+    subgraph PIRO[Piro model]
+        I -->|observation| E[Embed]:::current
     E -->|x| S[InitializeOrRetrieveState]:::proposed
     W[Weights]:::proposed -->|weights| S
     S -->|h₀| A[Attention]:::current
@@ -68,6 +70,8 @@ flowchart LR
     V -->|value signal| Pc
     Ha -->|learning signals| Pc
     Pc -->|updated weights| W
+    end
+
     O --> X
 ```
 
@@ -79,7 +83,7 @@ method-shaped node represents one invocation, and every incoming edge is one of
 that invocation's arguments or control inputs:
 
 ```text
-x = Embed(PiroInput)
+x = Embed(Observation)
 
 h₀ = InitializeOrRetrieveState(x, weights)
 
@@ -134,7 +138,7 @@ tool-call history.
 
 ## Input embedding contract
 
-`PiroInput` is the boundary between the API and the neural model. The embedding
+`Observation` is the conceptual boundary between the API and the neural model. `PiroInput` is the implementation-level data object that normalizes that boundary. The embedding
 stage does not treat every modality as a text token sequence. It routes each part
 through a modality-specific encoder, then aligns the resulting features into a
 shared representation for the CTM.
@@ -160,9 +164,9 @@ features into a representation their shared reasoning backbone can consume.
 
 ## Reading the diagram
 
-### 1. PiroInput and encoders are the model boundary
+### 1. Observation and encoders are the model boundary
 
-`PiroInput` is the structured multimodal object defined by the API. Modality-
+`Observation` is the structured multimodal input presented by the API. The implementation represents it as `PiroInput`. Modality-
 specific encoders convert its parts into a shared representation without
 requiring every input to become a text token sequence.
 
@@ -211,7 +215,7 @@ the persistent components that make the behavior possible.
 
 | Component | Role | Architectural question |
 | --- | --- | --- |
-| PiroInput boundary | Structured multimodal input | Which modalities and metadata are canonical? |
+| Observation boundary | Structured multimodal input | Which modalities and metadata are canonical? |
 | Modality-specific encoders | Convert each input type into features | Which frontends can be trained jointly with the CTM? |
 | Shared Piro representation | Align features across modalities | How should modality boundaries and timing be preserved? |
 | Stateful CTM | Recurrent thought dynamics | How do repeated ticks improve reasoning and control? |
