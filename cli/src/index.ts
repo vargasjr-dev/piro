@@ -23,8 +23,13 @@ import {
   reposLink,
   reposUse,
 } from "./commands/repos.js";
-import { sourcesList, sourcesGet, sourcesGenerate } from "./commands/sources.js";
+import {
+  sourcesList,
+  sourcesGet,
+  sourcesGenerate,
+} from "./commands/sources.js";
 import { datasetHead, datasetsList, datasetsGet } from "./commands/datasets.js";
+import { architectureTrain } from "./commands/architectures.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -61,6 +66,9 @@ function usage(msg?: string): never {
   console.error("  piro datasets list");
   console.error("  piro datasets get <id>");
   console.error("  piro dataset head <id>");
+  console.error(
+    "  piro architecture train <name> --dataset <id> [--epochs <n>] [--name <model-name>]",
+  );
   process.exit(msg ? 1 : 0);
 }
 
@@ -140,6 +148,25 @@ switch (subject) {
       }
       default:
         usage(`unknown datasets verb: ${verb}`);
+    }
+    break;
+
+  case "architecture":
+    switch (verb) {
+      case "train": {
+        const name = arg(rest, 0);
+        if (!name) usage("architecture name is required");
+        const dataset = opt(rest, "dataset");
+        if (!dataset) usage("--dataset is required for train");
+        await architectureTrain(name, {
+          dataset,
+          epochs: opt(rest, "epochs"),
+          modelName: opt(rest, "name"),
+        });
+        break;
+      }
+      default:
+        usage(`unknown architecture verb: ${verb}`);
     }
     break;
 

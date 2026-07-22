@@ -1,17 +1,28 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../data/db";
-import { trainingRun, dataset, subscription } from "../../../../data/schema";
+import {
+  trainingRun,
+  dataset,
+  subscription,
+  user,
+} from "../../../../data/schema";
+import { extractBearer, validateApiKey } from "~/lib/api-auth";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { getSubscription, isActive, hasTrainingRunsRemaining } from "~/lib/billing";
+import {
+  getSubscription,
+  isActive,
+  hasTrainingRunsRemaining,
+} from "~/lib/billing";
 import { isAdmin } from "~/lib/admin";
 
 // ── GET /api/training-runs ────────────────────────────────────────────────────
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const runs = await db
     .select()
@@ -50,17 +61,39 @@ interface CreateBody {
   modelName?: string;
 }
 
-export async function POST(request: Request) {
+async function resolveAuth(
+  request: Request,
+): Promise<{ userId: string; isAdmin: boolean } | null> {
+  const bearer = extractBearer(request);
+  if (bearer) {
+    const keyAuth = await validateApiKey(bearer);
+    if (keyAuth?.userId) {
+      const [account] = await db
+        .select({ role: user.role })
+        .from(user)
+        .where(eq(user.id, keyAuth.userId))
+        .limit(1);
+      return { userId: keyAuth.userId, isAdmin: account?.role === "admin" };
+    }
+  }
+
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return null;
+  return { userId: session.user.id, isAdmin: isAdmin(session) };
+}
+
+export async function POST(request: Request) {
+  const resolvedAuth = await resolveAuth(request);
+  if (!resolvedAuth)
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   // ── Subscription + quota check ────────────────────────────────────────────
-  const adminBypass = isAdmin(session);
-  const sub = await getSubscription(session.user.id);
+  const adminBypass = resolvedAuth.isAdmin;
+  const sub = await getSubscription(resolvedAuth.userId);
   if (!isActive(sub) && !adminBypass) {
     return Response.json(
       { error: "Active subscription required to start a training run" },
-      { status: 402 }
+      { status: 402 },
     );
   }
   if (!adminBypass && !hasTrainingRunsRemaining(sub)) {
@@ -68,7 +101,7 @@ export async function POST(request: Request) {
       {
         error: `Training run quota reached (${sub!.trainingRunsUsed}/${sub!.trainingRunsLimit} this period). Upgrade or wait until your next billing period.`,
       },
-      { status: 429 }
+      { status: 429 },
     );
   }
 
@@ -82,14 +115,19 @@ export async function POST(request: Request) {
   const { architecturePath, datasetId, epochs = 10, modelName } = body;
 
   if (!architecturePath || !datasetId) {
-    return Response.json({ error: "architecturePath and datasetId are required" }, { status: 400 });
+    return Response.json(
+      { error: "architecturePath and datasetId are required" },
+      { status: 400 },
+    );
   }
 
   // Verify the dataset belongs to the user
   const [ds] = await db
     .select()
     .from(dataset)
-    .where(and(eq(dataset.id, datasetId), eq(dataset.userId, session.user.id)))
+    .where(
+      and(eq(dataset.id, datasetId), eq(dataset.userId, resolvedAuth.userId)),
+    )
     .limit(1);
 
   if (!ds) {
@@ -101,7 +139,7 @@ export async function POST(request: Request) {
 
   await db.insert(trainingRun).values({
     id,
-    userId: session.user.id,
+    userId: resolvedAuth.userId,
     repositoryId: ds.repositoryId,
     modelName: modelName?.trim() || null,
     architecturePath,
@@ -119,7 +157,7 @@ export async function POST(request: Request) {
         trainingRunsUsed: sql`${subscription.trainingRunsUsed} + 1`,
         updatedAt: new Date(),
       })
-      .where(eq(subscription.userId, session.user.id));
+      .where(eq(subscription.userId, resolvedAuth.userId));
   }
 
   // ── Trigger Modal training worker ─────────────────────────────────────────
@@ -146,7 +184,9 @@ export async function POST(request: Request) {
       console.error("[training] Modal trigger failed:", err);
     }
   } else {
-    console.warn("[training] MODAL_TRAINING_ENDPOINT not set — run will stay queued");
+    console.warn(
+      "[training] MODAL_TRAINING_ENDPOINT not set — run will stay queued",
+    );
   }
 
   return Response.json({ id }, { status: 201 });

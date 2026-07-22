@@ -124,6 +124,7 @@ class Trainer:
         from piro.trainer import Trainer as _Trainer, TrainerConfig, EpochMetrics
         from piro.ctm import ContinuousThoughtModel, CTMConfig
         from piro.baseline_transformer import BaselineTransformer, TransformerConfig
+        from model.memory_encoding import memory_embedding
 
         # Expose to run()
         self._torch = torch
@@ -135,6 +136,7 @@ class Trainer:
         self._CTMConfig = CTMConfig
         self._BaselineTransformer = BaselineTransformer
         self._TransformerConfig = TransformerConfig
+        self._memory_embedding = memory_embedding
 
         # Configs
         self._ctm_cfg = CTMConfig(
@@ -151,6 +153,14 @@ class Trainer:
             ffn_dim=6,
             n_layers=2,
             n_classes=5,
+        )
+        self._memory_ctm_cfg = CTMConfig(
+            n_neurons=4,
+            embed_dim=8,
+            query_dim=8,
+            value_dim=8,
+            hidden_dim=16,
+            n_classes=32,
         )
 
         print("[piro] container ready — torch + model code loaded")
@@ -178,25 +188,48 @@ class Trainer:
         torch = self._torch
 
         def _build_dataset(n: int, split: str) -> list:
-            if data_source != "sorting-sequences" or not dataset_r2_prefix.rstrip("/").endswith("/sorting-sequences"):
-                raise ValueError(
-                    "the legacy Modal tensor trainer only supports the repository "
-                    "sorting-sequences dataset; associative-recall requires the "
-                    "dedicated stateful runner"
+            if data_source == "sorting-sequences" and dataset_r2_prefix.rstrip("/").endswith("/sorting-sequences"):
+                seqs = self._generate_sorting_dataset(
+                    n=n, length=self._ctm_cfg.n_neurons, seed=seed, split=split
                 )
-            seqs = self._generate_sorting_dataset(
-                n=n, length=self._ctm_cfg.n_neurons, seed=seed, split=split
-            )
-            samples = []
-            for seq in seqs:
-                numbers = list(seq.sequence)
-                emb = torch.zeros(self._ctm_cfg.n_neurons, self._ctm_cfg.embed_dim)
-                for i, val in enumerate(numbers):
-                    idx = min(val, self._ctm_cfg.embed_dim - 1)
-                    emb[i, idx] = 1.0
-                label = numbers.index(min(numbers))
-                samples.append((emb, label))
-            return samples
+                samples = []
+                for seq in seqs:
+                    numbers = list(seq.sequence)
+                    emb = torch.zeros(self._ctm_cfg.n_neurons, self._ctm_cfg.embed_dim)
+                    for i, val in enumerate(numbers):
+                        idx = min(val, self._ctm_cfg.embed_dim - 1)
+                        emb[i, idx] = 1.0
+                    label = numbers.index(min(numbers))
+                    samples.append((emb, label))
+                return samples
+
+            if data_source != "associative-recall":
+                raise ValueError(
+                    "the Modal trainer supports sorting-sequences and associative-recall datasets"
+                )
+
+            r2 = _r2_client(os)
+            key = f"{dataset_r2_prefix.rstrip('/')}/train.jsonl"
+            response = r2.get_object(Bucket=R2_BUCKET, Key=key)
+            records = [json.loads(line) for line in response["Body"].read().decode("utf-8").splitlines() if line.strip()]
+            episodes = []
+            for record in records:
+                inputs = record.get("inputs")
+                if not isinstance(inputs, list) or len(inputs) != 3:
+                    raise ValueError("associative-recall records must contain exactly three inputs")
+                texts = [item["parts"][0]["text"] for item in inputs]
+                writes, distractors, query = texts
+                target = next((line for line in writes.splitlines() if line.startswith(f"{query} = ")), None)
+                if target is None:
+                    raise ValueError(f"no write found for query {query!r}")
+                value = target.split("=", maxsplit=1)[1].strip()
+                episodes.append((writes, distractors, query, value))
+            if not episodes:
+                raise ValueError("associative-recall dataset is empty")
+            split_at = max(1, int(len(episodes) * 0.8))
+            if split == "train":
+                return episodes[:split_at]
+            return episodes[split_at:] or episodes[:1]
 
         # ── DB ────────────────────────────────────────────────────────────────
         conn = psycopg2.connect(os.environ["DATABASE_URL"])
@@ -220,8 +253,13 @@ class Trainer:
             random.seed(seed)
             torch.manual_seed(seed)
 
+            if data_source == "associative-recall" and model_template != "ctm":
+                raise ValueError(
+                    "associative-recall training requires the stateful ctm architecture"
+                )
+
             if model_template == "ctm":
-                cfg = self._ctm_cfg
+                cfg = self._memory_ctm_cfg if data_source == "associative-recall" else self._ctm_cfg
                 model = self._ContinuousThoughtModel(cfg)
                 config_dict = {
                     "template": "ctm",
@@ -261,14 +299,70 @@ class Trainer:
             # ── Train with per-epoch progress + timing writes ─────────────────
             trainer_cfg = self._TrainerConfig(epochs=epochs, seed=seed, log_every=0)
             trainer = self._Trainer(model, trainer_cfg)
+            optimizer = torch.optim.Adam(model.parameters(), lr=trainer_cfg.lr, weight_decay=trainer_cfg.weight_decay)
             history = []
+
+            def _memory_prediction(episode: tuple[str, str, str, str], *, train_mode: bool):
+                import torch.nn.functional as F
+
+                writes, distractors, query, value = episode
+                model.reset()
+                for observation in writes.splitlines() + distractors.splitlines():
+                    if not observation.strip():
+                        continue
+                    model(
+                        self._memory_embedding(
+                            observation,
+                            cfg.embed_dim,
+                            torch_module=torch,
+                            dtype=next(model.parameters()).dtype,
+                            device=next(model.parameters()).device,
+                        ),
+                        preserve_graph=train_mode,
+                    )
+                output = model(
+                    self._memory_embedding(
+                        f"QUERY:{query}",
+                        cfg.embed_dim,
+                        torch_module=torch,
+                        dtype=next(model.parameters()).dtype,
+                        device=next(model.parameters()).device,
+                    ),
+                    preserve_graph=train_mode,
+                )
+                logits = output.logits if hasattr(output, "logits") else output
+                target = int(value.removeprefix("value_"))
+                return logits, target, F.cross_entropy(logits.unsqueeze(0), torch.tensor([target], device=logits.device))
+
+            def _memory_epoch(data: list, *, train_mode: bool) -> tuple[float, float]:
+                total_loss = 0.0
+                correct = 0
+                model.train(train_mode)
+                for episode in data:
+                    if train_mode:
+                        optimizer.zero_grad()
+                    context = torch.enable_grad() if train_mode else torch.no_grad()
+                    with context:
+                        logits, target, loss = _memory_prediction(episode, train_mode=train_mode)
+                    if train_mode:
+                        loss.backward()
+                        optimizer.step()
+                    total_loss += float(loss.detach())
+                    correct += int(int(logits.argmax().item()) == target)
+                    model.reset()
+                count = max(1, len(data))
+                return total_loss / count, correct / count
 
             for epoch in range(1, epochs + 1):
                 epoch_start = datetime.now(timezone.utc)
 
-                train_data_copy = list(train_data)
-                train_loss = trainer._train_epoch(train_data_copy)
-                val_loss, val_acc = trainer._eval_epoch(val_data)
+                if data_source == "associative-recall":
+                    train_loss, _ = _memory_epoch(train_data, train_mode=True)
+                    val_loss, val_acc = _memory_epoch(val_data, train_mode=False)
+                else:
+                    train_data_copy = list(train_data)
+                    train_loss = trainer._train_epoch(train_data_copy)
+                    val_loss, val_acc = trainer._eval_epoch(val_data)
 
                 epoch_end = datetime.now(timezone.utc)
                 duration_ms = int((epoch_end - epoch_start).total_seconds() * 1000)

@@ -20,6 +20,25 @@ repository so generated artifacts are tracked by the platform.
 
 # Piro
 
+## Train an architecture from the CLI
+
+Start a training run against a generated dataset owned by the active API key:
+
+```bash
+piro architecture train ctm \
+  --dataset <dataset-id> \
+  --epochs 20 \
+  --name ashfall-ctm
+```
+
+The architecture argument is a repository architecture name. Bare names resolve
+under `architectures/`; experiment-scoped paths can be passed explicitly, such
+as `experiments/ashfall/architectures/ctm`. `--dataset` is required so a run
+never silently trains against the wrong generated artifact.
+
+The command returns the queued training-run ID. Use `piro datasets get <id>`
+to inspect the dataset and the web application to follow run progress.
+
 > Open source model development framework, built on PyTorch.
 
 Piro is to PyTorch what Next.js is to React — a framework that gives you structure, conventions, and a platform to deploy to.
@@ -76,8 +95,9 @@ print(episode.query_prompt, "→", episode.answer)
 ```
 
 The persistent-memory benchmark sends those prompts as separate invocations
-through a stateful model protocol. It intentionally does not pass these
-episodes to the legacy single-call tensor trainer.
+through a stateful model protocol. The Modal training worker uses the same
+write, distractor, and query boundaries when the dataset is
+`associative-recall`.
 
 ### Deploy to the platform
 
@@ -91,10 +111,8 @@ piro classes push <class-id> --file model.py
 # Generate the repository-defined source from the Piro source page
 # (the source lives at sources/associative-recall/main.py)
 
-# The legacy tensor trainer remains available for sorting-sequences.
-# Persistent-memory training requires the stateful runner described in
-# docs/research-persistent-memory.md.
-piro train --architecture architectures/ctm --dataset <dataset-id> --epochs 20
+# Train an architecture through the platform CLI.
+piro architecture train ctm --dataset <dataset-id> --epochs 20
 
 # Run the dedicated stateful persistent-memory benchmark
 python model/run_persistent_memory.py --episodes 200 --delay 8 --writes 3
