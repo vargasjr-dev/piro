@@ -1,14 +1,12 @@
-"""Persistent write/query memory episodes.
+"""Persistent associative-recall episodes as ordered PiroInput packets.
 
-Each episode has three explicit invocation boundaries:
+Each episode has three invocation boundaries: a key/value observation, a
+distractor observation, and a key-only observation. The public JSONL contract
+intentionally exposes only ``{"inputs": PiroInput[]}``; semantic roles are
+inferable from observation content and ordering rather than role fields.
 
-1. ``WRITE`` stores key/value facts.
-2. ``DISTRACT`` creates a delay without exposing the target answer.
-3. ``QUERY`` asks for one value after the write context is gone.
-
-The generator deliberately returns the three prompts separately. A benchmark
-must not concatenate them into one context window, or it stops measuring
-persistent memory and becomes ordinary sequence completion.
+Each PiroInput follows the architecture-page observation contract:
+``{"parts": [{"type": "text", "text": "..."}]}``.
 """
 
 from __future__ import annotations
@@ -17,13 +15,17 @@ import argparse
 import json
 import random
 from dataclasses import dataclass
-from typing import Iterable
 
 
 @dataclass(frozen=True)
 class MemoryFact:
     key: str
     value: str
+
+
+def _text_input(text: str) -> dict[str, object]:
+    """Serialize one text observation using the documented PiroInput shape."""
+    return {"parts": [{"type": "text", "text": text}]}
 
 
 @dataclass(frozen=True)
@@ -35,25 +37,29 @@ class MemoryEpisode:
     metadata: dict[str, int | str]
 
     @property
-    def write_prompt(self) -> str:
-        return "\n".join(f"WRITE {fact.key} {fact.value}" for fact in self.writes)
+    def write_observation(self) -> str:
+        return "\n".join(f"{fact.key} = {fact.value}" for fact in self.writes)
 
     @property
-    def distractor_prompt(self) -> str:
-        return "\n".join(f"DISTRACT {item}" for item in self.distractors)
+    def distractor_observation(self) -> str:
+        return "\n".join(self.distractors)
 
     @property
-    def query_prompt(self) -> str:
-        return f"QUERY {self.target_key}"
+    def query_observation(self) -> str:
+        return self.target_key
+
+    @property
+    def inputs(self) -> tuple[dict[str, object], ...]:
+        """Return ordered role-free PiroInput observation packets."""
+        return (
+            _text_input(self.write_observation),
+            _text_input(self.distractor_observation),
+            _text_input(self.query_observation),
+        )
 
     def as_json(self) -> dict[str, object]:
-        return {
-            "write": self.write_prompt,
-            "distractors": self.distractor_prompt,
-            "query": self.query_prompt,
-            "label": self.answer,
-            "metadata": self.metadata,
-        }
+        """Return the public JSONL record with no schema-level role labels."""
+        return {"inputs": list(self.inputs)}
 
 
 def _choose_range(value: int | tuple[int, int], rng: random.Random) -> int:
@@ -112,7 +118,7 @@ def generate_associative_recall_dataset(
     split: str = "train",
     value_count: int = 32,
 ) -> list[MemoryEpisode]:
-    """Generate reproducible write/delay/query episodes."""
+    """Generate reproducible ordered PiroInput recall episodes."""
     if n < 0:
         raise ValueError("n must be non-negative")
     episodes: list[MemoryEpisode] = []

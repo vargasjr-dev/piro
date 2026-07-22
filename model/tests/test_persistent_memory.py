@@ -14,11 +14,16 @@ class FakeMemoryModel:
 
     def step(self, prompt, state):
         for line in prompt.splitlines():
-            parts = line.split()
-            if parts and parts[0] == "WRITE":
-                state.memory[parts[1]] = parts[2]
-            if parts and parts[0] == "QUERY":
-                return state.memory.get(parts[1], "UNKNOWN"), state
+            observation = line.strip()
+            if not observation:
+                continue
+            if "=" in observation:
+                key, value = (part.strip() for part in observation.split("=", maxsplit=1))
+                state.memory[key] = value
+            elif observation.startswith("token_"):
+                continue
+            else:
+                return state.memory.get(observation, "UNKNOWN"), state
         return "", state
 
     def reset_state(self, state):
