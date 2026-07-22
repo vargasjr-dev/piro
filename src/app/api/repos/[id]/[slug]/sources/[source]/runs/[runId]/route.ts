@@ -12,7 +12,7 @@ export async function GET(
     params,
   }: {
     params: Promise<{
-      username: string;
+      id: string;
       slug: string;
       source: string;
       runId: string;
@@ -23,7 +23,7 @@ export async function GET(
   if (!session)
     return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { username, slug, runId } = await params;
+  const { id: username, slug, runId } = await params;
   const context = await getRepositoryContext(username, slug);
   if (!context)
     return Response.json({ error: "Repository not found" }, { status: 404 });

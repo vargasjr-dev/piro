@@ -14,10 +14,10 @@ export async function POST(
   {
     params,
   }: {
-    params: Promise<{ username: string; slug: string; architecture: string }>;
+    params: Promise<{ id: string; slug: string; architecture: string }>;
   },
 ) {
-  const { username, slug, architecture: encodedArchitecture } = await params;
+  const { id: username, slug, architecture: encodedArchitecture } = await params;
   const architectureName = decodeURIComponent(encodedArchitecture);
   const body = (await request.json().catch(() => null)) as {
     token?: string;

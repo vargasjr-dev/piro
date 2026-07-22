@@ -15,7 +15,7 @@ export async function GET(
     params,
   }: {
     params: Promise<{
-      username: string;
+      id: string;
       slug: string;
       source: string;
       runId: string;
@@ -25,7 +25,7 @@ export async function GET(
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return new Response("Unauthorized", { status: 401 });
 
-  const { username, slug, runId } = await params;
+  const { id: username, slug, runId } = await params;
   const context = await getRepositoryContext(username, slug);
   if (!context || context.owner.id !== session.user.id)
     return new Response("Not found", { status: 404 });

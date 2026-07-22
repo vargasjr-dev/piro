@@ -16,14 +16,14 @@ export async function POST(
   {
     params,
   }: {
-    params: Promise<{ username: string; slug: string; benchmark: string }>;
+    params: Promise<{ id: string; slug: string; benchmark: string }>;
   },
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session)
     return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { username, slug, benchmark: encodedBenchmark } = await params;
+  const { id: username, slug, benchmark: encodedBenchmark } = await params;
   const benchmarkName = decodeURIComponent(encodedBenchmark);
   const context = await getRepositoryContext(username, slug);
   if (!context)

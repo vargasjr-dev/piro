@@ -12,14 +12,14 @@ export async function GET(
   {
     params,
   }: {
-    params: Promise<{ username: string; slug: string; source: string }>;
+    params: Promise<{ id: string; slug: string; source: string }>;
   },
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session)
     return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { username, slug, source: encodedSource } = await params;
+  const { id: username, slug, source: encodedSource } = await params;
   const sourceName = decodeURIComponent(encodedSource);
   const context = await getRepositoryContext(username, slug);
   if (!context)
