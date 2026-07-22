@@ -426,7 +426,7 @@ class ContinuousThoughtModel(PiroModel):
         if self._state.oscillator and "phases" in snapshot:
             self._state.oscillator.phases.copy_(snapshot["phases"])
 
-    def _activation(self, current_input: torch.Tensor) -> torch.Tensor:
+    def _activation(self, current_input: torch.Tensor, *, preserve_graph: bool = False) -> torch.Tensor:
         activations = self.neurons(current_input)
         if self._state.plastic and self._state.previous_activations is not None:
             activations = self._state.plastic.apply(activations, self._state.previous_activations)
@@ -436,14 +436,22 @@ class ContinuousThoughtModel(PiroModel):
         if self._state.burst:
             self._state.burst.tick(activations)
             activations = self._state.burst.weighting(activations)
-        self._state.previous_activations = activations.detach().clone()
+        self._state.previous_activations = (
+            activations if preserve_graph else activations.detach().clone()
+        )
         self._state.history.push(activations)
         return activations
 
-    def forward(self, embeddings: torch.Tensor, *, reset: bool = False) -> CTMOutput:
+    def forward(
+        self,
+        embeddings: torch.Tensor,
+        *,
+        reset: bool = False,
+        preserve_graph: bool = False,
+    ) -> CTMOutput:
         if reset:
             self.reset()
-        else:
+        elif not preserve_graph:
             self._state.history.begin_invocation()
             if self._state.previous_activations is not None:
                 self._state.previous_activations = self._state.previous_activations.detach().clone()
@@ -454,9 +462,9 @@ class ContinuousThoughtModel(PiroModel):
         current_input = embeddings[0]
         for row in embeddings:
             current_input = row
-            self._activation(current_input)
+            self._activation(current_input, preserve_graph=preserve_graph)
         while not self._state.history.is_warm:
-            self._activation(current_input)
+            self._activation(current_input, preserve_graph=preserve_graph)
 
         confidence = torch.tensor(0.0, device=embeddings.device)
         converged = False
@@ -469,7 +477,7 @@ class ContinuousThoughtModel(PiroModel):
             context = self.attention(sync, current_input)
             sync = correlation_matrix(self._state.history.matrix().to(embeddings.device))
             confidence = self.confidence_head(sync.reshape(1, -1)).squeeze()
-            self._activation(context)
+            self._activation(context, preserve_graph=preserve_graph)
             current_input = context
             if float(confidence) >= self.confidence_threshold:
                 converged = True

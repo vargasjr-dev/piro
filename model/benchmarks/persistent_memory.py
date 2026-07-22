@@ -14,11 +14,11 @@ can be attributed to memory rather than ordinary context processing.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from hashlib import sha256
 from typing import Any, Protocol
 
 from .base import Benchmark, BenchmarkResult
 from model.data.associative_recall import MemoryEpisode, generate_associative_recall_dataset
+from model.memory_encoding import memory_embedding
 
 
 class StatefulMemoryModel(Protocol):
@@ -50,11 +50,14 @@ class CTMStatefulMemoryAdapter:
 
     def _embedding(self, token: str):
         torch = __import__("torch")
-        dimension = self.model.embed_dim
-        digest = sha256(token.encode("utf-8")).digest()
-        values = [((digest[i % len(digest)] / 255.0) * 2.0) - 1.0 for i in range(dimension)]
         parameter = next(self.model.parameters())
-        return torch.tensor(values, dtype=parameter.dtype, device=parameter.device)
+        return memory_embedding(
+            token,
+            self.model.embed_dim,
+            torch_module=torch,
+            dtype=parameter.dtype,
+            device=parameter.device,
+        )
 
     def _run(self, prompt: str) -> str:
         answer = ""
