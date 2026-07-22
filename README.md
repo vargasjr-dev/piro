@@ -1,3 +1,23 @@
+## Experiments, sources, and datasets
+
+Piro research versions live under `experiments/<name>/`, using hurricane-style
+alphabetic names. The first experiment is `ashfall`, with its benchmarks,
+sources, and architectures kept together.
+
+The CLI discovers sources in the current checkout and in the active connected
+Piro repository:
+
+```text
+piro sources list
+piro sources get <name-or-path>
+piro sources generate <name-or-path>
+piro datasets list
+piro datasets get <dataset-id>
+```
+
+Local source discovery is read-only; generation always uses the active Piro
+repository so generated artifacts are tracked by the platform.
+
 # Piro
 
 > Open source model development framework, built on PyTorch.

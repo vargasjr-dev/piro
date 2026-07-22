@@ -9,12 +9,14 @@ export async function ensureRepositoryDataset({
   userId,
   githubRepo,
   sourceName,
+  sourcePath,
   accessToken,
 }: {
   repositoryId: string;
   userId: string;
   githubRepo: GitHubRepositoryRef;
   sourceName: string;
+  sourcePath?: string;
   accessToken?: string | null;
 }) {
   const component = await getRepositoryComponent(
@@ -24,6 +26,7 @@ export async function ensureRepositoryDataset({
     sourceName,
     accessToken,
     AbortSignal.timeout(10_000),
+    sourcePath,
   ).catch(() => null);
   if (!component) return null;
 

@@ -39,7 +39,7 @@ export default async function SourcesPage({
           {components.map((component) => (
             <Link
               key={component.path}
-              href={`${`/repos/${username}/${context.repo.slug}/sources`}/${encodeURIComponent(component.name)}`}
+              href={`${`/repos/${username}/${context.repo.slug}/sources`}/${encodeURIComponent(component.path)}`}
               className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-900/15 bg-amber-900/5 hover:bg-amber-900/10 transition-colors"
             >
               <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-300 flex items-center justify-center shrink-0">

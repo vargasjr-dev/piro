@@ -23,6 +23,8 @@ import {
   reposLink,
   reposUse,
 } from "./commands/repos.js";
+import { sourcesList, sourcesGet, sourcesGenerate } from "./commands/sources.js";
+import { datasetsList, datasetsGet } from "./commands/datasets.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -53,6 +55,11 @@ function usage(msg?: string): never {
   );
   console.error("  piro repos link <id> --github-repository <owner/repo>");
   console.error("  piro repos use <id>");
+  console.error("  piro sources list");
+  console.error("  piro sources get <name>");
+  console.error("  piro sources generate <name>");
+  console.error("  piro datasets list");
+  console.error("  piro datasets get <id>");
   process.exit(msg ? 1 : 0);
 }
 
@@ -81,6 +88,44 @@ switch (subject) {
       }
       default:
         usage(`unknown classes verb: ${verb}`);
+    }
+    break;
+
+  case "sources":
+    switch (verb) {
+      case "list":
+        await sourcesList();
+        break;
+      case "get": {
+        const name = arg(rest, 0);
+        if (!name) usage("source name is required");
+        await sourcesGet(name);
+        break;
+      }
+      case "generate": {
+        const name = arg(rest, 0);
+        if (!name) usage("source name is required");
+        await sourcesGenerate(name);
+        break;
+      }
+      default:
+        usage(`unknown sources verb: ${verb}`);
+    }
+    break;
+
+  case "datasets":
+    switch (verb) {
+      case "list":
+        await datasetsList();
+        break;
+      case "get": {
+        const id = arg(rest, 0);
+        if (!id) usage("dataset id is required");
+        await datasetsGet(id);
+        break;
+      }
+      default:
+        usage(`unknown datasets verb: ${verb}`);
     }
     break;
 
