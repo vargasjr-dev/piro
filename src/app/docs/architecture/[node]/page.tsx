@@ -11,7 +11,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ node: string }> }) {
   const { node } = await params;
-  const title = node === "ctm" ? "CTM core" : node === "embedding" ? "Input embedding" : "Observation";
+  const title = node === "ctm" ? "CTM core" : node === "embedding" ? "Input embedding" : "PiroInput";
   return {
     title: `${title} — Piro Architecture`,
     description: `Zoomed-in architecture diagram for ${title}.`,

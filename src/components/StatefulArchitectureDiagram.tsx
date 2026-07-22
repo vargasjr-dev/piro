@@ -6,15 +6,9 @@ type NodeId =
   | "observation"
   | "embedding"
   | "ctm"
-  | "policy"
-  | "environment"
-  | "prediction"
-  | "eligibility"
-  | "consequence"
-  | "error"
-  | "credit"
-  | "fast"
-  | "consolidation";
+  | "output"
+  | "weights"
+  | "update";
 
 type Tone = "violet" | "green" | "blue" | "orange";
 
@@ -33,125 +27,65 @@ type DiagramNode = {
 const nodes: DiagramNode[] = [
   {
     id: "observation",
-    title: "Observation",
-    lines: ["tokens · tools · world"],
-    x: 24,
-    y: 180,
-    width: 166,
-    height: 92,
+    title: "PiroInput",
+    lines: ["parts + metadata", "stateful input boundary"],
+    x: 36,
+    y: 302,
+    width: 198,
+    height: 108,
     tone: "violet",
     zoomable: true,
   },
   {
     id: "embedding",
     title: "Input embedding",
-    lines: ["semantic representation"],
-    x: 224,
-    y: 180,
-    width: 180,
-    height: 92,
+    lines: ["modality encoders", "shared representation"],
+    x: 286,
+    y: 302,
+    width: 198,
+    height: 108,
     tone: "green",
     zoomable: true,
   },
   {
     id: "ctm",
-    title: "CTM core",
-    lines: ["neuron state · history", "sync attention · thought ticks"],
-    x: 438,
-    y: 148,
-    width: 286,
-    height: 156,
+    title: "Stateful CTM",
+    lines: ["recurrent thought dynamics", "activations · history · attention"],
+    x: 528,
+    y: 196,
+    width: 312,
+    height: 224,
     tone: "green",
     zoomable: true,
   },
   {
-    id: "policy",
-    title: "Policy / output head",
-    lines: ["token · tool call · action"],
-    x: 758,
-    y: 180,
-    width: 196,
-    height: 92,
+    id: "output",
+    title: "Output / action heads",
+    lines: ["text · tool · environment"],
+    x: 866,
+    y: 302,
+    width: 138,
+    height: 108,
     tone: "green",
   },
   {
-    id: "environment",
-    title: "Environment",
-    lines: ["user · tools · tests · game"],
-    x: 988,
-    y: 180,
-    width: 184,
-    height: 92,
-    tone: "violet",
-  },
-  {
-    id: "prediction",
-    title: "Pending prediction",
-    lines: ["what did I expect?"],
-    x: 72,
-    y: 430,
-    width: 210,
-    height: 94,
+    id: "weights",
+    title: "Internal memory",
+    lines: ["plastic weights", "durable weights"],
+    x: 306,
+    y: 548,
+    width: 270,
+    height: 108,
     tone: "blue",
   },
   {
-    id: "eligibility",
-    title: "Eligibility trace",
-    lines: ["which actions can earn credit?"],
-    x: 326,
-    y: 430,
-    width: 222,
-    height: 94,
-    tone: "blue",
-  },
-  {
-    id: "consequence",
-    title: "Later consequence",
-    lines: ["ordinary observation", "from the environment"],
-    x: 592,
-    y: 430,
-    width: 216,
-    height: 94,
-    tone: "violet",
-  },
-  {
-    id: "error",
-    title: "Prediction + value error",
-    lines: ["what happened vs. expected"],
-    x: 852,
-    y: 430,
-    width: 244,
-    height: 94,
-    tone: "orange",
-  },
-  {
-    id: "consolidation",
-    title: "Replay + consolidation",
-    lines: ["repeated evidence → durable learning"],
-    x: 84,
-    y: 622,
-    width: 252,
-    height: 94,
-    tone: "blue",
-  },
-  {
-    id: "credit",
-    title: "Hindsight credit",
-    lines: ["attribute outcomes to decisions"],
-    x: 424,
-    y: 622,
-    width: 238,
-    height: 94,
-    tone: "orange",
-  },
-  {
-    id: "fast",
-    title: "Fast task adaptation",
-    lines: ["belief · plan · value · fast state"],
-    x: 752,
-    y: 622,
-    width: 252,
-    height: 94,
+    id: "update",
+    title: "Learned self-update",
+    lines: ["eligibility · prediction", "plasticity · consolidation"],
+    x: 646,
+    y: 548,
+    width: 296,
+    height: 108,
     tone: "orange",
   },
 ];
@@ -281,10 +215,10 @@ export default function StatefulArchitectureDiagram() {
   return (
     <div className="overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#100c0a] p-3 sm:p-5">
       <svg
-        className="mx-auto block h-auto w-full min-w-[760px]"
+        className="mx-auto block h-auto w-full min-w-[800px]"
         viewBox="0 0 1200 760"
         role="img"
-        aria-label="Piro stateful RL-first model architecture"
+        aria-label="Structural architecture of Piro as a stateful self-updating model"
       >
         <defs>
           <marker id="arrow-gold" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
@@ -301,31 +235,32 @@ export default function StatefulArchitectureDiagram() {
           </marker>
         </defs>
 
-        <path d="M24 92H1172" stroke="rgb(251 191 36 / 0.1)" strokeDasharray="5 10" />
-        <text x="24" y="73" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">ACT / PREDICT</text>
-        <path d="M24 372H1172" stroke="rgb(251 191 36 / 0.1)" strokeDasharray="5 10" />
-        <text x="24" y="353" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">ENCOUNTER CONSEQUENCES</text>
-        <path d="M24 578H1172" stroke="rgb(251 191 36 / 0.1)" strokeDasharray="5 10" />
-        <text x="24" y="559" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">ASSIGN CREDIT / ADAPT / CONSOLIDATE</text>
+        <text x="24" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">STRUCTURAL VIEW · WHAT PIRO IS MADE OF</text>
+        <text x="24" y="72" fill="rgb(253 230 138 / 0.72)" fontSize="15">Piro is a multimodal, stateful CTM whose internal weights serve as memory.</text>
 
-        {arrowPath("M190 226H224", "rgb(251 191 36 / 0.72)")}
-        {arrowPath("M404 226H438", "rgb(251 191 36 / 0.72)")}
-        {arrowPath("M724 226H758", "rgb(251 191 36 / 0.72)")}
-        {arrowPath("M954 226H988", "rgb(251 191 36 / 0.72)")}
+        <text x="36" y="278" fill="rgb(192 132 252 / 0.62)" fontSize="12" letterSpacing="2">EXTERNAL INPUT</text>
+        <text x="1034" y="278" fill="rgb(192 132 252 / 0.62)" fontSize="12" letterSpacing="2">EXTERNAL OUTPUT</text>
 
-        {arrowPath("M581 148V116C581 96 690 96 690 148", "rgb(110 231 183 / 0.72)", { dashed: true })}
-        <text x="585" y="112" fill="rgb(167 243 208 / 0.68)" fontSize="12">repeated internal thought ticks</text>
+        <rect x="252" y="112" width="770" height="610" rx="30" fill="rgb(16 12 10 / 0.4)" stroke="rgb(251 191 36 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
+        <text x="282" y="148" fill="rgb(251 191 36 / 0.68)" fontSize="13" letterSpacing="2">PIRO MODEL</text>
 
-        {arrowPath("M856 272V382H177V430", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        {arrowPath("M856 272V396H437V430", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        {arrowPath("M1080 272V430", "rgb(192 132 252 / 0.72)", { marker: "arrow-violet" })}
-        {arrowPath("M808 477H852", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        {arrowPath("M548 477C548 568 543 568 543 622", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        {arrowPath("M974 524V578H543V622", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        {arrowPath("M437 524V578H210V622", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        {arrowPath("M662 669H752", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        {arrowPath("M1000 622V326H581V304", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
-        {arrowPath("M336 669H424", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <rect x="500" y="162" width="368" height="292" rx="26" fill="rgb(21 42 34 / 0.16)" stroke="rgb(110 231 183 / 0.28)" strokeWidth="1.5" strokeDasharray="7 7" />
+        <text x="524" y="184" fill="rgb(110 231 183 / 0.62)" fontSize="11" letterSpacing="1.8">STATEFUL THOUGHT DYNAMICS</text>
+
+        <text x="306" y="532" fill="rgb(125 211 252 / 0.56)" fontSize="11" letterSpacing="1.5">MEMORY SUBSTRATE</text>
+        <text x="646" y="532" fill="rgb(253 186 116 / 0.62)" fontSize="11" letterSpacing="1.5">MODEL-INTERNAL LEARNING</text>
+
+        {arrowPath("M234 356H286", "rgb(251 191 36 / 0.72)")}
+        {arrowPath("M484 356H528", "rgb(251 191 36 / 0.72)")}
+        {arrowPath("M840 356H866", "rgb(251 191 36 / 0.72)")}
+        {arrowPath("M1004 356H1032", "rgb(192 132 252 / 0.72)", { marker: "arrow-violet" })}
+
+        {arrowPath("M684 420V548", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
+        <text x="700" y="486" fill="rgb(253 186 116 / 0.68)" fontSize="12">internal learning signals</text>
+        {arrowPath("M646 602H576", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
+        <text x="611" y="586" fill="rgb(253 186 116 / 0.68)" fontSize="12" textAnchor="middle">updates weights</text>
+        {arrowPath("M440 548V454", "rgb(125 211 252 / 0.72)", { marker: "arrow-blue" })}
+        <text x="458" y="504" fill="rgb(125 211 252 / 0.68)" fontSize="12">memory shapes dynamics</text>
 
         {nodes.map((node) => (
           <DiagramNodeCard
@@ -334,6 +269,8 @@ export default function StatefulArchitectureDiagram() {
             onClick={() => router.push(`/docs/architecture/${node.id}`)}
           />
         ))}
+
+        <text x="274" y="700" fill="rgb(253 230 138 / 0.62)" fontSize="13">The update rule is part of the model; memory is carried by its changing weights.</text>
       </svg>
     </div>
   );

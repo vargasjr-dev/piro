@@ -6,9 +6,22 @@ and inference-time learning
 
 ## One-sentence thesis
 
-Piro should not need a verifier after every action. It should preserve what it
-expected, continue interacting with the environment, and let later consequences
-update the earlier decisions that were actually eligible for credit.
+Piro is a multimodal, stateful CTM whose internal weights serve as memory and
+whose architecture includes the mechanism that updates those weights.
+
+## Structural architecture
+
+The main diagram describes what Piro is made of, rather than narrating a
+particular sequence of moments. `PiroInput` is the external input boundary;
+modality-specific encoders produce a shared representation; the stateful CTM
+performs recurrent thought dynamics; output heads expose text, tool, and
+environment actions; and the model-internal learning mechanism updates the
+weights that carry memory.
+
+The external world may provide ordinary inputs through `PiroInput`. The model
+itself does not need to classify an input as a “later consequence” at the API
+boundary. If an input becomes relevant to a prior prediction, that relation is
+computed by the model’s internal learning mechanism.
 
 ## Diagram
 
@@ -21,59 +34,50 @@ flowchart LR
     classDef external fill:#f2ddff,stroke:#7a3f9b,color:#32153f,stroke-width:1.5px
     classDef boundary fill:#f7f7f7,stroke:#777,color:#222,stroke-dasharray:5 5
 
-    subgraph OBS[Observation and action loop]
-        I[Observation / current multimodal input]:::external --> E[Input embedding]:::current
-        E --> C
+    subgraph PIRO[Piro model]
+        I[PiroInput / parts + metadata]:::external --> E[Modality-specific input encoders]:::current
+        E --> R[Shared Piro representation]:::current
+        R --> C
 
-        subgraph C[CTM core — repeated internal thought ticks]
+        subgraph C[Stateful CTM]
             direction TB
-            N[Neuron state update]:::current
-            H[History buffer]:::current
+            N[Recurrent neural dynamics]:::current
+            H[Working activations and history]:::current
             S[Sync-driven attention]:::current
-            R[Residual tick update]:::current
-            N --> H --> S --> R --> N
-            T[Adaptive tick controller]:::proposed -. decides whether to continue .-> R
+            T[Repeated thought ticks]:::current
+            N --> H --> S --> T --> N
         end
 
-        C --> P[Policy / output head]:::current
-        P --> A[Action: token, tool call, or environment action]:::external
-        A --> ENV
+        C --> O[Output / action heads]:::current
+        O --> X[Text · tool · environment outputs]:::external
+
+        subgraph MEM[Internal memory substrate]
+            direction TB
+            F[Plastic weights]:::proposed
+            D[Durable weights]:::proposed
+            F --> D
+        end
+
+        subgraph LEARN[Learned self-update mechanism]
+            direction TB
+            P[Prediction and value signals]:::learning
+            Q[Eligibility and credit signals]:::learning
+            U[Plasticity and consolidation rules]:::learning
+            P --> U
+            Q --> U
+        end
+
+        C -. internal signals .-> P
+        C -. internal signals .-> Q
+        U --> F
+        F -. shapes dynamics .-> C
+        D -. shapes dynamics .-> C
     end
 
-    subgraph ENV[Environment]
-        W[World / user / tools / tests / game]:::external
-        O[Later observation and consequence]:::external
-        W --> O
-    end
-
-    A -. records expectation .-> X[Pending prediction record]:::proposed
-    A -. leaves eligibility .-> Q[Eligibility trace]:::proposed
-    O --> D[Prediction error + value error]:::learning
-    O --> M[Episodic experience memory]:::proposed
-
-    X --> D
-    Q --> G[Hindsight credit attribution]:::learning
-    D --> G
-    M --> G
-
-    subgraph ADAPT[Online adaptation — state changes during the task]
-        G --> F[Fast policy / world-model adapter]:::learning
-        F --> C
-        F --> P
-        G --> B[Belief, plan, and value state]:::proposed
-        B --> C
-        B --> P
-    end
-
-    subgraph CONS[Slow consolidation — across tasks]
-        M --> Y[Replay and repeated-evidence filter]:::proposed
-        G --> Y
-        Y --> Z[Slow weight update / new training data]:::learning
-        Z -. periodic consolidation .-> C
-    end
-
-    class OBS,ENV boundary
+    W[External world / user / tools / environment]:::external --> I
+    X --> W
 ```
+
 
 ## Observation input contract
 
@@ -130,87 +134,77 @@ features into a representation their shared reasoning backbone can consume.
 
 ## Reading the diagram
 
-### 1. The black/green path is the model we already have
+### 1. PiroInput and encoders are the model boundary
 
-The CTM core repeatedly updates neuron state, retains short-term
-history, computes synchronization-driven attention, and emits an output after
-one or more internal ticks. That is the part we can continue to benchmark today.
+`PiroInput` is the structured multimodal object defined by the API. Modality-
+specific encoders convert its parts into a shared representation without
+requiring every input to become a text token sequence.
 
-The exact current implementation is in `scratch/ctm_model.py`. The architecture
-serializer in `piro/schema.py` is the existing mechanism for exposing model
-structure to the Piro UI.
+### 2. The Stateful CTM is the reasoning substrate
 
-### 2. The blue path is per-task state, not permanent learning
+The CTM contains recurrent neural dynamics, working activations, history,
+sync-driven attention, and repeated internal thought ticks. This is where the
+model turns the shared representation into evolving internal activity.
 
-The model needs state that changes while it is solving one task:
+### 3. Internal memory is made of weights
 
-- **Belief state** — what the agent currently thinks is happening.
-- **Plan/value state** — what it is trying to achieve and which futures look good.
-- **Pending prediction record** — what it expected an action to cause.
-- **Eligibility trace** — which recent decisions are still candidates for later
-  credit.
-- **Fast adapter** — optional small parameter/state changes that let the policy
-  adapt during the task.
+Memory is not a required external database or a separate cognitive sidecar. The
+model contains weight substrates with different update timescales:
 
-This state should be isolated by task, user, or environment. It must not be
-silently shared between unrelated agents.
+- **Plastic weights** can adapt quickly while Piro is interacting with a task.
+- **Durable weights** change more slowly as useful patterns are consolidated.
 
-### 3. The orange path is delayed learning
+The exact implementation may use different parameterizations, but structurally
+both are part of Piro’s own learned state.
 
-The environment does not need to return a scalar reward immediately. It can
-return ordinary observations and consequences. Piro compares those consequences
-with its earlier predictions:
+### 4. Self-update is part of Piro’s design
+
+The learned self-update mechanism receives internal prediction, value,
+eligibility, and credit signals. It determines how plasticity and consolidation
+modify the model’s weights. This is different from a conventional deployed
+frontier model whose optimizer is external and whose weights remain fixed during
+ordinary use.
+
+An incoming `PiroInput` does not intrinsically identify itself as a “later
+consequence.” If the model later finds that an input is relevant to a prior
+prediction, that relationship is inferred by the self-update mechanism.
+
+### 5. The structural diagram is not the learning timeline
+
+A separate delayed-credit experiment can still study:
 
 ```text
-prediction error = what happened - what was expected
-value error      = future utility discovered - future utility predicted
+input → internal prediction → output → more input → credit assignment
 ```
 
-The **hindsight credit attribution** stage asks which earlier actions likely
-caused the discrepancy. It should combine temporal eligibility with causal or
-counterfactual evidence instead of reinforcing every token in an episode equally.
-
-### 4. Memory and weights have different jobs
-
-The first version should keep these separate:
-
-| Destination | What it stores | Timescale |
-| --- | --- | --- |
-| Belief / plan state | Current situation and active intent | ticks to minutes |
-| Fast adapter | Temporary policy or world-model adaptation | one task/session |
-| Episodic memory | Concrete action → consequence experiences | sessions to months |
-| Slow weights | Repeated, generalizable patterns | periodic training |
-
-The model should not immediately rewrite its durable weights after one surprising
-outcome. A repeated-evidence filter and replay stage should be able to reject,
-merge, or reverse weak updates.
+But that sequence is a behavioral explanation. The top-level architecture shows
+the persistent components that make the behavior possible.
 
 ## Model components
 
 | Component | Role | Architectural question |
 | --- | --- | --- |
-| Input embedding and output head | Core | How do we move from embedding classification to token/action generation? |
-| CTM neuron state and repeated ticks | Core | Does deeper internal ticking improve held-out reasoning? |
-| History and sync-driven attention | Core | What state should survive between ticks versus episodes? |
-| Adaptive tick controller | State | Can confidence or prediction uncertainty choose compute depth? |
-| Belief/value state | State | Is this a recurrent latent state, explicit tokens, or both? |
-| Pending prediction records | State | What should be predicted: observations, utility, or both? |
-| Eligibility traces | State | Which trace representation is stable for token-level actions? |
-| Hindsight credit attribution | State | Can we learn useful attribution without an external verifier? |
-| Fast policy/world-model adapter | State | Should this be fast weights, LoRA, or a recurrent memory module? |
-| Episodic experience memory | State | What is the write policy and retrieval key? |
-| Slow consolidation | State | What evidence threshold promotes an experience into durable learning? |
+| PiroInput boundary | Structured multimodal input | Which modalities and metadata are canonical? |
+| Modality-specific encoders | Convert each input type into features | Which frontends can be trained jointly with the CTM? |
+| Shared Piro representation | Align features across modalities | How should modality boundaries and timing be preserved? |
+| Stateful CTM | Recurrent thought dynamics | How do repeated ticks improve reasoning and control? |
+| Plastic weights | Fast internal memory | What should be eligible for rapid update? |
+| Durable weights | Long-term internal memory | What evidence warrants slower consolidation? |
+| Learned self-update | Controls weight changes | How should prediction, value, eligibility, and credit shape plasticity? |
+| Output / action heads | Emit text, tool, and environment actions | How should one shared state support multiple output types? |
+
 
 ## Proposed first experiment
 
-Do not begin with a full language model or full online weight mutation. Start
-with a small environment where consequences are delayed but measurable:
+Do not begin with a full language model or unrestricted online weight mutation.
+Start with a small environment where the model’s internal update mechanism can
+be measured:
 
 1. The model chooses an action from a compact action space.
 2. It predicts the next observation and eventual utility.
 3. The environment returns observations, not an immediate correctness label.
 4. The model maintains an eligibility trace over recent actions.
-5. A later consequence updates a task-local fast adapter.
+5. The learned self-update mechanism modifies the model’s plastic weights.
 6. We compare against:
    - no adaptation,
    - immediate reward-only adaptation,
@@ -223,14 +217,13 @@ while recovering when the environment changes.
 
 ## Design questions for feedback
 
-1. Should Piro's first fast learner update **policy state**, a small **adapter**,
-or a dedicated **world-model memory**?
-2. Should the CTM tick loop be the place where belief/value state lives, or should
-those be explicit parallel modules around the CTM?
-3. What is the smallest environment that feels like a real Piro task rather than
-a toy verifier?
-4. How much of an experience should be visible to the future model: raw history,
-a compressed memory, or a learned prediction record?
+1. Which weight substrates should be plastic on which timescales?
+2. Should prediction, value, eligibility, and credit signals be explicit internal
+channels, learned latent signals, or both?
+3. What is the smallest environment that can test self-updating weights without
+confounding the result with a large language interface?
+4. How should durable consolidation prevent one surprising input from rewriting
+stable knowledge?
 
 These are intentionally left open. The architecture is an end-state representation;
 experiments will determine the exact module boundaries and update rules.

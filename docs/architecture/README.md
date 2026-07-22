@@ -16,10 +16,10 @@ input embeddings
   -> output head
 ```
 
-The central architectural question for this notebook is what happens **after an
-action leaves the model**. Instead of requiring an immediate external verifier,
-Piro should be able to preserve a prediction, observe later consequences, and
-use the resulting prediction/value error to update the right earlier decisions.
+The central architectural question for this notebook is what Piro is made of as
+a stateful learner. Piro should combine multimodal input encoding, recurrent
+thought dynamics, internal weight-based memory, and a learned mechanism that
+updates those weights.
 
 ## Documents
 
@@ -28,15 +28,13 @@ use the resulting prediction/value error to update the right earlier decisions.
   online-learning components.
 - [Diagram source](./stateful-rl-first-model-v0.1.mmd) — editable Mermaid source.
 
-## Status vocabulary
+## How to read the diagram
 
-- **Implemented** — exists in the current repository prototype.
-- **Designed** — an explicit Piro design direction, but not implemented yet.
-- **Open** — a decision we should make through experiments rather than assume.
+The main diagram is a structural view of the model, not a timeline. Solid arrows
+show the major interfaces between model components. Dashed boundaries show
+modules that are part of Piro even though they operate on different internal
+weight timescales.
 
-The diagram uses the same distinction visually. The goal is not to copy Kimi's
-module inventory; it is to make Piro's unique loop visible:
-
-```text
-act -> predict -> encounter future consequences -> assign credit -> adapt
-```
+The delayed-credit learning loop remains an important behavioral question, but it
+is intentionally documented as a mechanism inside Piro rather than as a separate
+“later consequence” input node.

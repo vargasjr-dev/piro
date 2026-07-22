@@ -6,8 +6,8 @@ type DiagramKind = "observation" | "embedding" | "ctm";
 
 const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   observation: {
-    title: "Observation",
-    subtitle: "One stateful turn: the user’s current multimodal input, with model state kept server-side.",
+    title: "PiroInput",
+    subtitle: "The structured multimodal object that crosses into Piro’s stateful model.",
   },
   embedding: {
     title: "Input embedding",
@@ -77,7 +77,7 @@ function Arrow({
 
 function ObservationDiagram() {
   return (
-    <svg viewBox="0 0 1200 860" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label="Piro stateful observation input API">
+    <svg viewBox="0 0 1200 860" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label="PiroInput stateful multimodal input API">
       <defs>
         <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
         <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>

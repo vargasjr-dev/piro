@@ -1,8 +1,5 @@
 %% Piro Stateful RL-First Model v0.1
-%% Green = implemented CTM prototype
-%% Blue = proposed per-task state
-%% Orange = proposed delayed-learning path
-%% Purple = external observation/environment
+%% Structural view: internal memory and self-updating weights
 flowchart LR
     classDef current fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
     classDef proposed fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
@@ -10,52 +7,39 @@ flowchart LR
     classDef external fill:#f2ddff,stroke:#7a3f9b,color:#32153f,stroke-width:1.5px
     classDef boundary fill:#f7f7f7,stroke:#777,color:#222,stroke-dasharray:5 5
 
-    subgraph OBS[Observation and action loop]
-        I[PiroInput / parts + metadata]:::external --> E[Input embedding]:::current
-        E --> C
-        subgraph C[CTM core — repeated internal thought ticks]
+    subgraph PIRO[Piro model]
+        I[PiroInput / parts + metadata]:::external --> E[Modality-specific input encoders]:::current
+        E --> R[Shared Piro representation]:::current
+        R --> C
+        subgraph C[Stateful CTM]
             direction TB
-            N[Neuron state update]:::current
-            H[History buffer]:::current
+            N[Recurrent neural dynamics]:::current
+            H[Working activations and history]:::current
             S[Sync-driven attention]:::current
-            R[Residual tick update]:::current
-            N --> H --> S --> R --> N
-            T[Adaptive tick controller]:::proposed -. decides whether to continue .-> R
+            T[Repeated thought ticks]:::current
+            N --> H --> S --> T --> N
         end
-        C --> P[Policy / output head]:::current
-        P --> A[Action: token, tool call, or environment action]:::external
-        A --> ENV
+        C --> O[Output / action heads]:::current
+        O --> X[Text · tool · environment outputs]:::external
+        subgraph MEM[Internal memory substrate]
+            direction TB
+            F[Plastic weights]:::proposed
+            D[Durable weights]:::proposed
+            F --> D
+        end
+        subgraph LEARN[Learned self-update mechanism]
+            direction TB
+            P[Prediction and value signals]:::learning
+            Q[Eligibility and credit signals]:::learning
+            U[Plasticity and consolidation rules]:::learning
+            P --> U
+            Q --> U
+        end
+        C -. internal signals .-> P
+        C -. internal signals .-> Q
+        U --> F
+        F -. shapes dynamics .-> C
+        D -. shapes dynamics .-> C
     end
-
-    subgraph ENV[Environment]
-        W[World / user / tools / tests / game]:::external
-        O[Later observation and consequence]:::external
-        W --> O
-    end
-
-    A -. records expectation .-> X[Pending prediction record]:::proposed
-    A -. leaves eligibility .-> Q[Eligibility trace]:::proposed
-    O --> D[Prediction error + value error]:::learning
-    O --> M[Episodic experience memory]:::proposed
-    X --> D
-    Q --> G[Hindsight credit attribution]:::learning
-    D --> G
-    M --> G
-
-    subgraph ADAPT[Online adaptation — state changes during the task]
-        G --> F[Fast policy / world-model adapter]:::learning
-        F --> C
-        F --> P
-        G --> B[Belief, plan, and value state]:::proposed
-        B --> C
-        B --> P
-    end
-
-    subgraph CONS[Slow consolidation — across tasks]
-        M --> Y[Replay and repeated-evidence filter]:::proposed
-        G --> Y
-        Y --> Z[Slow weight update / new training data]:::learning
-        Z -. periodic consolidation .-> C
-    end
-
-    class OBS,ENV boundary
+    W[External world / user / tools / environment]:::external --> I
+    X --> W

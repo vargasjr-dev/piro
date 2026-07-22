@@ -31,8 +31,8 @@ export default function ArchitecturePage() {
             Stateful RL-first model
           </h1>
           <p className="mt-5 text-lg leading-8 text-amber-200/65">
-            Piro preserves what it expected, encounters the future, and lets later
-            consequences update the earlier decisions that actually earned credit.
+            Piro is a multimodal, stateful CTM whose internal weights serve as memory
+            and whose architecture includes the mechanism that updates those weights.
           </p>
         </div>
 
@@ -41,7 +41,7 @@ export default function ArchitecturePage() {
         </section>
 
         <p className="mt-5 text-center text-xs text-amber-400/45">
-          Click Observation, Input embedding, or CTM core to open its zoomed-in diagram.
+          Click PiroInput, Input embedding, or Stateful CTM to open its zoomed-in diagram.
         </p>
 
         <div className="mt-12 border-t border-amber-900/20 pt-6">
