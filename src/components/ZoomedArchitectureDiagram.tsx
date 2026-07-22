@@ -7,7 +7,7 @@ type DiagramKind = "observation" | "embedding" | "ctm";
 const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   observation: {
     title: "Observation",
-    subtitle: "How the world becomes something Piro can reason over.",
+    subtitle: "One stateful turn: the user’s current multimodal input, with model state kept server-side.",
   },
   embedding: {
     title: "Input embedding",
@@ -77,26 +77,48 @@ function Arrow({
 
 function ObservationDiagram() {
   return (
-    <svg viewBox="0 0 1000 500" className="mx-auto block h-auto w-full min-w-[700px]" role="img" aria-label="Observation zoomed architecture">
+    <svg viewBox="0 0 1200 920" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label="Piro stateful observation input API">
       <defs>
-        <marker id="zoom-arrow-gold" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
-        <marker id="zoom-arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
-        <marker id="zoom-arrow-orange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
-        <marker id="zoom-arrow-violet" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(192 132 252 / 0.72)" /></marker>
+        <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
+        <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
+        <marker id="zoom-arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+        <marker id="zoom-arrow-violet" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(192 132 252 / 0.72)" /></marker>
       </defs>
-      <text x="36" y="38" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">WORLD → OBSERVATION REPRESENTATION</text>
-      <Box x={36} y={150} width={190} height={104} title="World" detail="user · tools · tests · game" tone="violet" />
-      <Box x={300} y={150} width={210} height={104} title="Event stream" detail="text · audio · image · tool result" tone="blue" />
-      <Box x={584} y={150} width={190} height={104} title="Parser + normalizer" detail="common event schema" tone="green" />
-      <Box x={842} y={150} width={122} height={104} title="Observation" detail="state at t" tone="orange" />
-      <Arrow d="M226 202H300" marker="violet" color="rgb(192 132 252 / 0.72)" />
-      <Arrow d="M510 202H584" marker="blue" color="rgb(125 211 252 / 0.72)" />
-      <Arrow d="M774 202H842" marker="gold" />
-      <Box x={190} y={350} width={250} height={96} title="Task / session context" detail="goal · identity · active commitments" tone="blue" />
-      <Box x={560} y={350} width={250} height={96} title="Belief state update" detail="what Piro thinks is happening" tone="orange" />
-      <Arrow d="M903 254V300H315V350" dashed marker="blue" color="rgb(125 211 252 / 0.72)" />
-      <Arrow d="M440 398H560" marker="orange" color="rgb(253 186 116 / 0.76)" />
-      <text x="190" y="314" fill="rgb(125 211 252 / 0.56)" fontSize="12">persistent context is not the raw world</text>
+
+      <text x="36" y="38" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">ONE TURN IN · STATE LIVES OUTSIDE THE REQUEST</text>
+      <text x="36" y="72" fill="rgb(253 230 138 / 0.72)" fontSize="15">Piro does not resend the system prompt, conversation history, or previous tool calls.</text>
+      <text x="36" y="98" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each turn supplies the new observation; Piro’s hidden state carries continuity.</text>
+
+      <rect x="36" y="136" width="1128" height="470" rx="28" fill="rgb(16 12 10 / 0.55)" stroke="rgb(251 191 36 / 0.2)" strokeWidth="2" strokeDasharray="8 8" />
+      <text x="64" y="172" fill="rgb(251 191 36 / 0.64)" fontSize="12" letterSpacing="2">OBSERVATION REQUEST · JSON-LIKE API SHAPE</text>
+
+      <Box x={72} y={212} width={244} height={118} title="Text" detail="the user’s current turn" tone="green" />
+      <Box x={348} y={212} width={244} height={118} title="Image" detail="photo · screenshot · frame" tone="violet" />
+      <Box x={624} y={212} width={244} height={118} title="Audio" detail="speech · sound · recording" tone="blue" />
+      <Box x={900} y={212} width={220} height={118} title="Video" detail="short temporal evidence" tone="orange" />
+
+      <Box x={72} y={392} width={244} height={118} title="File / document" detail="PDF · code · structured data" tone="blue" />
+      <Box x={348} y={392} width={244} height={118} title="Environment event" detail="browser · game · sensor" tone="orange" />
+      <Box x={624} y={392} width={244} height={118} title="Tool result" detail="only when a tool just ran" tone="violet" />
+      <Box x={900} y={392} width={220} height={118} title="Metadata" detail="mime · timestamp · source" tone="green" />
+
+      {[
+        "M194 330V392",
+        "M470 330V392",
+        "M746 330V392",
+        "M1010 330V392",
+      ].map((d) => <Arrow key={d} d={d} dashed marker="blue" color="rgb(125 211 252 / 0.5)" />)}
+
+      <path d="M316 568H884" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#zoom-arrow-gold)" />
+      <text x="600" y="552" fill="rgb(251 191 36 / 0.64)" fontSize="13" textAnchor="middle">one observation packet for this turn</text>
+      <Box x={884} y={524} width={236} height={88} title="PiroInput" detail="multimodal observation packet" tone="orange" />
+
+      <text x="36" y="680" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">NOT PART OF THE REQUEST</text>
+      <Box x={72} y={718} width={244} height={106} title="System policy" detail="stable model configuration" tone="blue" />
+      <Box x={348} y={718} width={244} height={106} title="Conversation memory" detail="carried in recurrent state" tone="green" />
+      <Box x={624} y={718} width={244} height={106} title="Previous tool calls" detail="already absorbed into state" tone="violet" />
+      <Box x={900} y={718} width={220} height={106} title="Current belief" detail="updated after input" tone="orange" />
+      <text x="72" y="866" fill="rgb(125 211 252 / 0.65)" fontSize="13">These are maintained by the stateful runtime, not repeated by the caller.</text>
     </svg>
   );
 }
@@ -159,6 +181,47 @@ function CtmDiagram() {
   );
 }
 
+
+function ObservationApiReference() {
+  return (
+    <div className="mt-8 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+      <section className="rounded-2xl border border-orange-300/25 bg-orange-300/[0.05] p-5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-orange-200/70">Proposed request contract</p>
+        <p className="mt-2 text-sm leading-6 text-amber-200/65">
+          The session identifies which persistent state to continue. The body is only the new observation for this turn.
+        </p>
+        <pre className="mt-4 overflow-x-auto rounded-xl border border-amber-900/30 bg-[#0b0908] p-4 text-[11px] leading-6 text-amber-100/80"><code>{`POST /v1/sessions/{session_id}/observe
+
+{
+  "parts": [
+    { "type": "text", "text": "What is happening here?" },
+    { "type": "image", "uri": "blob://...", "mime_type": "image/png" }
+  ],
+  "metadata": {
+    "source": "ios",
+    "captured_at": "2026-07-22T12:00:00Z"
+  }
+}`}</code></pre>
+      </section>
+
+      <section className="rounded-2xl border border-sky-400/25 bg-sky-400/[0.05] p-5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-200/70">Accepted parts</p>
+        <div className="mt-4 space-y-3 text-sm text-amber-100/80">
+          <div><code className="text-emerald-200">text</code><span className="ml-3 text-amber-200/55">typed user input</span></div>
+          <div><code className="text-fuchsia-200">image</code><span className="ml-3 text-amber-200/55">photo, screenshot, camera frame</span></div>
+          <div><code className="text-sky-200">audio</code><span className="ml-3 text-amber-200/55">speech or sound recording</span></div>
+          <div><code className="text-orange-200">video</code><span className="ml-3 text-amber-200/55">short temporal visual input</span></div>
+          <div><code className="text-sky-200">file</code><span className="ml-3 text-amber-200/55">PDF, code, or document</span></div>
+          <div><code className="text-amber-200">json</code><span className="ml-3 text-amber-200/55">structured environment data</span></div>
+        </div>
+        <div className="mt-6 border-t border-sky-400/15 pt-4 text-xs leading-6 text-amber-200/55">
+          <strong className="text-amber-100/80">Not sent every turn:</strong> system prompt, conversation transcript, previous tool calls, or durable memory. Those belong to the stateful runtime.
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind }) {
   const detail = details[kind];
   return (
@@ -177,6 +240,7 @@ export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind 
         {kind === "embedding" && <EmbeddingDiagram />}
         {kind === "ctm" && <CtmDiagram />}
       </div>
+      {kind === "observation" && <ObservationApiReference />}
     </>
   );
 }

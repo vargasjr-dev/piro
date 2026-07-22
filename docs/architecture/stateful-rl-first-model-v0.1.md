@@ -22,7 +22,7 @@ flowchart LR
     classDef boundary fill:#f7f7f7,stroke:#777,color:#222,stroke-dasharray:5 5
 
     subgraph OBS[Observation and action loop]
-        I[Observation / tokens / tools]:::external --> E[Input embedding]:::current
+        I[Observation / current multimodal input]:::external --> E[Input embedding]:::current
         E --> C
 
         subgraph C[CTM core — repeated internal thought ticks]
@@ -74,6 +74,33 @@ flowchart LR
 
     class OBS,ENV boundary
 ```
+
+## Observation input contract
+
+Piro is stateful, so the caller sends only the new observation for the current
+turn. The session identifier selects the persistent runtime state; the request
+body does not repeat the system prompt, conversation transcript, previous tool
+calls, or durable memory.
+
+```text
+POST /v1/sessions/{session_id}/observe
+
+{
+  "parts": [
+    { "type": "text", "text": "What is happening here?" },
+    { "type": "image", "uri": "blob://...", "mime_type": "image/png" }
+  ],
+  "metadata": {
+    "source": "ios",
+    "captured_at": "2026-07-22T12:00:00Z"
+  }
+}
+```
+
+Supported observation parts are text, image, audio, video, file/document, and
+structured JSON/environment data. A tool result may appear as a part when the
+environment has just produced it, but the caller does not replay the complete
+tool-call history.
 
 ## Reading the diagram
 
@@ -179,5 +206,5 @@ a toy verifier?
 4. How much of an experience should be visible to the future model: raw history,
 a compressed memory, or a learned prediction record?
 
-These are intentionally left open. This document is a discussion surface, not a
-claim that the proposed online-learning path is already implemented.
+These are intentionally left open. The architecture is an end-state representation;
+experiments will determine the exact module boundaries and update rules.
