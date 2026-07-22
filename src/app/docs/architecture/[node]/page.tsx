@@ -27,8 +27,8 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ node: string }> }) {
   const { node } = await params;
   const titles: Record<SupportedNode, string> = {
-    observation: "PiroInput",
-    embedding: "Embed(PiroInput)",
+    observation: "Observation",
+    embedding: "Embed",
     initialize: "InitializeOrRetrieveState",
     attention: "Attention",
     delta: "ComputeStateDelta",

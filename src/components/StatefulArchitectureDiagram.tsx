@@ -23,7 +23,6 @@ type Tone = "violet" | "green" | "blue" | "orange";
 type DiagramNode = {
   id: NodeId;
   title: string;
-  lines: string[];
   x: number;
   y: number;
   width: number;
@@ -35,8 +34,7 @@ type DiagramNode = {
 const nodes: DiagramNode[] = [
   {
     id: "observation",
-    title: "PiroInput",
-    lines: ["parts + metadata", "input boundary"],
+    title: "Observation",
     x: 28,
     y: 330,
     width: 220,
@@ -46,8 +44,7 @@ const nodes: DiagramNode[] = [
   },
   {
     id: "embedding",
-    title: "Embed(PiroInput)",
-    lines: ["→ x", "modality encoders"],
+    title: "Embed",
     x: 300,
     y: 330,
     width: 250,
@@ -58,7 +55,6 @@ const nodes: DiagramNode[] = [
   {
     id: "initialize",
     title: "InitializeOrRetrieveState",
-    lines: ["(x, weights) → h₀"],
     x: 650,
     y: 150,
     width: 330,
@@ -69,7 +65,6 @@ const nodes: DiagramNode[] = [
   {
     id: "attention",
     title: "Attention",
-    lines: ["(hₖ, historyₖ, x, weights)", "→ contextₖ"],
     x: 1050,
     y: 150,
     width: 340,
@@ -80,7 +75,6 @@ const nodes: DiagramNode[] = [
   {
     id: "delta",
     title: "ComputeStateDelta",
-    lines: ["(hₖ, x, contextₖ, historyₖ, weights)", "→ deltaₖ"],
     x: 1460,
     y: 150,
     width: 390,
@@ -91,7 +85,6 @@ const nodes: DiagramNode[] = [
   {
     id: "residual",
     title: "ApplyGatedResidual",
-    lines: ["(hₖ, deltaₖ, weights)", "→ hₖ₊₁ · gate internal"],
     x: 1920,
     y: 150,
     width: 300,
@@ -102,7 +95,6 @@ const nodes: DiagramNode[] = [
   {
     id: "history",
     title: "UpdateHistory",
-    lines: ["(historyₖ, hₖ₊₁)", "→ historyₖ₊₁"],
     x: 1920,
     y: 430,
     width: 300,
@@ -113,7 +105,6 @@ const nodes: DiagramNode[] = [
   {
     id: "prediction",
     title: "PredictionHead",
-    lines: ["(hₖ₊₁) → predictionₖ"],
     x: 760,
     y: 770,
     width: 300,
@@ -124,7 +115,6 @@ const nodes: DiagramNode[] = [
   {
     id: "value",
     title: "ValueHead",
-    lines: ["(hₖ₊₁) → valueₖ"],
     x: 1110,
     y: 770,
     width: 270,
@@ -135,7 +125,6 @@ const nodes: DiagramNode[] = [
   {
     id: "halt",
     title: "HaltHead",
-    lines: ["(hₖ₊₁, hₖ, predictionₖ)", "→ haltₖ"],
     x: 1430,
     y: 770,
     width: 340,
@@ -146,7 +135,6 @@ const nodes: DiagramNode[] = [
   {
     id: "shouldHalt",
     title: "ShouldHalt",
-    lines: ["(haltₖ) → continue / exit", "Kmax is a loop exit"],
     x: 1800,
     y: 770,
     width: 340,
@@ -157,7 +145,6 @@ const nodes: DiagramNode[] = [
   {
     id: "output",
     title: "OutputHead",
-    lines: ["(hₖ₊₁) → outputₖ", "called after the loop exits"],
     x: 1430,
     y: 1010,
     width: 300,
@@ -168,9 +155,8 @@ const nodes: DiagramNode[] = [
   {
     id: "weights",
     title: "Weights",
-    lines: ["plastic + durable memory"],
-    x: 28,
-    y: 760,
+    x: 650,
+    y: 300,
     width: 270,
     height: 110,
     tone: "blue",
@@ -179,9 +165,8 @@ const nodes: DiagramNode[] = [
   {
     id: "plasticity",
     title: "PlasticityController",
-    lines: ["prediction + value + learning signals", "→ updated weights"],
     x: 330,
-    y: 760,
+    y: 960,
     width: 360,
     height: 110,
     tone: "orange",
@@ -270,14 +255,9 @@ function DiagramNodeCard({
         strokeWidth="2"
         className={node.zoomable ? "transition hover:brightness-125" : undefined}
       />
-      <text x={node.x + 18} y={node.y + 36} fill={style.title} fontSize="16" fontWeight="650">
+      <text x={node.x + node.width / 2} y={node.y + node.height / 2 + 6} fill={style.title} fontSize="16" fontWeight="650" textAnchor="middle">
         {node.title}
       </text>
-      {node.lines.map((line, index) => (
-        <text key={line} x={node.x + 18} y={node.y + 66 + index * 22} fill={style.detail} fontSize="12">
-          {line}
-        </text>
-      ))}
     </g>
   );
 }
@@ -310,21 +290,22 @@ export default function StatefulArchitectureDiagram() {
         <text x="24" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">PSEUDOCODE VIEW · METHOD INPUTS ARE EXPLICIT EDGES</text>
         <text x="24" y="74" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each node is a transformation; state and data values travel on the edges between transformations.</text>
 
-        <rect x="610" y="92" width="1660" height="610" rx="30" fill="rgb(21 42 34 / 0.1)" stroke="rgb(110 231 183 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
-        <text x="642" y="128" fill="rgb(110 231 183 / 0.7)" fontSize="12" letterSpacing="1.8">RECURRENT CTM TICK · k</text>
+        <rect x="260" y="92" width="2010" height="1048" rx="30" fill="rgb(16 12 10 / 0.22)" stroke="rgb(251 191 36 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
+        <text x="292" y="128" fill="rgb(251 191 36 / 0.68)" fontSize="13" letterSpacing="2">PIRO MODEL</text>
 
-        <rect x="720" y="730" width="1540" height="390" rx="30" fill="rgb(57 39 24 / 0.1)" stroke="rgb(253 186 116 / 0.3)" strokeWidth="2" strokeDasharray="7 7" />
-        <text x="752" y="766" fill="rgb(253 186 116 / 0.72)" fontSize="12" letterSpacing="1.8">READOUTS, HALTING, AND ONLINE WEIGHT UPDATE</text>
+        <rect x="610" y="150" width="1660" height="760" rx="30" fill="rgb(21 42 34 / 0.1)" stroke="rgb(110 231 183 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
+        <text x="642" y="186" fill="rgb(110 231 183 / 0.7)" fontSize="12" letterSpacing="1.8">INFERENCE DYNAMICS · k</text>
+
+        <rect x="260" y="930" width="2000" height="210" rx="30" fill="rgb(57 39 24 / 0.1)" stroke="rgb(253 186 116 / 0.3)" strokeWidth="2" strokeDasharray="7 7" />
+        <text x="292" y="966" fill="rgb(253 186 116 / 0.72)" fontSize="12" letterSpacing="1.8">ONLINE WEIGHT UPDATE</text>
 
         {arrowPath("M248 385H300", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={274} y={368}>PiroInput</InputLabel>
+        <InputLabel x={274} y={368}>Observation</InputLabel>
 
         {arrowPath("M550 385V205H650", "rgb(251 191 36 / 0.72)")}
         <InputLabel x={594} y={310}>x</InputLabel>
-        {arrowPath("M298 815H330", "rgb(253 186 116 / 0.78)")}
-        <InputLabel x={314} y={798}>updated weights</InputLabel>
-        {arrowPath("M690 815H820V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={755} y={800}>weights</InputLabel>
+        {arrowPath("M785 300V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={835} y={282}>weights</InputLabel>
 
         {arrowPath("M980 205H1050", "rgb(251 191 36 / 0.72)")}
         <InputLabel x={1015} y={188}>h₀ enters as hₖ</InputLabel>
@@ -363,25 +344,31 @@ export default function StatefulArchitectureDiagram() {
         {arrowPath("M1770 825H1800", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
         <InputLabel x={1785} y={808}>haltₖ</InputLabel>
 
-        {arrowPath("M690 815H1050V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={870} y={800}>weights</InputLabel>
-        {arrowPath("M690 815H1460V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={1080} y={830}>weights</InputLabel>
-        {arrowPath("M690 815H1920V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={1300} y={850}>weights · gate is internal to ApplyGatedResidual</InputLabel>
+        {arrowPath("M920 355H1000V205H1050", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={980} y={345}>weights</InputLabel>
+        {arrowPath("M920 355H1400V205H1460", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1190} y={345}>weights</InputLabel>
+        {arrowPath("M920 355H1880V205H1920", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1640} y={345}>weights · internal gate</InputLabel>
 
-        {arrowPath("M1770 825H1800", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
         {arrowPath("M1970 880V1010H1730", "rgb(110 231 183 / 0.72)", { marker: "arrow-gold" })}
         <text x="1840" y="965" fill="rgb(110 231 183 / 0.68)" fontSize="12">exit → OutputHead</text>
         {arrowPath("M2070 260V960H1580V1010", "rgb(110 231 183 / 0.72)", { dashed: true, marker: "arrow-gold" })}
         <InputLabel x={1830} y={945}>hₖ₊₁ held for output</InputLabel>
         <text x="2150" y="610" fill="rgb(110 231 183 / 0.68)" fontSize="12" textAnchor="middle">continue while k &lt; Kmax</text>
 
+        {arrowPath("M1060 825V900H510V960", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
+        {arrowPath("M1380 825V915H570V960", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
+        {arrowPath("M1770 825V930H630V960", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
+        <InputLabel x={790} y={900}>prediction · value · learning signals</InputLabel>
+        {arrowPath("M690 1015H785V410", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
+        <InputLabel x={715} y={1000}>updated weights</InputLabel>
+
         {nodes.map((node) => (
           <DiagramNodeCard key={node.id} node={node} onClick={() => router.push(`/docs/architecture/${node.id}`)} />
         ))}
 
-        <text x="650" y="1180" fill="rgb(253 230 138 / 0.62)" fontSize="13">OutputHead runs after ShouldHalt selects the exit; plasticity remains a parallel model-internal path for later deep dive.</text>
+        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">OutputHead runs after ShouldHalt selects the exit; plasticity remains a parallel model-internal path for later deep dive.</text>
       </svg>
     </div>
   );

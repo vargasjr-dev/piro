@@ -20,12 +20,12 @@ type DiagramKind =
 
 const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   observation: {
-    title: "PiroInput",
-    subtitle: "The structured multimodal object that crosses into Piro’s stateful model.",
+    title: "Observation",
+    subtitle: "The current multimodal input presented to Piro’s stateful model. PiroInput is the implementation-level data object behind this boundary.",
   },
   embedding: {
-    title: "Embed(PiroInput)",
-    subtitle: "The method that translates the current multimodal input into x.",
+    title: "Embed",
+    subtitle: "The transformation from Observation into the model’s numerical input signal.",
   },
   initialize: {
     title: "InitializeOrRetrieveState",
@@ -135,7 +135,7 @@ function Arrow({
 
 function ObservationDiagram() {
   return (
-    <svg viewBox="0 0 1200 860" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label="PiroInput stateful multimodal input API">
+    <svg viewBox="0 0 1200 860" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label="Observation stateful multimodal input API">
       <defs>
         <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
         <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
@@ -170,7 +170,7 @@ function ObservationDiagram() {
       <text x="472" y="632" fill="rgb(125 211 252 / 0.66)" fontSize="13" textAnchor="middle">parts</text>
       <text x="840" y="508" fill="rgb(110 231 183 / 0.66)" fontSize="13" textAnchor="middle">metadata</text>
 
-      <Box x={450} y={654} width={300} height={96} title="PiroInput" detail="normalized observation packet" tone="orange" />
+      <Box x={450} y={654} width={300} height={96} title="Observation" detail="normalized PiroInput packet" tone="orange" />
       <text x="600" y="800" fill="rgb(251 191 36 / 0.62)" fontSize="13" textAnchor="middle">the single input object consumed by the model for this turn</text>
     </svg>
   );
@@ -178,7 +178,7 @@ function ObservationDiagram() {
 
 function EmbeddingDiagram() {
   return (
-    <svg viewBox="0 0 1200 900" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label="PiroInput to CTM input embedding architecture">
+    <svg viewBox="0 0 1200 900" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label="Observation to CTM input embedding architecture">
       <defs>
         <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
         <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
@@ -187,10 +187,10 @@ function EmbeddingDiagram() {
         <marker id="zoom-arrow-green" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(110 231 183 / 0.72)" /></marker>
       </defs>
 
-      <text x="36" y="38" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">PIROINPUT → CTM INPUT SIGNAL</text>
+      <text x="36" y="38" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">OBSERVATION → CTM INPUT SIGNAL</text>
       <text x="36" y="72" fill="rgb(253 230 138 / 0.72)" fontSize="15">Embedding is the translation layer from the multimodal API object into neural state dynamics.</text>
 
-      <Box x={36} y={146} width={260} height={120} title="PiroInput" detail="parts + metadata" tone="orange" />
+      <Box x={36} y={146} width={260} height={120} title="Observation" detail="normalized PiroInput packet" tone="orange" />
       <Arrow d="M296 206H380" marker="gold" />
       <text x="338" y="190" fill="rgb(251 191 36 / 0.62)" fontSize="12" textAnchor="middle">split by type</text>
 
