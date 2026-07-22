@@ -59,16 +59,16 @@ class CTMStatefulMemoryAdapter:
     def _run(self, prompt: str) -> str:
         answer = ""
         for line in prompt.splitlines():
-            parts = line.split()
-            if not parts:
+            observation = line.strip()
+            if not observation:
                 continue
-            command = parts[0]
-            if command == "WRITE" and len(parts) == 3:
-                self.model(self._embedding(f"{parts[1]}={parts[2]}"))
-            elif command == "DISTRACT" and len(parts) == 2:
-                self.model(self._embedding(parts[1]))
-            elif command == "QUERY" and len(parts) == 2:
-                output = self.model(self._embedding(f"QUERY:{parts[1]}"))
+            if "=" in observation:
+                key, value = (part.strip() for part in observation.split("=", maxsplit=1))
+                self.model(self._embedding(f"{key}={value}"))
+            elif observation.startswith("token_"):
+                self.model(self._embedding(observation))
+            else:
+                output = self.model(self._embedding(f"QUERY:{observation}"))
                 logits = output.logits if hasattr(output, "logits") else output
                 index = int(logits[: self.value_count].argmax().item())
                 answer = f"value_{index:03d}"
@@ -173,19 +173,19 @@ class PersistentMemoryBenchmark(Benchmark):
         failures: list[dict[str, str]] = []
         for episode in episodes:
             state = model.initial_state()
-            _, state = model.step(episode.write_prompt, state)
-            _, state = model.step(episode.distractor_prompt, state)
+            _, state = model.step(episode.write_observation, state)
+            _, state = model.step(episode.distractor_observation, state)
             if condition == "reset_before_query":
                 state = model.reset_state(state)
             elif condition == "serialized_restore":
                 snapshot = model.snapshot_state(state)
                 state = model.load_state(snapshot)
-            prediction, _ = model.step(episode.query_prompt, state)
+            prediction, _ = model.step(episode.query_observation, state)
             prediction = prediction.strip()
             if prediction == episode.answer:
                 correct += 1
             elif len(failures) < 10:
-                failures.append({"query": episode.query_prompt, "expected": episode.answer, "got": prediction})
+                failures.append({"query": episode.query_observation, "expected": episode.answer, "got": prediction})
         total = len(episodes)
         return MemoryConditionResult(condition, correct / max(1, total), correct, total, tuple(failures))
 
