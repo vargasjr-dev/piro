@@ -1,6 +1,5 @@
 # Piro Stateful RL-First Model — v0.1
 
-**Status:** design draft  
 **Date:** July 20, 2026  
 **Scope:** first architecture diagram for discussing state, delayed feedback,
 and inference-time learning
@@ -80,7 +79,7 @@ flowchart LR
 
 ### 1. The black/green path is the model we already have
 
-The current CTM prototype repeatedly updates neuron state, retains short-term
+The CTM core repeatedly updates neuron state, retains short-term
 history, computes synchronization-driven attention, and emits an output after
 one or more internal ticks. That is the part we can continue to benchmark today.
 
@@ -133,21 +132,21 @@ The model should not immediately rewrite its durable weights after one surprisin
 outcome. A repeated-evidence filter and replay stage should be able to reject,
 merge, or reverse weak updates.
 
-## Current versus proposed components
+## Model components
 
-| Component | Status | First implementation question |
+| Component | Role | Architectural question |
 | --- | --- | --- |
-| Input embedding and output head | Implemented | How do we move from embedding classification to token/action generation? |
-| CTM neuron state and repeated ticks | Implemented | Does deeper internal ticking improve held-out reasoning? |
-| History and sync-driven attention | Implemented | What state should survive between ticks versus episodes? |
-| Adaptive tick controller | Designed | Can confidence or prediction uncertainty choose compute depth? |
-| Belief/value state | Designed | Is this a recurrent latent state, explicit tokens, or both? |
-| Pending prediction records | Designed | What should be predicted: observations, utility, or both? |
-| Eligibility traces | Designed | Which trace representation is stable for token-level actions? |
-| Hindsight credit attribution | Designed | Can we learn useful attribution without an external verifier? |
-| Fast policy/world-model adapter | Designed | Should this be fast weights, LoRA, or a recurrent memory module? |
-| Episodic experience memory | Designed | What is the write policy and retrieval key? |
-| Slow consolidation | Designed | What evidence threshold promotes an experience into durable learning? |
+| Input embedding and output head | Core | How do we move from embedding classification to token/action generation? |
+| CTM neuron state and repeated ticks | Core | Does deeper internal ticking improve held-out reasoning? |
+| History and sync-driven attention | Core | What state should survive between ticks versus episodes? |
+| Adaptive tick controller | State | Can confidence or prediction uncertainty choose compute depth? |
+| Belief/value state | State | Is this a recurrent latent state, explicit tokens, or both? |
+| Pending prediction records | State | What should be predicted: observations, utility, or both? |
+| Eligibility traces | State | Which trace representation is stable for token-level actions? |
+| Hindsight credit attribution | State | Can we learn useful attribution without an external verifier? |
+| Fast policy/world-model adapter | State | Should this be fast weights, LoRA, or a recurrent memory module? |
+| Episodic experience memory | State | What is the write policy and retrieval key? |
+| Slow consolidation | State | What evidence threshold promotes an experience into durable learning? |
 
 ## Proposed first experiment
 
