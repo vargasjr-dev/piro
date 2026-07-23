@@ -10,9 +10,6 @@ type NodeId =
   | "delta"
   | "residual"
   | "history"
-  | "prediction"
-  | "value"
-  | "halt"
   | "shouldHalt"
   | "output"
   | "weights"
@@ -35,20 +32,20 @@ const nodes: DiagramNode[] = [
   {
     id: "observation",
     title: "Observation",
-    x: 28,
-    y: 330,
-    width: 220,
-    height: 110,
+    x: 55.5,
+    y: 343.75,
+    width: 165,
+    height: 82.5,
     tone: "violet",
     zoomable: true,
   },
   {
     id: "embedding",
     title: "Embed",
-    x: 300,
-    y: 330,
-    width: 250,
-    height: 110,
+    x: 331.25,
+    y: 343.75,
+    width: 187.5,
+    height: 82.5,
     tone: "green",
     zoomable: true,
   },
@@ -95,80 +92,50 @@ const nodes: DiagramNode[] = [
   {
     id: "history",
     title: "UpdateHistory",
-    x: 1920,
-    y: 430,
-    width: 300,
-    height: 110,
+    x: 1957.5,
+    y: 458.75,
+    width: 225,
+    height: 82.5,
     tone: "blue",
-    zoomable: true,
-  },
-  {
-    id: "prediction",
-    title: "PredictionHead",
-    x: 760,
-    y: 770,
-    width: 300,
-    height: 110,
-    tone: "orange",
-    zoomable: true,
-  },
-  {
-    id: "value",
-    title: "ValueHead",
-    x: 1110,
-    y: 770,
-    width: 270,
-    height: 110,
-    tone: "orange",
-    zoomable: true,
-  },
-  {
-    id: "halt",
-    title: "HaltHead",
-    x: 1430,
-    y: 770,
-    width: 340,
-    height: 110,
-    tone: "orange",
     zoomable: true,
   },
   {
     id: "shouldHalt",
     title: "ShouldHalt",
-    x: 1800,
-    y: 770,
-    width: 340,
-    height: 110,
+    x: 1842.5,
+    y: 783.75,
+    width: 255,
+    height: 82.5,
     tone: "orange",
     zoomable: true,
   },
   {
     id: "output",
     title: "OutputHead",
-    x: 1430,
-    y: 1010,
-    width: 300,
-    height: 110,
+    x: 1467.5,
+    y: 1023.75,
+    width: 225,
+    height: 82.5,
     tone: "green",
     zoomable: true,
   },
   {
     id: "weights",
     title: "Weights",
-    x: 650,
-    y: 380,
-    width: 270,
-    height: 110,
+    x: 683.75,
+    y: 393.75,
+    width: 202.5,
+    height: 82.5,
     tone: "blue",
     zoomable: true,
   },
   {
     id: "plasticity",
     title: "PlasticityController",
-    x: 330,
-    y: 960,
-    width: 360,
-    height: 110,
+    x: 375,
+    y: 973.75,
+    width: 270,
+    height: 82.5,
     tone: "orange",
     zoomable: true,
   },
@@ -282,9 +249,10 @@ export default function StatefulArchitectureDiagram() {
         aria-label="Piro CTM pseudocode mapped to method nodes and data flow"
       >
         <defs>
-          <marker id="arrow-gold" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
-          <marker id="arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
-          <marker id="arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(192 132 252 / 0.7)" /></marker>
+          <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(110 231 183 / 0.7)" /></marker>
+          <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
+          <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
         </defs>
 
         <text x="24" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">PSEUDOCODE VIEW · METHOD INPUTS ARE EXPLICIT EDGES</text>
@@ -299,28 +267,29 @@ export default function StatefulArchitectureDiagram() {
         <rect x="260" y="930" width="2000" height="210" rx="30" fill="rgb(57 39 24 / 0.1)" stroke="rgb(253 186 116 / 0.3)" strokeWidth="2" strokeDasharray="7 7" />
         <text x="292" y="966" fill="rgb(253 186 116 / 0.72)" fontSize="12" letterSpacing="1.8">ONLINE WEIGHT UPDATE</text>
 
-        {arrowPath("M248 385H300", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={274} y={368}>Observation</InputLabel>
+        {arrowPath("M220.5 385H331.25", "rgb(192 132 252 / 0.7)", { marker: "arrow-violet" })}
+        <InputLabel x={275} y={368}>Observation</InputLabel>
 
-        {arrowPath("M550 385V291.25H650", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={594} y={350}>x</InputLabel>
-        {arrowPath("M785 380V332.5", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={835} y={365}>internal_weights</InputLabel>
-        {arrowPath("M897.5 291.25H1050", "rgb(251 191 36 / 0.72)")}
+        {arrowPath("M518.75 385V291.25H650", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        <InputLabel x={585} y={350}>x</InputLabel>
+        {arrowPath("M518.75 385C700 385 820 330 1050 291.25", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        <InputLabel x={735} y={370}>x</InputLabel>
+
+        {arrowPath("M785 393.75V332.5", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={785} y={365}>weights</InputLabel>
+        {arrowPath("M886.25 435C930 435 965 330 1050 291.25", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={955} y={400}>weights</InputLabel>
+
+        {arrowPath("M897.5 291.25H1050", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
         <InputLabel x={970} y={280}>hₖ</InputLabel>
-        {arrowPath("M920 435H1000V291.25H1050", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={960} y={425}>weights</InputLabel>
-        {arrowPath("M550 385V500H950V291.25H1050", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={760} y={492}>x</InputLabel>
-        {arrowPath("M1920 485H980V291.25H1050", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={1740} y={475}>historyₖ</InputLabel>
-
+        {arrowPath("M2182.5 500C1800 500 1400 345 1050 291.25", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1680} y={465}>historyₖ</InputLabel>
 
         {nodes.map((node) => (
           <DiagramNodeCard key={node.id} node={node} onClick={() => router.push(`/docs/architecture/${node.id}`)} />
         ))}
 
-        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Attention inputs are now shown; later recurrent edges remain intentionally omitted while the flow is reviewed one transformation at a time.</text>
+        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Attention inputs now converge directly on the transformation; later recurrent edges remain intentionally omitted while the flow is reviewed one transformation at a time.</text>
       </svg>
     </div>
   );

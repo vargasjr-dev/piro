@@ -40,7 +40,7 @@ flowchart LR
     subgraph PIRO[Piro model]
         I -->|observation| E[Embed]:::current
         E -->|x| S[InitializeOrRetrieveState]:::proposed
-        W[Weights]:::proposed -->|internal_weights| S
+        W[Weights]:::proposed -->|weights| S
 
         subgraph LOOP[Recurrent loop · k]
             A[Attention]:::current
@@ -54,11 +54,7 @@ flowchart LR
         E -->|x| A
         W -->|weights| A
         N -->|historyₖ| A
-
-        P[PredictionHead]:::learning
-        V[ValueHead]:::learning
         O[OutputHead]:::current
-        Ha[HaltHead]:::control
         Pc[PlasticityController]:::learning
     end
 ```
@@ -74,7 +70,7 @@ at a time.
 ```text
 x = Embed(PiroInput)
 
-h₀ = InitializeOrRetrieveState(x, internal_weights)
+h₀ = InitializeOrRetrieveState(x, weights)
 
 for k = 0 ... Kmax:
 
@@ -92,21 +88,18 @@ for k = 0 ... Kmax:
 
     historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁)
 
-predictionₖ = PredictionHead(hₖ₊₁)
-valueₖ      = ValueHead(hₖ₊₁)
-outputₖ     = OutputHead(hₖ₊₁)
-haltₖ       = HaltHead(hₖ₊₁, hₖ, predictionₖ)
-
-if ShouldHalt(hₖ₊₁, haltₖ, k):
+if ShouldHalt(hₖ₊₁, k):
+    outputₖ = OutputHead(hₖ₊₁)
     return outputₖ
 ```
 
-`ShouldHalt` receives the final state, halt signal, and tick index in this
-working contract. The head calculations are shown outside the recurrent loop for
-now while we clean up the exact control-flow semantics. The learned gate and residual addition are represented by the
-`ApplyGatedStateUpdate` transformation rather than as separate nodes.
-The model-internal plasticity controller remains visible as an isolated node until
-its edge is reviewed.
+`ShouldHalt` receives the final state and tick index in this working contract.
+Prediction, value, and halt heads are treated as implementation details of
+`ShouldHalt`, so they are omitted from the top-level graph. `OutputHead` runs only
+after the recurrent loop exits. The learned gate and residual addition are
+represented by the `ApplyGatedStateUpdate` transformation rather than as separate
+nodes. The model-internal plasticity controller remains visible as an isolated node
+until its edge is reviewed.
 
 ## Observation input contract
 

@@ -53,7 +53,7 @@ export default function ArchitecturePage() {
           </div>
           <pre className="overflow-x-auto whitespace-pre font-mono text-sm leading-7 text-amber-100/85"><code>{`x = Embed(PiroInput)
 
-h₀ = InitializeOrRetrieveState(x, internal_weights)
+h₀ = InitializeOrRetrieveState(x, weights)
 
 for k = 0 ... Kmax:
 
@@ -71,12 +71,8 @@ for k = 0 ... Kmax:
 
     historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁)
 
-predictionₖ = PredictionHead(hₖ₊₁)
-valueₖ      = ValueHead(hₖ₊₁)
-outputₖ     = OutputHead(hₖ₊₁)
-haltₖ       = HaltHead(hₖ₊₁, hₖ, predictionₖ)
-
-if ShouldHalt(hₖ₊₁, haltₖ, k):
+if ShouldHalt(hₖ₊₁, k):
+    outputₖ = OutputHead(hₖ₊₁)
     return outputₖ`}</code></pre>
         </section>
 
