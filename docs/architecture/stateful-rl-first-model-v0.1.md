@@ -47,12 +47,12 @@ for k = 0 ... Kmax:
 
     historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁)
 
-if ShouldHalt(hₖ₊₁, k):
-    outputₖ = OutputHead(hₖ₊₁)
-    return outputₖ
+    if ShouldHalt(hₖ₊₁, k):
+        outputₖ = OutputHead(hₖ₊₁)
+        return outputₖ
 ```
 
-`ShouldHalt` receives the final state and tick index in this working contract.
+`ShouldHalt` receives the current state and tick index inside each loop iteration in this working contract.
 Prediction, value, and halt heads are implementation details of `ShouldHalt`, so
 they are not separate top-level transformations. The learned gate and residual
 addition are represented by `ApplyGatedStateUpdate` rather than hidden inside a
