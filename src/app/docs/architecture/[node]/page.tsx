@@ -13,6 +13,7 @@ const supportedNodes = [
   "output",
   "shouldHalt",
   "weights",
+  "loadWeights",
   "plasticity",
 ] as const;
 type SupportedNode = (typeof supportedNodes)[number];
@@ -34,6 +35,7 @@ export async function generateMetadata({ params }: { params: Promise<{ node: str
     output: "OutputHead",
     shouldHalt: "ShouldHalt",
     weights: "Weights",
+    loadWeights: "LoadWeights",
     plasticity: "PlasticityController",
   };
   const title = titles[node as SupportedNode] ?? "Architecture";
