@@ -2,7 +2,9 @@
 
 This directory is the working architecture notebook for Piro. It is intentionally
 incremental: each document should make one design decision easier to discuss,
-without pretending that research ideas are already implemented.
+without pretending that research ideas are already implemented. The application’s
+primary top-level architecture view is the linked pseudocode contract; diagrams
+are secondary visual aids for future iterations.
 
 ## Current starting point
 
@@ -24,17 +26,17 @@ updates those weights.
 
 ## Documents
 
-- [Stateful RL-first model v0.1](./stateful-rl-first-model-v0.1.md) — first
-  end-to-end diagram, with current CTM components separated from proposed
-  online-learning components.
-- [Diagram source](./stateful-rl-first-model-v0.1.mmd) — editable Mermaid source.
+- [Stateful RL-first model v0.1](./stateful-rl-first-model-v0.1.md) — the current
+  pseudocode-first contract, with linked method-level detail in the application.
+- [Diagram source](./stateful-rl-first-model-v0.1.mmd) — editable Mermaid source
+  retained for a future secondary diagram view.
 
-## How to read the diagram
+## How to read the architecture
 
-The main diagram is a structural view of the model, not a timeline. Solid arrows
-show the major interfaces between model components. Dashed boundaries show
-modules that are part of Piro even though they operate on different internal
-weight timescales.
+Read the pseudocode as the primary top-level contract. Method names identify
+transformations, and the values passed between them make state, history, inputs,
+and learned weights explicit. The nested application routes provide the deeper
+contract for each method.
 
 The delayed-credit learning loop remains an important behavioral question, but it
 is intentionally documented as a mechanism inside Piro rather than as a separate

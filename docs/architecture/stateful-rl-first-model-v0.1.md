@@ -1,78 +1,30 @@
 # Piro Stateful RL-First Model — v0.1
 
 **Date:** July 20, 2026  
-**Scope:** first architecture diagram for discussing state, delayed feedback,
-and inference-time learning
+**Scope:** pseudocode-first architecture contract for discussing state, delayed
+feedback, and inference-time learning
 
 ## One-sentence thesis
 
 Piro is a multimodal, stateful CTM whose internal weights serve as memory and
 whose architecture includes the mechanism that updates those weights.
 
-## Structural architecture
+## Top-level architecture contract
 
-The main diagram describes what Piro is made of, rather than narrating a
-particular sequence of moments. `Observation` is the external input boundary;
-modality-specific encoders produce a shared representation; the stateful CTM
-performs recurrent thought dynamics; output heads expose text, tool, and
-environment actions; and the model-internal learning mechanism updates the
-weights that carry memory.
+The top-level architecture is intentionally expressed as pseudocode rather than
+as a diagram. This is the primary contract for reasoning about Piro because it
+makes the order of transformations, recurrent state, history, inputs, and output
+behavior explicit in one readable flow. Each method name maps to a nested
+architecture page in the application.
 
-The external world may provide ordinary inputs through `Observation`. `PiroInput` is the implementation-level data object used to represent that boundary. The model
-itself does not need to classify an input as a “later consequence” at the API
-boundary. If an input becomes relevant to a prior prediction, that relation is
-computed by the model’s internal learning mechanism.
-
-## Diagram
-
-```mermaid
-%% Piro Stateful RL-First Model v0.1
-%% Pseudocode view: initialization and Attention inputs while recurrent flow is reviewed
-flowchart LR
-    classDef current fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
-    classDef proposed fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
-    classDef learning fill:#ffe4c7,stroke:#a85b00,color:#4d2900,stroke-width:1.5px
-    classDef external fill:#f2ddff,stroke:#7a3f9b,color:#32153f,stroke-width:1.5px
-    classDef control fill:#fff0d9,stroke:#a85b00,color:#4d2900,stroke-width:1.5px
-
-    X[External world / user / tools / environment]:::external --> I[Observation]:::external
-
-    subgraph PIRO[Piro model]
-        I -->|observation| E[Embed]:::current
-        E -->|x| S[InitializeOrRetrieveState]:::proposed
-        W[Weights]:::proposed -->|weights| S
-
-        subgraph LOOP[Recurrent loop · k]
-            A[Attention]:::current
-            D[ComputeStateDelta]:::current
-            R[ApplyGatedStateUpdate]:::current
-            N[UpdateHistory]:::current
-            Sh[ShouldHalt]:::control
-        end
-
-        S -->|hₖ| A
-        E -->|x| A
-        W -->|weights| A
-        N -->|historyₖ| A
-
-        A -->|contextₖ| D
-        S -->|hₖ| D
-        E -->|x| D
-        W -->|weights| D
-        N -->|historyₖ| D
-
-        O[OutputHead]:::current
-        Pc[PlasticityController]:::learning
-    end
-```
-
+`Observation` is the external input boundary, and `PiroInput` is the
+implementation-level object used to represent that boundary. `Embed` produces the
+shared representation `x`; `InitializeOrRetrieveState` establishes the starting
+state; the recurrent loop performs attention, state-delta computation, gated state
+updates, and history updates; `ShouldHalt` controls loop exit; and `OutputHead`
+produces the final output after the loop exits.
 
 ## Pseudocode method contracts
-
-The top-level diagram uses the pseudocode as its organizing contract. The graph currently shows the boundary, state-initialization edges, the four
-inputs to Attention, and the five inputs to ComputeStateDelta. `ShouldHalt` is explicitly part of the recurrent loop because
-it decides whether the loop stops; later edges will be restored one transformation
-at a time.
 
 ```text
 x = Embed(PiroInput)
@@ -101,12 +53,15 @@ if ShouldHalt(hₖ₊₁, k):
 ```
 
 `ShouldHalt` receives the final state and tick index in this working contract.
-Prediction, value, and halt heads are treated as implementation details of
-`ShouldHalt`, so they are omitted from the top-level graph. `OutputHead` runs only
-after the recurrent loop exits. The learned gate and residual addition are
-represented by the `ApplyGatedStateUpdate` transformation rather than as separate
-nodes. The model-internal plasticity controller remains visible as an isolated node
-until its edge is reviewed.
+Prediction, value, and halt heads are implementation details of `ShouldHalt`, so
+they are not separate top-level transformations. The learned gate and residual
+addition are represented by `ApplyGatedStateUpdate` rather than hidden inside a
+neighboring method. `weights` is part of the Piro model and remains an explicit
+input to the transformations that consume it.
+
+The application currently defaults to this pseudocode view. A diagram view may be
+added as a secondary tab later; the existing Mermaid source and diagram component
+remain a visual workbench rather than the primary architecture interface.
 
 ## Observation input contract
 
@@ -161,7 +116,7 @@ timing, and provenance. This is analogous to frontier multimodal models using
 separate frontends for text, vision, audio, or tools before projecting those
 features into a representation their shared reasoning backbone can consume.
 
-## Reading the diagram
+## Reading the contract
 
 ### 1. Observation and encoders are the model boundary
 
@@ -199,7 +154,7 @@ An incoming `PiroInput` does not intrinsically identify itself as a “later
 consequence.” If the model later finds that an input is relevant to a prior
 prediction, that relationship is inferred by the self-update mechanism.
 
-### 5. The structural diagram is not the learning timeline
+### 5. The pseudocode is not the learning timeline
 
 A separate delayed-credit experiment can still study:
 
@@ -207,8 +162,8 @@ A separate delayed-credit experiment can still study:
 input → internal prediction → output → more input → credit assignment
 ```
 
-But that sequence is a behavioral explanation. The top-level architecture shows
-the persistent components that make the behavior possible.
+But that sequence is a behavioral explanation. The top-level pseudocode shows the
+persistent transformations that make the behavior possible.
 
 ## Model components
 
