@@ -18,16 +18,19 @@ behavior explicit in one readable flow. Each method name maps to a nested
 architecture page in the application.
 
 `Observation` is the external input boundary, and `PiroInput` is the
-implementation-level object used to represent that boundary. `Embed` produces the
-shared representation `x`; `InitializeOrRetrieveState` establishes the starting
-state; the recurrent loop performs attention, state-delta computation, gated state
-updates, and history updates; `ShouldHalt` controls loop exit; `OutputHead`
-produces the final output; and `PlasticityController` updates the model’s weights
-before each completed inference returns.
+implementation-level object used to represent that boundary. `LoadWeights` sources
+the current model weights; `Embed` produces the shared representation `x`;
+`InitializeOrRetrieveState` establishes the starting state; the recurrent loop
+performs attention, state-delta computation, gated state updates, and history
+updates; `ShouldHalt` controls loop exit; `OutputHead` produces the final output;
+and `PlasticityController` derives its own learning signals from the completed
+state and persists the weight update before each completed inference returns.
 
 ## Pseudocode method contracts
 
 ```text
+weights = LoadWeights()
+
 x = Embed(PiroInput)
 
 h₀ = InitializeOrRetrieveState(x, weights)
@@ -50,29 +53,24 @@ for k = 0 ... Kmax:
 
     if ShouldHalt(hₖ₊₁, k):
         outputₖ = OutputHead(hₖ₊₁)
-
-        weights = PlasticityController(
-            weights,
-            predictionₖ,
-            valueₖ,
-            creditₖ
-        )
-
+        PlasticityController(hₖ₊₁)
         return outputₖ
 ```
 
 `ShouldHalt` receives the current state and tick index inside each loop iteration in this working contract.
 Prediction, value, and halt heads are implementation details of `ShouldHalt`, so
-they are not separate top-level transformations. `predictionₖ`, `valueₖ`, and
-`creditₖ` are the learning signals available to `PlasticityController`; credit may
-be assigned through eligibility traces when its consequence arrives later. The
-learned gate and residual addition are represented by `ApplyGatedStateUpdate`
-rather than hidden inside a neighboring method. `weights` is part of the Piro
-model and remains an explicit input to the transformations that consume it.
+they are not separate top-level transformations. `PlasticityController` receives
+only `hₖ₊₁`; inside the controller it derives `predictionₖ`, `valueₖ`, and `creditₖ`,
+uses eligibility traces when a consequence arrives later, updates plastic weights,
+updates the active model weights, persists them through `SaveWeights(weights)`, and returns no value.
+The next inference sources the persisted parameters again through `LoadWeights()`.
+The learned gate and residual addition are represented by
+`ApplyGatedStateUpdate` rather than hidden inside a neighboring method.
 
-The application currently defaults to this pseudocode view. A diagram view may be
-added as a secondary tab later; the existing Mermaid source and diagram component
-remain a visual workbench rather than the primary architecture interface.
+The application currently defaults to pseudocode on both the top-level and nested
+architecture pages. Each nested page exposes its existing diagram through a
+secondary Diagram tab. The Mermaid source and diagram components remain available
+for visual review without displacing the code-first contract.
 
 ## Observation input contract
 
@@ -202,7 +200,7 @@ be measured:
 2. It predicts the next observation and eventual utility.
 3. The environment returns observations, not an immediate correctness label.
 4. The model maintains an eligibility trace over recent actions.
-5. `PlasticityController` updates the model’s plastic weights before each completed inference returns.
+5. `PlasticityController` derives learning signals from `hₖ₊₁`, persists its weight update with `SaveWeights()`, and returns no value before each completed inference returns.
 6. We compare against:
    - no adaptation,
    - immediate reward-only adaptation,

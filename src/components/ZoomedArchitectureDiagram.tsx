@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState, type ReactNode } from "react";
 
 type DiagramKind =
   | "observation"
@@ -13,6 +14,7 @@ type DiagramKind =
   | "output"
   | "shouldHalt"
   | "weights"
+  | "loadWeights"
   | "plasticity";
 
 const details: Record<DiagramKind, { title: string; subtitle: string }> = {
@@ -56,9 +58,13 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
     title: "Weights",
     subtitle: "The model parameters that provide memory and shape every method invocation.",
   },
+  loadWeights: {
+    title: "LoadWeights",
+    subtitle: "The persistence boundary that sources the current model weights before inference begins.",
+  },
   plasticity: {
     title: "PlasticityController",
-    subtitle: "The model-internal method that updates plastic weights before each completed inference returns.",
+    subtitle: "The model-internal method that derives learning signals from the completed state and persists the weight update without returning a value.",
   },
 };
 
@@ -229,6 +235,23 @@ function OutputDiagram() {
   );
 }
 
+function LoadWeightsDiagram() {
+  return (
+    <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Piro weight loading persistence boundary">
+      <defs>
+        <marker id="load-weights-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.72)" /></marker>
+      </defs>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">WEIGHT PERSISTENCE · LOAD BOUNDARY</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each inference starts from the weights persisted by the previous completed inference.</text>
+      <Box x={70} y={232} width={260} height={118} title="Persistent storage" detail="saved model parameters" tone="orange" />
+      <path d="M330 291H480" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <Box x={480} y={208} width={260} height={166} title="LoadWeights" detail="sources current parameters" tone="blue" />
+      <path d="M740 291H890" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <Box x={890} y={232} width={160} height={118} title="weights" detail="inference inputs" tone="green" />
+    </svg>
+  );
+}
+
 function WeightsDiagram() {
   return (
     <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Piro internal memory architecture">
@@ -288,10 +311,16 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
     relation: "controls the recurrent loop or returns outputₖ",
     tone: "orange",
   },
+  loadWeights: {
+    input: "persistent model storage",
+    output: "weights",
+    relation: "sources the current model weights for this inference",
+    tone: "blue",
+  },
   plasticity: {
-    input: "weights + prediction + value + credit signals",
-    output: "updated weights",
-    relation: "updates plastic weights on every completed inference and consolidates durable weights more slowly",
+    input: "hₖ₊₁",
+    output: "persisted weight update",
+    relation: "derives prediction, value, eligibility, and credit signals, then saves the plasticity update without returning a value",
     tone: "orange",
   },
 };
@@ -354,8 +383,56 @@ function ObservationApiReference() {
   );
 }
 
+function PseudocodeView({ kind }: { kind: DiagramKind }) {
+  const line = (children: ReactNode, className = "") => (
+    <div className={`whitespace-pre ${className}`}>{children}</div>
+  );
+  const variable = (children: string) => <span className="text-sky-200/90">{children}</span>;
+  const method = (children: string) => <span className="text-emerald-300">{children}</span>;
+  const keyword = (children: string) => <span className="text-orange-300">{children}</span>;
+
+  const snippets: Record<DiagramKind, ReactNode> = {
+    observation: line(<><span className="text-violet-300">PiroInput</span> = Observation()</>),
+    embedding: line(<>{variable("x")} = {method("Embed")}(PiroInput)</>),
+    initialize: line(<>{variable("h₀")} = {method("InitializeOrRetrieveState")}(x, weights)</>),
+    attention: line(<>{variable("contextₖ")} = {method("Attention")}(hₖ, historyₖ, x, weights)</>),
+    delta: <>
+      {line(<>{variable("deltaₖ")} = {method("ComputeStateDelta")}(</>)}
+      {line(<>    hₖ,</>)}
+      {line(<>    x,</>)}
+      {line(<>    contextₖ,</>)}
+      {line(<>    historyₖ,</>)}
+      {line(<>    weights</>)}
+      {line(<> )</>)}
+    </>,
+    residual: line(<>{variable("hₖ₊₁")} = {method("ApplyGatedStateUpdate")}(hₖ, gateₖ, deltaₖ)</>),
+    history: line(<>{variable("historyₖ₊₁")} = {method("UpdateHistory")}(historyₖ, hₖ₊₁)</>),
+    output: line(<>{variable("outputₖ")} = {method("OutputHead")}(hₖ₊₁)</>),
+    shouldHalt: line(<>{keyword("if")} {method("ShouldHalt")}(hₖ₊₁, k):</>),
+    weights: line(<>{variable("weights")} = {method("LoadWeights")}()</>),
+    loadWeights: line(<>{variable("weights")} = {method("LoadWeights")}()</>),
+    plasticity: <>
+      {line(<>{method("PlasticityController")}(hₖ₊₁):</>)}
+      {line(<>    {variable("predictionₖ")} = derive prediction from hₖ₊₁</>)}
+      {line(<>    {variable("valueₖ")} = derive value from hₖ₊₁</>)}
+      {line(<>    {variable("creditₖ")} = assign credit using historyₖ and hₖ₊₁</>)}
+      {line(<>    weights = update plastic weights using predictionₖ, valueₖ, and creditₖ</>)}
+      {line(<>    {method("SaveWeights")}(weights)</>)}
+      {line(<>    return nothing</>)}
+    </>,
+  };
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-amber-900/20 bg-[#0b0908] px-4 py-5 sm:px-6" role="region" aria-label={`${details[kind].title} pseudocode`}>
+      <code className="block min-w-[42rem] font-mono text-sm leading-6 text-amber-100/85 sm:text-[0.95rem]">{snippets[kind]}</code>
+    </div>
+  );
+}
+
 export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind }) {
   const detail = details[kind];
+  const [view, setView] = useState<"pseudocode" | "diagram">("pseudocode");
+
   return (
     <>
       <div className="flex items-start justify-between gap-4">
@@ -367,13 +444,44 @@ export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind 
         <Link href="/docs/architecture" className="shrink-0 text-sm text-orange-300 transition hover:text-orange-100">← Full model</Link>
       </div>
 
-      <div className="mt-10 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#100c0a] p-3 sm:p-6">
-        {kind === "observation" && <ObservationDiagram />}
-        {kind === "embedding" && <EmbeddingDiagram />}
-        {kind !== "observation" && kind !== "embedding" && kind !== "output" && kind !== "weights" && <MethodDiagram kind={kind} />}
-        {kind === "output" && <OutputDiagram />}
-        {kind === "weights" && <WeightsDiagram />}
+      <div className="mt-8 flex items-center gap-1 border-b border-amber-900/30" role="tablist" aria-label={`${detail.title} views`}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "pseudocode"}
+          onClick={() => setView("pseudocode")}
+          className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${view === "pseudocode" ? "border-orange-300 text-amber-50" : "border-transparent text-amber-400/50 hover:text-amber-100"}`}
+        >
+          Pseudocode
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "diagram"}
+          onClick={() => setView("diagram")}
+          className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${view === "diagram" ? "border-orange-300 text-amber-50" : "border-transparent text-amber-400/50 hover:text-amber-100"}`}
+        >
+          Diagram
+        </button>
       </div>
+
+      {view === "pseudocode" ? (
+        <div className="mt-8">
+          <PseudocodeView kind={kind} />
+        </div>
+      ) : (
+        <div className="mt-8 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#100c0a] p-3 sm:p-6">
+          {kind === "observation" && <ObservationDiagram />}
+          {kind === "embedding" && <EmbeddingDiagram />}
+          {kind === "observation" && <ObservationDiagram />}
+          {kind === "embedding" && <EmbeddingDiagram />}
+          {kind !== "observation" && kind !== "embedding" && kind !== "output" && kind !== "weights" && kind !== "loadWeights" && <MethodDiagram kind={kind} />}
+          {kind === "output" && <OutputDiagram />}
+          {kind === "weights" && <WeightsDiagram />}
+          {kind === "loadWeights" && <LoadWeightsDiagram />}
+        </div>
+      )}
+
       {kind === "observation" && <ObservationApiReference />}
     </>
   );

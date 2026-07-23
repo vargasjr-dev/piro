@@ -91,6 +91,7 @@ export default function ArchitecturePage() {
 
           <div className="overflow-x-auto rounded-xl border border-amber-900/20 bg-[#0b0908] px-4 py-5 sm:px-6" role="region" aria-label="Piro top-level pseudocode">
             <code className="block min-w-[42rem] font-mono text-sm leading-6 text-amber-100/85 sm:text-[0.95rem]">
+              <div className="whitespace-pre"><Variable>weights</Variable> = <MethodLink href="/docs/architecture/loadWeights">LoadWeights</MethodLink>()</div>
               <div className="whitespace-pre"><Variable>x</Variable> = <MethodLink href="/docs/architecture/embedding">Embed</MethodLink>(<Link href="/docs/architecture/observation" className="text-violet-300 underline decoration-violet-500/40 underline-offset-4 transition hover:text-violet-100">PiroInput</Link>)</div>
               <div className="whitespace-pre"><Variable>h₀</Variable> = <MethodLink href="/docs/architecture/initialize">InitializeOrRetrieveState</MethodLink>(<Variable>x</Variable>, <Link href="/docs/architecture/weights" className="text-sky-300 underline decoration-sky-500/40 underline-offset-4 transition hover:text-sky-100">weights</Link>)</div>
               <div className="whitespace-pre"><Keyword>for</Keyword> k = 0 ... Kmax:</div>
@@ -109,12 +110,7 @@ export default function ArchitecturePage() {
               <div className="whitespace-pre">    <Variable>historyₖ₊₁</Variable> = <MethodLink href="/docs/architecture/history">UpdateHistory</MethodLink>(<Variable>historyₖ</Variable>, <Variable>hₖ₊₁</Variable>)</div>
               <div className="whitespace-pre">    <Keyword>if</Keyword> <MethodLink href="/docs/architecture/shouldHalt">ShouldHalt</MethodLink>(<Variable>hₖ₊₁</Variable>, k):</div>
               <div className="whitespace-pre">        <Variable>outputₖ</Variable> = <MethodLink href="/docs/architecture/output">OutputHead</MethodLink>(<Variable>hₖ₊₁</Variable>)</div>
-              <div className="whitespace-pre">        <Variable>weights</Variable> = <MethodLink href="/docs/architecture/plasticity">PlasticityController</MethodLink>(</div>
-              <div className="whitespace-pre">            <Variable>weights</Variable>,</div>
-              <div className="whitespace-pre">            <Variable>predictionₖ</Variable>,</div>
-              <div className="whitespace-pre">            <Variable>valueₖ</Variable>,</div>
-              <div className="whitespace-pre">            <Variable>creditₖ</Variable></div>
-              <div className="whitespace-pre">        )</div>
+              <div className="whitespace-pre">        <MethodLink href="/docs/architecture/plasticity">PlasticityController</MethodLink>(<Variable>hₖ₊₁</Variable>)</div>
               <div className="whitespace-pre">        <Keyword>return</Keyword> <Variable>outputₖ</Variable></div>
             </code>
           </div>
@@ -133,8 +129,8 @@ export default function ArchitecturePage() {
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-300/70">Nested detail</p>
             <p className="mt-3 text-sm leading-7 text-amber-200/65">
               Each linked method opens the deeper contract for that transformation.
-              Plasticity runs before every completed inference returns, while the
-              diagram remains available for a future secondary view.
+              Plasticity runs before every completed inference returns. Nested
+              pages expose the same pseudocode-first/diagram-second tabs.
             </p>
           </div>
         </section>
