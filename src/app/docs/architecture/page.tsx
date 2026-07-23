@@ -59,7 +59,7 @@ for k = 0 ... Kmax:
 
     contextₖ = Attention(hₖ, historyₖ, x, weights)
 
-    deltaₖ = Update(
+    deltaₖ = ComputeStateDelta(
         hₖ,
         x,
         contextₖ,
@@ -67,7 +67,7 @@ for k = 0 ... Kmax:
         weights
     )
 
-    hₖ₊₁ = hₖ + gateₖ · deltaₖ
+    hₖ₊₁ = ApplyGatedStateUpdate(hₖ, gateₖ, deltaₖ)
 
     historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁)
 

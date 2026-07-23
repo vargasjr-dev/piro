@@ -36,12 +36,12 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
     subtitle: "The method that combines current state, history, input, and weights into contextₖ.",
   },
   delta: {
-    title: "Update",
+    title: "ComputeStateDelta",
     subtitle: "The method that computes the candidate state change deltaₖ from the current tick inputs.",
   },
   residual: {
-    title: "ApplyGatedResidual",
-    subtitle: "The method that applies a learned internal gate to deltaₖ and produces hₖ₊₁.",
+    title: "ApplyGatedStateUpdate",
+    subtitle: "The method that computes hₖ + gateₖ · deltaₖ and produces hₖ₊₁.",
   },
   history: {
     title: "UpdateHistory",
@@ -276,7 +276,7 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   attention: {
     input: "hₖ + historyₖ + x + weights",
     output: "contextₖ",
-    relation: "builds the context used by Update",
+    relation: "builds the context used by ComputeStateDelta",
     tone: "green",
   },
   delta: {
@@ -288,7 +288,7 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   residual: {
     input: "hₖ + deltaₖ + weights",
     output: "hₖ₊₁",
-    relation: "applies a learned internal gate to the residual update",
+    relation: "computes hₖ + gateₖ · deltaₖ",
     tone: "green",
   },
   history: {
