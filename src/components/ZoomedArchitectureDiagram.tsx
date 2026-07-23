@@ -32,7 +32,7 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   attention: {
     title: "Attention",
-    subtitle: "The method that combines current state, history, input, and weights into contextₖ.",
+    subtitle: "The method that retrieves relevant history using content similarity, relative time, and CTM synchronization before gating the result into contextₖ.",
   },
   delta: {
     title: "ComputeStateDelta",
@@ -395,7 +395,22 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
     observation: line(<><span className="text-violet-300">PiroInput</span> = Observation()</>),
     embedding: line(<>{variable("x")} = {method("Embed")}(PiroInput)</>),
     initialize: line(<>{variable("h₀")} = {method("InitializeOrRetrieveState")}(x, weights)</>),
-    attention: line(<>{variable("contextₖ")} = {method("Attention")}(hₖ, historyₖ, x, weights)</>),
+    attention: <>
+      {line(<>{method("Attention")}(hₖ, historyₖ, x, weights):</>)}
+      {line(<>    {variable("memoryₖ")} = {method("BuildMemorySlots")}(historyₖ, x, weights)</>)}
+      {line(<>    {variable("syncFeaturesₖ")} = {method("SummarizeSynchronization")}(hₖ, historyₖ, weights)</>)}
+      {line(<>    {variable("queryₖ")} = {method("QueryProjection")}(Normalize(Concatenate(hₖ, x, syncFeaturesₖ)), weights)</>)}
+      {line(<>    {variable("keysₖ")} = {method("KeyProjection")}(memoryₖ, weights)</>)}
+      {line(<>    {variable("valuesₖ")} = {method("ValueProjection")}(memoryₖ, weights)</>)}
+      {line(<>    {variable("contentScoresₖ")} = queryₖ · keysₖᵀ / sqrt(d_head)</>)}
+      {line(<>    {variable("timeBiasₖ")} = {method("RelativeTimeBias")}(memoryₖ.age, weights)</>)}
+      {line(<>    {variable("syncBiasₖ")} = {method("SynchronizationBias")}(hₖ, memoryₖ, weights)</>)}
+      {line(<>    {variable("retrievalWeightsₖ")} = softmax(contentScoresₖ + timeBiasₖ + syncBiasₖ)</>)}
+      {line(<>    {variable("retrievedₖ")} = retrievalWeightsₖ · valuesₖ</>)}
+      {line(<>    {variable("contextₖ")} = {method("OutputProjection")}(retrievedₖ, weights)</>)}
+      {line(<>    {variable("readGateₖ")} = sigmoid({method("ReadGate")}(hₖ, x, contextₖ, weights))</>)}
+      {line(<>    return readGateₖ ⊙ contextₖ</>)}
+    </>,
     delta: <>
       {line(<>{variable("deltaₖ")} = {method("ComputeStateDelta")}(</>)}
       {line(<>    hₖ,</>)}
@@ -424,7 +439,7 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-amber-900/20 bg-[#0b0908] px-4 py-5 sm:px-6" role="region" aria-label={`${details[kind].title} pseudocode`}>
-      <code className="block min-w-[42rem] font-mono text-sm leading-6 text-amber-100/85 sm:text-[0.95rem]">{snippets[kind]}</code>
+      <code className="block min-w-[40ch] font-mono text-sm leading-6 text-amber-100/85 sm:min-w-[42rem] sm:text-[0.95rem]">{snippets[kind]}</code>
     </div>
   );
 }
