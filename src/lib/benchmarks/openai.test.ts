@@ -2,7 +2,7 @@ import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { makeGPTAdapter, makePiroModelAdapter } from "./openai";
 
-test("GPT Ashfall sequence uses three requests and aggregates usage", async () => {
+test("GPT Ashfall sequence uses one request per input and aggregates usage", async () => {
   const originalFetch = globalThis.fetch;
   const originalOpenAIKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test-openai-key";
@@ -23,25 +23,26 @@ test("GPT Ashfall sequence uses three requests and aggregates usage", async () =
     const result = await makeGPTAdapter("gpt-5-nano").generateSequence!([
       "key_017 = value_014",
       "token_005_027",
+      "token_011_003",
       "key_017",
     ]);
 
-    assert.equal(requests.length, 3);
+    assert.equal(requests.length, 4);
     assert.deepEqual(
       requests.map(
         (request) =>
           request.messages.filter((message) => message.role === "user").at(-1)
             ?.content,
       ),
-      ["key_017 = value_014", "token_005_027", "key_017"],
+      ["key_017 = value_014", "token_005_027", "token_011_003", "key_017"],
     );
     assert.deepEqual(
       requests.map((request) => request.messages.length),
-      [2, 4, 6],
+      [2, 4, 6, 8],
     );
     assert.equal(result.text, "ACK");
-    assert.equal(result.inputTokens, 60);
-    assert.equal(result.outputTokens, 6);
+    assert.equal(result.inputTokens, 100);
+    assert.equal(result.outputTokens, 8);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalOpenAIKey === undefined) delete process.env.OPENAI_API_KEY;
@@ -60,6 +61,7 @@ test("Piro Ashfall sequence passes returned state to the next request", async ()
       { previous_activations: null, history_entries: [] },
       { previous_activations: [1], history_entries: [[2]] },
       { previous_activations: [3], history_entries: [[4]] },
+      { previous_activations: [5], history_entries: [[6]] },
     ];
     globalThis.fetch = async (_input, init) => {
       const body = JSON.parse(String(init?.body));
@@ -75,16 +77,22 @@ test("Piro Ashfall sequence passes returned state to the next request", async ()
       "model-1",
       "ashfall-ctm",
       "https://modal.test/infer",
-    ).generateSequence!(["key_017 = value_014", "token_005_027", "key_017"]);
+    ).generateSequence!([
+      "key_017 = value_014",
+      "token_005_027",
+      "token_011_003",
+      "key_017",
+    ]);
 
-    assert.equal(requests.length, 3);
+    assert.equal(requests.length, 4);
     assert.deepEqual(
       requests.map((request) => request.input),
-      ["key_017 = value_014", "token_005_027", "key_017"],
+      ["key_017 = value_014", "token_005_027", "token_011_003", "key_017"],
     );
     assert.equal(requests[0].state, undefined);
     assert.deepEqual(requests[1].state, states[0]);
     assert.deepEqual(requests[2].state, states[1]);
+    assert.deepEqual(requests[3].state, states[2]);
     assert.equal(result.text, "ACK");
   } finally {
     globalThis.fetch = originalFetch;

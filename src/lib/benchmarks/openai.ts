@@ -75,6 +75,7 @@ async function chatCompletion(
     text: data.choices[0]?.message?.content ?? "",
     inputTokens: data.usage?.prompt_tokens ?? 0,
     outputTokens: data.usage?.completion_tokens ?? 0,
+    tokenAccounting: "provider_usage",
   };
 }
 
@@ -94,13 +95,13 @@ export function makeGPTAdapter(modelName: string): ModelAdapter {
     async generateSequence(inputs: string[]): Promise<GenerateResult> {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
-      if (inputs.length !== 3) {
-        throw new Error("Ashfall evaluation requires exactly three inputs");
+      if (inputs.length < 2) {
+        throw new Error("Ashfall evaluation requires at least two inputs");
       }
 
       // Each PiroInput is a separate model invocation. The conversation is
       // replayed client-side so GPT sees prior turns without collapsing the
-      // three protocol boundaries into one request.
+      // protocol boundaries into one request.
       const messages: ChatMessage[] = [
         {
           role: "system",
@@ -159,11 +160,16 @@ export function makePiroModelAdapter(
         inferenceEndpoint,
         prompt,
       });
-      return { text: response.text ?? "", inputTokens: 0, outputTokens: 0 };
+      return {
+        text: response.text ?? "",
+        inputTokens: 0,
+        outputTokens: 0,
+        tokenAccounting: "not_applicable",
+      };
     },
     async generateSequence(inputs: string[]): Promise<GenerateResult> {
-      if (inputs.length !== 3) {
-        throw new Error("Ashfall evaluation requires exactly three inputs");
+      if (inputs.length < 2) {
+        throw new Error("Ashfall evaluation requires at least two inputs");
       }
 
       let state: ModalState | undefined;
@@ -171,6 +177,7 @@ export function makePiroModelAdapter(
         text: "",
         inputTokens: 0,
         outputTokens: 0,
+        tokenAccounting: "not_applicable",
       };
       for (const input of inputs) {
         const response = await requestModal({
@@ -187,6 +194,7 @@ export function makePiroModelAdapter(
           text: response.text,
           inputTokens: result.inputTokens,
           outputTokens: result.outputTokens,
+          tokenAccounting: "not_applicable",
         };
       }
       return result;

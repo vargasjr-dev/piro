@@ -12,7 +12,10 @@ function parseJson(value: string | null): unknown {
   }
 }
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const userId = await resolveRequestUserId(request);
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -20,16 +23,27 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const [suite] = await db
     .select()
     .from(benchmarkSuiteRun)
-    .where(and(eq(benchmarkSuiteRun.id, id), eq(benchmarkSuiteRun.userId, userId)))
+    .where(
+      and(eq(benchmarkSuiteRun.id, id), eq(benchmarkSuiteRun.userId, userId)),
+    )
     .limit(1);
-  if (!suite) return Response.json({ error: "Evaluation not found" }, { status: 404 });
+  if (!suite)
+    return Response.json({ error: "Evaluation not found" }, { status: 404 });
 
   const results = await db
     .select()
     .from(benchmarkRun)
-    .where(and(eq(benchmarkRun.suiteRunId, id), eq(benchmarkRun.userId, userId)));
-  const totalCostUsd = results.reduce((sum, result) => sum + (result.costUsd ?? 0), 0);
-  const totalDurationMs = results.reduce((sum, result) => sum + (result.durationMs ?? 0), 0);
+    .where(
+      and(eq(benchmarkRun.suiteRunId, id), eq(benchmarkRun.userId, userId)),
+    );
+  const totalCostUsd = results.reduce(
+    (sum, result) => sum + (result.costUsd ?? 0),
+    0,
+  );
+  const totalDurationMs = results.reduce(
+    (sum, result) => sum + (result.durationMs ?? 0),
+    0,
+  );
 
   return Response.json({
     id: suite.id,
@@ -40,7 +54,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     completedAt: suite.completedAt?.toISOString() ?? null,
     error: suite.error,
     results: results.map((result) => {
-      const metadata = parseJson(result.metadata) as Record<string, unknown> | null;
+      const metadata = parseJson(result.metadata) as Record<
+        string,
+        unknown
+      > | null;
       return {
         benchmarkName: result.benchmarkName,
         target: result.target,
@@ -48,6 +65,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         score: result.score,
         costUsd: result.costUsd ?? 0,
         durationMs: result.durationMs ?? 0,
+        inputTokens:
+          typeof metadata?.inputTokens === "number"
+            ? metadata.inputTokens
+            : null,
+        outputTokens:
+          typeof metadata?.outputTokens === "number"
+            ? metadata.outputTokens
+            : null,
+        tokenAccounting: metadata?.tokenAccounting ?? "unknown",
         metadata,
       };
     }),

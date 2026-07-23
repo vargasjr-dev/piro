@@ -163,6 +163,16 @@ class Trainer:
             hidden_dim=16,
             n_classes=32,
         )
+        # Approximately 10× the associative-recall CTM parameter count:
+        # 2,005 parameters at baseline versus 20,047 here (9.9985×).
+        self._memory_ctm_10x_cfg = CTMConfig(
+            n_neurons=6,
+            embed_dim=16,
+            query_dim=16,
+            value_dim=16,
+            hidden_dim=88,
+            n_classes=32,
+        )
 
         print("[piro] container ready — torch + model code loaded")
 
@@ -217,15 +227,24 @@ class Trainer:
             episodes = []
             for record in records:
                 inputs = record.get("inputs")
-                if not isinstance(inputs, list) or len(inputs) != 3:
-                    raise ValueError("associative-recall records must contain exactly three inputs")
+                if not isinstance(inputs, list) or len(inputs) < 2:
+                    raise ValueError("associative-recall records must contain at least two inputs")
                 texts = [item["parts"][0]["text"] for item in inputs]
-                writes, distractors, query = texts
-                target = next((line for line in writes.splitlines() if line.startswith(f"{query} = ")), None)
+                query = texts[-1]
+                observations = texts[:-1]
+                target = next(
+                    (
+                        line
+                        for observation in observations
+                        for line in observation.splitlines()
+                        if line.startswith(f"{query} = ")
+                    ),
+                    None,
+                )
                 if target is None:
                     raise ValueError(f"no write found for query {query!r}")
                 value = target.split("=", maxsplit=1)[1].strip()
-                episodes.append((writes, distractors, query, value))
+                episodes.append((tuple(observations), query, value))
             if not episodes:
                 raise ValueError("associative-recall dataset is empty")
             split_at = max(1, int(len(episodes) * 0.8))
@@ -255,16 +274,20 @@ class Trainer:
             random.seed(seed)
             torch.manual_seed(seed)
 
-            if data_source == "associative-recall" and model_template != "ctm":
+            if data_source == "associative-recall" and model_template not in {"ctm", "ctm-10x"}:
                 raise ValueError(
                     "associative-recall training requires the stateful ctm architecture"
                 )
 
-            if model_template == "ctm":
-                cfg = self._memory_ctm_cfg if data_source == "associative-recall" else self._ctm_cfg
+            if model_template in {"ctm", "ctm-10x"}:
+                if data_source == "associative-recall":
+                    cfg = self._memory_ctm_10x_cfg if model_template == "ctm-10x" else self._memory_ctm_cfg
+                else:
+                    cfg = self._ctm_cfg
                 model = self._ContinuousThoughtModel(cfg)
+                persisted_template = model_template
                 config_dict = {
-                    "template": "ctm",
+                    "template": persisted_template,
                     "n_neurons": cfg.n_neurons,
                     "embed_dim": cfg.embed_dim,
                     "query_dim": cfg.query_dim,
@@ -295,6 +318,9 @@ class Trainer:
             conn.commit()
 
             # ── Build dataset ─────────────────────────────────────────────────
+            # Associative recall reads the complete source JSONL and applies the
+            # canonical 80/20 split: 8,000 train records and 2,000 holdout
+            # records for the 10,000-record Ashfall source default.
             train_data = _build_dataset(500, "train")
             val_data = _build_dataset(100, "val")
 
@@ -304,24 +330,25 @@ class Trainer:
             optimizer = torch.optim.Adam(model.parameters(), lr=trainer_cfg.lr, weight_decay=trainer_cfg.weight_decay)
             history = []
 
-            def _memory_prediction(episode: tuple[str, str, str, str], *, train_mode: bool):
+            def _memory_prediction(episode: tuple[tuple[str, ...], str, str], *, train_mode: bool):
                 import torch.nn.functional as F
 
-                writes, distractors, query, value = episode
+                observations, query, value = episode
                 model.reset()
-                for observation in writes.splitlines() + distractors.splitlines():
-                    if not observation.strip():
-                        continue
-                    model(
-                        self._memory_embedding(
-                            observation,
-                            cfg.embed_dim,
-                            torch_module=torch,
-                            dtype=next(model.parameters()).dtype,
-                            device=next(model.parameters()).device,
-                        ),
-                        preserve_graph=train_mode,
-                    )
+                for packet in observations:
+                    for observation in packet.splitlines():
+                        if not observation.strip():
+                            continue
+                        model(
+                            self._memory_embedding(
+                                observation,
+                                cfg.embed_dim,
+                                torch_module=torch,
+                                dtype=next(model.parameters()).dtype,
+                                device=next(model.parameters()).device,
+                            ),
+                            preserve_graph=train_mode,
+                        )
                 output = model(
                     self._memory_embedding(
                         f"QUERY:{query}",
@@ -574,7 +601,7 @@ class Infer:
         template = cfg.get("template")
         torch = self._torch
 
-        if template == "ctm":
+        if template in {"ctm", "ctm-10x"}:
             model_cfg = self._CTMConfig(
                 n_neurons=cfg["n_neurons"],
                 embed_dim=cfg["embed_dim"],
@@ -696,7 +723,7 @@ class Infer:
         return state
 
     def _associative_step(self, model, cfg: dict, input_text: str, state: dict | None) -> tuple[str, dict]:
-        if cfg.get("template") != "ctm":
+        if cfg.get("template") not in {"ctm", "ctm-10x"}:
             raise ValueError("associative-recall inference requires a CTM model")
 
         import torch
