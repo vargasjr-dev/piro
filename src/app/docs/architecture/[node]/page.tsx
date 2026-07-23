@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: { params: Promise<{ node: str
     embedding: "Embed",
     initialize: "InitializeOrRetrieveState",
     attention: "Attention",
-    delta: "ComputeStateDelta",
+    delta: "Update",
     residual: "ApplyGatedResidual",
     history: "UpdateHistory",
     prediction: "PredictionHead",

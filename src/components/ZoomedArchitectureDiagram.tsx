@@ -36,7 +36,7 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
     subtitle: "The method that combines current state, history, input, and weights into contextₖ.",
   },
   delta: {
-    title: "ComputeStateDelta",
+    title: "Update",
     subtitle: "The method that computes the candidate state change deltaₖ from the current tick inputs.",
   },
   residual: {
@@ -276,7 +276,7 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   attention: {
     input: "hₖ + historyₖ + x + weights",
     output: "contextₖ",
-    relation: "builds the context used by ComputeStateDelta",
+    relation: "builds the context used by Update",
     tone: "green",
   },
   delta: {

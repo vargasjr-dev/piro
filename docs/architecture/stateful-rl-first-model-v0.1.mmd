@@ -1,5 +1,5 @@
 %% Piro Stateful RL-First Model v0.1
-%% Pseudocode view: transformations with explicit state/data edges
+%% Pseudocode view: initial boundary and state initialization only while flow is reviewed
 flowchart LR
     classDef current fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
     classDef proposed fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
@@ -12,36 +12,16 @@ flowchart LR
     subgraph PIRO[Piro model]
         I -->|observation| E[Embed]:::current
         E -->|x| S[InitializeOrRetrieveState]:::proposed
-        W[Weights]:::proposed -->|weights| S
-        S -->|h₀| A[Attention]:::current
-        E -->|x| A
-        W -->|weights| A
-        H[historyₖ]:::proposed -->|historyₖ| A
-        A -->|contextₖ| D[ComputeStateDelta]:::current
-        S -->|hₖ| D
-        E -->|x| D
-        W -->|weights| D
-        H -->|historyₖ| D
-        D -->|deltaₖ| R[ApplyGatedResidual]:::current
-        S -->|hₖ| R
-        W -->|weights · internal gate| R
-        R -->|hₖ₊₁| N[UpdateHistory]:::current
-        H -->|historyₖ| N
-        N -->|historyₖ₊₁ → historyₖ| A
-        N -->|historyₖ₊₁ → historyₖ| D
-        R -->|hₖ₊₁| P[PredictionHead]:::learning
-        R -->|hₖ₊₁| V[ValueHead]:::learning
-        R -->|hₖ₊₁| Ha[HaltHead]:::control
-        S -->|hₖ| Ha
-        P -->|predictionₖ| Ha
-        Ha -->|haltₖ| Sh[ShouldHalt]:::control
-        Sh -->|continue| A
-        K[k / Kmax]:::proposed -->|loop exit condition| Sh
-        Sh -->|exit with hₖ₊₁| O[OutputHead]:::current
-        P -->|prediction signal| Pc[PlasticityController]:::learning
-        V -->|value signal| Pc
-        Ha -->|learning signals| Pc
-        Pc -->|updated weights| W
-    end
+        W[Weights]:::proposed -->|internal_weights| S
 
-    O --> X
+        A[Attention]:::current
+        D[Update]:::current
+        R[ApplyGatedResidual]:::current
+        N[UpdateHistory]:::current
+        P[PredictionHead]:::learning
+        V[ValueHead]:::learning
+        O[OutputHead]:::current
+        Ha[HaltHead]:::control
+        Sh[ShouldHalt]:::control
+        Pc[PlasticityController]:::learning
+    end

@@ -44,6 +44,42 @@ export default function ArchitecturePage() {
           Click any transformation node to open its zoomed-in diagram.
         </p>
 
+        <section className="mt-10 rounded-2xl border border-amber-900/25 bg-[#100c0a] p-6 sm:p-8">
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-300/70">Working pseudocode</p>
+            <p className="mt-2 text-sm leading-6 text-amber-200/60">
+              The pseudocode is intentionally shown below the diagram while we validate the recurrent flow one edge at a time.
+            </p>
+          </div>
+          <pre className="overflow-x-auto whitespace-pre font-mono text-sm leading-7 text-amber-100/85"><code>{`x = Embed(PiroInput)
+
+h₀ = InitializeOrRetrieveState(x, internal_weights)
+
+for k = 0 ... Kmax:
+
+    contextₖ = Attention(hₖ, historyₖ, x, weights)
+
+    deltaₖ = Update(
+        hₖ,
+        x,
+        contextₖ,
+        historyₖ,
+        weights
+    )
+
+    hₖ₊₁ = hₖ + gateₖ · deltaₖ
+
+    historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁)
+
+predictionₖ = PredictionHead(hₖ₊₁)
+valueₖ      = ValueHead(hₖ₊₁)
+outputₖ     = OutputHead(hₖ₊₁)
+haltₖ       = HaltHead(hₖ₊₁, hₖ, predictionₖ)
+
+if ShouldHalt(hₖ₊₁, haltₖ, k):
+    return outputₖ`}</code></pre>
+        </section>
+
         <div className="mt-12 border-t border-amber-900/20 pt-6">
           <Link href="/docs" className="text-sm text-amber-400/50 transition hover:text-amber-200">
             ← Back to docs
