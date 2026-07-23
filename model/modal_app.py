@@ -653,37 +653,60 @@ class Infer:
             remaining.remove(min_val)
         return result
 
-    @modal.method()
-    def generate(self, model_id: str, prompt: str) -> dict:
-        """
-        Run inference for one benchmark prompt.
+    def _associative_recall(self, model, cfg: dict, inputs: list[str]) -> str:
+        if cfg.get("template") != "ctm":
+            raise ValueError("associative-recall inference requires a CTM model")
+        if len(inputs) != 3:
+            raise ValueError("associative-recall inference requires exactly three inputs")
 
-        The prompt format is: "Sort these numbers from smallest to largest: [a, b, ...]\\nResponse (numbers only, space-separated):"
-        Returns: { "text": "<space-separated sorted list>", "durationMs": int }
-        """
+        import torch
+
+        writes, distractors, query = inputs
+        model.reset()
+        for observation in writes.splitlines() + distractors.splitlines():
+            if observation.strip():
+                model(
+                    self._memory_embedding(
+                        observation,
+                        cfg["embed_dim"],
+                        torch_module=torch,
+                        dtype=next(model.parameters()).dtype,
+                        device=next(model.parameters()).device,
+                    )
+                )
+        output = model(
+            self._memory_embedding(
+                f"QUERY:{query}",
+                cfg["embed_dim"],
+                torch_module=torch,
+                dtype=next(model.parameters()).dtype,
+                device=next(model.parameters()).device,
+            )
+        )
+        logits = output.logits if hasattr(output, "logits") else output
+        return f"value_{int(logits.argmax().item()):03d}"
+
+    @modal.method()
+    def generate(self, model_id: str, prompt: str, inputs: list[str] | None = None) -> dict:
+        """Run sorting or ordered associative-recall inference."""
         import time
         t0 = time.time()
 
         try:
             model, cfg = self._load(model_id)
+            if inputs is not None:
+                text = self._associative_recall(model, cfg, inputs)
+                return {"text": text, "durationMs": int((time.time() - t0) * 1000)}
         except Exception as exc:
             return {"text": "", "error": str(exc), "durationMs": 0}
 
         template = cfg["template"]
         n_neurons = cfg.get("n_neurons", cfg.get("embed_dim", 4))
-        # Transformer uses embed_dim for sequence length in our dataset builder
-        # but the model itself isn't constrained — we use n_neurons from CTMConfig
-        # For transformer, the natural chunk size is n_neurons from the ctm config (=4)
-        # so we hard-code the dataset's sequence length as the oracle chunk size.
         chunk_size = cfg.get("n_neurons", 4)
         embed_dim = cfg["embed_dim"]
-
-        # Parse list from prompt: "Sort these numbers...: [5, 6, 10, ...]"
         match = self._re.search(r'\[([^\]]+)\]', prompt)
         if not match:
-            # Not a sorting prompt — return empty (model only handles sorting)
             return {"text": "", "durationMs": int((time.time() - t0) * 1000)}
-
         try:
             numbers = [int(x.strip()) for x in match.group(1).split(',')]
         except ValueError:
@@ -1101,8 +1124,11 @@ def infer(body: dict) -> dict:
 
     model_id = body.get("model_id")
     prompt = body.get("prompt", "")
+    inputs = body.get("inputs")
     if not model_id:
         raise HTTPException(status_code=400, detail="model_id required")
+    if inputs is not None and (not isinstance(inputs, list) or len(inputs) != 3 or not all(isinstance(item, str) for item in inputs)):
+        raise HTTPException(status_code=400, detail="inputs must be an array of exactly three strings")
 
     inferrer = Infer()
-    return inferrer.generate.remote(model_id=model_id, prompt=prompt)
+    return inferrer.generate.remote(model_id=model_id, prompt=prompt, inputs=inputs)
