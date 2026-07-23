@@ -1,9 +1,12 @@
 // ── Core types shared across all benchmarks ───────────────────────────────────
 
+export type TokenAccounting = "provider_usage" | "not_applicable";
+
 export interface GenerateResult {
   text: string;
   inputTokens: number;
   outputTokens: number;
+  tokenAccounting?: TokenAccounting;
 }
 
 export interface BenchmarkResult {

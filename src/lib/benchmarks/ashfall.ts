@@ -7,12 +7,13 @@ import type {
 } from "./types";
 import { computeCost } from "./openai";
 
-const DEFAULT_EPISODES = 1_000;
+const DEFAULT_EPISODES = 2_000;
 const MAX_FAILURES = 20;
 
 interface AshfallEpisode {
   inputs: string[];
   answer: string;
+  requestCount: number;
 }
 
 function extractText(input: unknown): string {
@@ -36,18 +37,21 @@ function parseEpisode(record: unknown): AshfallEpisode {
   if (!record || typeof record !== "object")
     throw new Error("Ashfall record must be an object");
   const inputs = (record as { inputs?: unknown }).inputs;
-  if (!Array.isArray(inputs) || inputs.length !== 3) {
-    throw new Error("Ashfall records must contain exactly three inputs");
+  if (!Array.isArray(inputs) || inputs.length < 2) {
+    throw new Error("Ashfall records must contain at least two inputs");
   }
-  const [writes, distractors, query] = inputs.map(extractText);
-  const targetLine = writes
-    .split("\n")
+  const texts = inputs.map(extractText);
+  const query = texts.at(-1)!;
+  const targetLine = texts
+    .slice(0, -1)
+    .flatMap((text) => text.split("\n"))
     .find((line) => line.startsWith(`${query} = `));
   if (!targetLine)
     throw new Error(`Ashfall query ${query} has no matching write`);
   return {
-    inputs: [writes, distractors, query],
+    inputs: inputs.map(extractText),
     answer: targetLine.slice(targetLine.indexOf("=") + 1).trim(),
+    requestCount: inputs.length,
   };
 }
 
@@ -95,6 +99,9 @@ export const ashfall: BenchmarkDef = {
     let correct = 0;
     let inputTokens = 0;
     let outputTokens = 0;
+    let requestCount = 0;
+    let minRequests = Number.POSITIVE_INFINITY;
+    let maxRequests = 0;
     const failures: Array<{ expected: string; actual: string }> = [];
     const concurrency = model.name === "gpt-5-nano" ? 8 : 4;
 
@@ -109,6 +116,9 @@ export const ashfall: BenchmarkDef = {
       for (const { episode, result } of results) {
         inputTokens += result.inputTokens;
         outputTokens += result.outputTokens;
+        requestCount += episode.requestCount;
+        minRequests = Math.min(minRequests, episode.requestCount);
+        maxRequests = Math.max(maxRequests, episode.requestCount);
         const actual = normalizeAnswer(result.text);
         if (actual === episode.answer.toLowerCase()) correct += 1;
         else if (failures.length < MAX_FAILURES)
@@ -135,13 +145,27 @@ export const ashfall: BenchmarkDef = {
         correct,
         inputTokens,
         outputTokens,
+        tokenAccounting: model.targetKey?.startsWith("openai:")
+          ? "provider_usage"
+          : "not_applicable",
         failures,
         protocol:
-          "three separate sequential invocations per Ashfall episode; validation holdout; exact value_NNN match",
-        requestCountPerEpisode: 3,
+          "one separate sequential invocation per ordered input; validation holdout; exact value_NNN match",
+        requestCount,
+        requestCountPerEpisode: episodes.length
+          ? requestCount / episodes.length
+          : 0,
+        minRequestsPerEpisode: Number.isFinite(minRequests) ? minRequests : 0,
+        maxRequestsPerEpisode: maxRequests,
+        averageInputTokensPerEpisode: episodes.length
+          ? inputTokens / episodes.length
+          : 0,
+        averageOutputTokensPerEpisode: episodes.length
+          ? outputTokens / episodes.length
+          : 0,
         stateBoundary: model.targetKey?.startsWith("openai:")
-          ? "conversation replayed across three HTTP requests"
-          : "serialized recurrent state returned and supplied across three HTTP requests",
+          ? "conversation replayed across the ordered HTTP requests"
+          : "serialized recurrent state returned and supplied across the ordered HTTP requests",
       },
     };
   },

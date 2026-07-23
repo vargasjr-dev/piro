@@ -1,6 +1,10 @@
 import { desc, eq, and } from "drizzle-orm";
 import { db } from "../../../../data/db";
-import { benchmarkRun, benchmarkSuiteRun, dataset } from "../../../../data/schema";
+import {
+  benchmarkRun,
+  benchmarkSuiteRun,
+  dataset,
+} from "../../../../data/schema";
 import { resolveRequestUserId } from "~/lib/evals/auth";
 import { runSuite } from "~/lib/benchmarks/runner";
 import { waitUntil } from "@vercel/functions";
@@ -20,7 +24,10 @@ export async function GET(request: Request) {
     .limit(50);
   const runIds = rows.map((row) => row.id);
   const resultRows = runIds.length
-    ? await db.select().from(benchmarkRun).where(eq(benchmarkRun.userId, userId))
+    ? await db
+        .select()
+        .from(benchmarkRun)
+        .where(eq(benchmarkRun.userId, userId))
     : [];
   const resultsByRun = new Map<string, typeof resultRows>();
   for (const result of resultRows) {
@@ -39,8 +46,31 @@ export async function GET(request: Request) {
       queuedAt: row.queuedAt.toISOString(),
       completedAt: row.completedAt?.toISOString() ?? null,
       resultCount: resultsByRun.get(row.id)?.length ?? 0,
-      totalCostUsd: (resultsByRun.get(row.id) ?? []).reduce((sum, result) => sum + (result.costUsd ?? 0), 0),
-      totalDurationMs: (resultsByRun.get(row.id) ?? []).reduce((sum, result) => sum + (result.durationMs ?? 0), 0),
+      totalCostUsd: (resultsByRun.get(row.id) ?? []).reduce(
+        (sum, result) => sum + (result.costUsd ?? 0),
+        0,
+      ),
+      totalDurationMs: (resultsByRun.get(row.id) ?? []).reduce(
+        (sum, result) => sum + (result.durationMs ?? 0),
+        0,
+      ),
+      results: (resultsByRun.get(row.id) ?? []).map((result) => {
+        const metadata = result.metadata
+          ? (JSON.parse(result.metadata) as Record<string, unknown>)
+          : null;
+        return {
+          target: result.target,
+          inputTokens:
+            typeof metadata?.inputTokens === "number"
+              ? metadata.inputTokens
+              : null,
+          outputTokens:
+            typeof metadata?.outputTokens === "number"
+              ? metadata.outputTokens
+              : null,
+          tokenAccounting: metadata?.tokenAccounting ?? "unknown",
+        };
+      }),
     })),
   });
 }
@@ -57,7 +87,10 @@ export async function POST(request: Request) {
   };
   const name = body.name?.trim() ?? "";
   if (name.toLowerCase() !== "ashfall") {
-    return Response.json({ error: "Only the Ashfall benchmark is currently available" }, { status: 400 });
+    return Response.json(
+      { error: "Only the Ashfall benchmark is currently available" },
+      { status: 400 },
+    );
   }
 
   const [datasetRow] = await db
@@ -65,14 +98,23 @@ export async function POST(request: Request) {
     .from(dataset)
     .where(
       and(
-        eq(dataset.id, body.datasetId ?? "6c572406-7cd8-4692-94ff-2af04b2d46df"),
+        eq(
+          dataset.id,
+          body.datasetId ?? "6c572406-7cd8-4692-94ff-2af04b2d46df",
+        ),
         eq(dataset.userId, userId),
       ),
     )
     .limit(1);
-  if (!datasetRow) return Response.json({ error: "Ashfall dataset not found" }, { status: 404 });
+  if (!datasetRow)
+    return Response.json(
+      { error: "Ashfall dataset not found" },
+      { status: 404 },
+    );
 
-  const requestedTargets = body.targets?.length ? body.targets : [ASHFALL_MODEL_ID, ASHFALL_TARGET];
+  const requestedTargets = body.targets?.length
+    ? body.targets
+    : [ASHFALL_MODEL_ID, ASHFALL_TARGET];
   const suiteRunId = crypto.randomUUID();
   await db.insert(benchmarkSuiteRun).values({
     id: suiteRunId,
@@ -88,5 +130,8 @@ export async function POST(request: Request) {
     }),
   );
 
-  return Response.json({ id: suiteRunId, status: "queued", benchmark: "Ashfall" }, { status: 202 });
+  return Response.json(
+    { id: suiteRunId, status: "queued", benchmark: "Ashfall" },
+    { status: 202 },
+  );
 }
