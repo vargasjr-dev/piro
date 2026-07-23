@@ -7,9 +7,9 @@ export interface GenerateResult {
 }
 
 export interface BenchmarkResult {
-  score: number;                        // 0.0 → 1.0
+  score: number; // 0.0 → 1.0
   durationMs: number;
-  costUsd: number;                      // total $ spent on API calls for this benchmark × target
+  costUsd: number; // total $ spent on API calls for this benchmark × target
   metadata: Record<string, unknown>;
 }
 
@@ -22,8 +22,8 @@ export interface ModelAdapter {
   /** true = not a real model, results are noise */
   isStub?: boolean;
   generate(prompt: string): Promise<GenerateResult>;
-  /** Generate from ordered invocation inputs without concatenating state boundaries. */
-  generateInputs?(inputs: string[]): Promise<GenerateResult>;
+  /** Generate one response per ordered invocation, preserving each boundary. */
+  generateSequence?(inputs: string[]): Promise<GenerateResult>;
 }
 
 export interface BenchmarkContext {
@@ -33,5 +33,8 @@ export interface BenchmarkContext {
 
 export interface BenchmarkDef {
   name: string;
-  run(model: ModelAdapter, context?: BenchmarkContext): Promise<BenchmarkResult>;
+  run(
+    model: ModelAdapter,
+    context?: BenchmarkContext,
+  ): Promise<BenchmarkResult>;
 }

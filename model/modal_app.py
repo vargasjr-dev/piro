@@ -530,10 +530,12 @@ class Infer:
         self._torch = torch
         from piro.ctm import ContinuousThoughtModel, CTMConfig
         from piro.baseline_transformer import BaselineTransformer, TransformerConfig
+        from model.memory_encoding import memory_embedding
         self._CTM = ContinuousThoughtModel
         self._CTMConfig = CTMConfig
         self._Transformer = BaselineTransformer
         self._TransformerConfig = TransformerConfig
+        self._memory_embedding = memory_embedding
 
         # model_id → (model, cfg_dict) — persists across warm calls
         self._cache: dict = {}
@@ -653,50 +655,99 @@ class Infer:
             remaining.remove(min_val)
         return result
 
-    def _associative_recall(self, model, cfg: dict, inputs: list[str]) -> str:
+    def _json_state(self, value):
+        """Convert a CTM snapshot into JSON-safe values for the next request."""
+        if hasattr(value, "detach"):
+            return value.detach().cpu().tolist()
+        if isinstance(value, dict):
+            return {key: self._json_state(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self._json_state(item) for item in value]
+        return value
+
+    def _load_json_state(self, model, payload: dict):
+        """Rebuild a JSON CTM snapshot with the model's device and dtypes."""
+        torch = self._torch
+        parameter = next(model.parameters())
+        dtype = parameter.dtype
+        device = parameter.device
+
+        def tensor(value, *, tensor_dtype=dtype):
+            return torch.tensor(value, dtype=tensor_dtype, device=device)
+
+        state = {
+            "previous_activations": (
+                tensor(payload["previous_activations"])
+                if payload.get("previous_activations") is not None
+                else None
+            ),
+            "history_entries": [tensor(entry) for entry in payload.get("history_entries", [])],
+        }
+        if "plastic_weights" in payload:
+            state["plastic_weights"] = tensor(payload["plastic_weights"])
+            state["plastic_ticks"] = int(payload.get("plastic_ticks", 0))
+        if "burst_counter" in payload:
+            state["burst_counter"] = tensor(payload["burst_counter"], tensor_dtype=torch.long)
+            state["refractory_counter"] = tensor(
+                payload.get("refractory_counter", []), tensor_dtype=torch.long
+            )
+        if "phases" in payload:
+            state["phases"] = tensor(payload["phases"])
+        return state
+
+    def _associative_step(self, model, cfg: dict, input_text: str, state: dict | None) -> tuple[str, dict]:
         if cfg.get("template") != "ctm":
             raise ValueError("associative-recall inference requires a CTM model")
-        if len(inputs) != 3:
-            raise ValueError("associative-recall inference requires exactly three inputs")
 
         import torch
 
-        writes, distractors, query = inputs
-        model.reset()
-        for observation in writes.splitlines() + distractors.splitlines():
-            if observation.strip():
-                model(
-                    self._memory_embedding(
-                        observation,
-                        cfg["embed_dim"],
-                        torch_module=torch,
-                        dtype=next(model.parameters()).dtype,
-                        device=next(model.parameters()).device,
-                    )
-                )
-        output = model(
-            self._memory_embedding(
-                f"QUERY:{query}",
+        if state is None:
+            model.reset()
+        else:
+            model.load_state(self._load_json_state(model, state))
+
+        parameter = next(model.parameters())
+        answer = "ACK"
+        for observation in input_text.splitlines():
+            observation = observation.strip()
+            if not observation:
+                continue
+            is_query = "=" not in observation and not observation.startswith("token_")
+            encoded = self._memory_embedding(
+                f"QUERY:{observation}" if is_query else observation,
                 cfg["embed_dim"],
                 torch_module=torch,
-                dtype=next(model.parameters()).dtype,
-                device=next(model.parameters()).device,
+                dtype=parameter.dtype,
+                device=parameter.device,
             )
-        )
-        logits = output.logits if hasattr(output, "logits") else output
-        return f"value_{int(logits.argmax().item()):03d}"
+            output = model(encoded)
+            if is_query:
+                logits = output.logits if hasattr(output, "logits") else output
+                answer = f"value_{int(logits.argmax().item()):03d}"
+
+        return answer, self._json_state(model.snapshot_state())
 
     @modal.method()
-    def generate(self, model_id: str, prompt: str, inputs: list[str] | None = None) -> dict:
-        """Run sorting or ordered associative-recall inference."""
+    def generate(
+        self,
+        model_id: str,
+        prompt: str = "",
+        input: str | None = None,
+        state: dict | None = None,
+    ) -> dict:
+        """Run one sorting prompt or one stateful associative-recall invocation."""
         import time
         t0 = time.time()
 
         try:
             model, cfg = self._load(model_id)
-            if inputs is not None:
-                text = self._associative_recall(model, cfg, inputs)
-                return {"text": text, "durationMs": int((time.time() - t0) * 1000)}
+            if input is not None:
+                text, next_state = self._associative_step(model, cfg, input, state)
+                return {
+                    "text": text,
+                    "state": next_state,
+                    "durationMs": int((time.time() - t0) * 1000),
+                }
         except Exception as exc:
             return {"text": "", "error": str(exc), "durationMs": 0}
 
@@ -1108,12 +1159,14 @@ def infer(body: dict) -> dict:
     Body:
         {
             "model_id": str,
-            "prompt":   str,
+            "prompt":   str,                 # sorting inference
+            "input":    str,                 # one Ashfall invocation
+            "state":    dict | null,         # prior CTM snapshot for Ashfall
             "secret":   str,
         }
 
     Response:
-        { "text": str, "durationMs": int }
+        { "text": str, "state": dict, "durationMs": int }
     """
     import os
     from fastapi import HTTPException
@@ -1124,11 +1177,21 @@ def infer(body: dict) -> dict:
 
     model_id = body.get("model_id")
     prompt = body.get("prompt", "")
-    inputs = body.get("inputs")
+    input_text = body.get("input")
+    state = body.get("state")
     if not model_id:
         raise HTTPException(status_code=400, detail="model_id required")
-    if inputs is not None and (not isinstance(inputs, list) or len(inputs) != 3 or not all(isinstance(item, str) for item in inputs)):
-        raise HTTPException(status_code=400, detail="inputs must be an array of exactly three strings")
+    if input_text is not None and (not isinstance(input_text, str) or not input_text.strip()):
+        raise HTTPException(status_code=400, detail="input must be a non-empty string")
+    if state is not None and not isinstance(state, dict):
+        raise HTTPException(status_code=400, detail="state must be an object")
+    if input_text is None and (not isinstance(prompt, str) or not prompt.strip()):
+        raise HTTPException(status_code=400, detail="prompt required")
 
     inferrer = Infer()
-    return inferrer.generate.remote(model_id=model_id, prompt=prompt, inputs=inputs)
+    return inferrer.generate.remote(
+        model_id=model_id,
+        prompt=prompt,
+        input=input_text,
+        state=state,
+    )

@@ -8,11 +8,17 @@ const PRICING: Record<string, { input: number; output: number }> = {
   "gpt-5-nano": { input: 0.05, output: 0.4 },
 };
 
-export function computeCost(model: string, inputTokens: number, outputTokens: number): number {
+export function computeCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+): number {
   const pricing = PRICING[model];
   if (!pricing) return 0;
-  return (inputTokens / 1_000_000) * pricing.input +
-    (outputTokens / 1_000_000) * pricing.output;
+  return (
+    (inputTokens / 1_000_000) * pricing.input +
+    (outputTokens / 1_000_000) * pricing.output
+  );
 }
 
 interface ChatMessage {
@@ -79,30 +85,63 @@ export function makeGPTAdapter(modelName: string): ModelAdapter {
     async generate(prompt: string): Promise<GenerateResult> {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
-      return chatCompletion(modelName, [{ role: "user", content: prompt }], apiKey);
-    },
-    async generateInputs(inputs: string[]): Promise<GenerateResult> {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
       return chatCompletion(
         modelName,
-        [
-          {
-            role: "system",
-            content:
-              "Return only the exact value associated with the queried key, such as value_014. Do not explain.",
-          },
-          ...inputs.map((content) => ({ role: "user" as const, content })),
-        ],
+        [{ role: "user", content: prompt }],
         apiKey,
       );
     },
+    async generateSequence(inputs: string[]): Promise<GenerateResult> {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+      if (inputs.length !== 3) {
+        throw new Error("Ashfall evaluation requires exactly three inputs");
+      }
+
+      // Each PiroInput is a separate model invocation. The conversation is
+      // replayed client-side so GPT sees prior turns without collapsing the
+      // three protocol boundaries into one request.
+      const messages: ChatMessage[] = [
+        {
+          role: "system",
+          content:
+            "You receive one associative-memory observation per invocation. Maintain facts across invocations. For writes and distractors, reply only ACK. When the user message is a key_NNN query, reply only the exact value_NNN associated with that key. Do not explain.",
+        },
+      ];
+      let finalResult: GenerateResult | null = null;
+      let inputTokens = 0;
+      let outputTokens = 0;
+      for (const content of inputs) {
+        messages.push({ role: "user", content });
+        const result = await chatCompletion(modelName, messages, apiKey);
+        finalResult = result;
+        inputTokens += result.inputTokens;
+        outputTokens += result.outputTokens;
+        messages.push({ role: "assistant", content: result.text });
+      }
+      return {
+        text: finalResult?.text ?? "",
+        inputTokens,
+        outputTokens,
+      };
+    },
   };
+}
+
+interface ModalState {
+  previous_activations: number[] | null;
+  history_entries: number[][];
+  plastic_weights?: number[][];
+  plastic_ticks?: number;
+  burst_counter?: number[];
+  refractory_counter?: number[];
+  phases?: number[];
 }
 
 interface ModalInferResponse {
   text: string;
   durationMs: number;
+  state?: ModalState;
   error?: string;
 }
 
@@ -115,10 +154,42 @@ export function makePiroModelAdapter(
     name: modelName,
     targetKey: modelId,
     async generate(prompt: string): Promise<GenerateResult> {
-      return requestModal({ modelId, inferenceEndpoint, prompt });
+      const response = await requestModal({
+        modelId,
+        inferenceEndpoint,
+        prompt,
+      });
+      return { text: response.text ?? "", inputTokens: 0, outputTokens: 0 };
     },
-    async generateInputs(inputs: string[]): Promise<GenerateResult> {
-      return requestModal({ modelId, inferenceEndpoint, inputs });
+    async generateSequence(inputs: string[]): Promise<GenerateResult> {
+      if (inputs.length !== 3) {
+        throw new Error("Ashfall evaluation requires exactly three inputs");
+      }
+
+      let state: ModalState | undefined;
+      let result: GenerateResult = {
+        text: "",
+        inputTokens: 0,
+        outputTokens: 0,
+      };
+      for (const input of inputs) {
+        const response = await requestModal({
+          modelId,
+          inferenceEndpoint,
+          input,
+          state,
+        });
+        if (!response.state) {
+          throw new Error("Piro inference did not return recurrent state");
+        }
+        state = response.state;
+        result = {
+          text: response.text,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+        };
+      }
+      return result;
     },
   };
 }
@@ -127,18 +198,26 @@ async function requestModal({
   modelId,
   inferenceEndpoint,
   prompt,
-  inputs,
+  input,
+  state,
 }: {
   modelId: string;
   inferenceEndpoint: string;
   prompt?: string;
-  inputs?: string[];
-}): Promise<GenerateResult> {
+  input?: string;
+  state?: ModalState;
+}): Promise<ModalInferResponse> {
   const secret = process.env.MODAL_WEBHOOK_SECRET ?? "";
   const res = await fetch(inferenceEndpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model_id: modelId, ...(inputs ? { inputs } : { prompt }), secret }),
+    body: JSON.stringify({
+      model_id: modelId,
+      ...(input !== undefined
+        ? { input, ...(state ? { state } : {}) }
+        : { prompt }),
+      secret,
+    }),
   });
 
   if (!res.ok) {
@@ -148,5 +227,5 @@ async function requestModal({
 
   const data = (await res.json()) as ModalInferResponse;
   if (data.error) throw new Error(`Piro inference error: ${data.error}`);
-  return { text: data.text ?? "", inputTokens: 0, outputTokens: 0 };
+  return data;
 }
