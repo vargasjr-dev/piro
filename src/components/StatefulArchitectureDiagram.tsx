@@ -171,7 +171,7 @@ const toneStyles: Record<Tone, { fill: string; stroke: string; title: string; de
 function arrowPath(
   d: string,
   color: string,
-  options?: { dashed?: boolean; marker?: string },
+  options?: { marker?: string },
 ) {
   return (
     <path
@@ -179,8 +179,7 @@ function arrowPath(
       fill="none"
       stroke={color}
       strokeWidth="2"
-      strokeDasharray={options?.dashed ? "8 7" : undefined}
-      markerEnd={`url(#${options?.marker ?? "arrow-gold"})`}
+      markerEnd={options?.marker ? `url(#${options.marker})` : undefined}
     />
   );
 }
@@ -275,14 +274,14 @@ export default function StatefulArchitectureDiagram() {
         {arrowPath("M518.75 385V520H920V291.25H1050", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
         <InputLabel x={760} y={512}>x</InputLabel>
 
-        {arrowPath("M785 393.75V332.5", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        {arrowPath("M785 393.75V332.5", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
         <InputLabel x={785} y={365}>weights</InputLabel>
-        {arrowPath("M886.25 435H980V291.25H1050", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={955} y={340}>weights</InputLabel>
+        {arrowPath("M886.25 435H920V520", "rgb(125 211 252 / 0.7)")}
+        <InputLabel x={835} y={420}>weights</InputLabel>
 
         {arrowPath("M897.5 291.25H1050", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
         <InputLabel x={970} y={280}>hₖ</InputLabel>
-        {arrowPath("M2182.5 500H1380V291.25H1050", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        {arrowPath("M2182.5 500H1380V291.25H1050", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
         <InputLabel x={1680} y={490}>historyₖ</InputLabel>
 
         {arrowPath("M1305 291.25H1460", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
@@ -291,9 +290,9 @@ export default function StatefulArchitectureDiagram() {
         <InputLabel x={1190} y={205}>hₖ</InputLabel>
         {arrowPath("M518.75 385V560H1360V310H1460", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
         <InputLabel x={940} y={552}>x</InputLabel>
-        {arrowPath("M886.25 435H1280V350H1460", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        {arrowPath("M886.25 435H1280V350H1460", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
         <InputLabel x={1130} y={340}>weights</InputLabel>
-        {arrowPath("M1957.5 500H1320V370H1460", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        {arrowPath("M1957.5 500H1320V370H1460", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
         <InputLabel x={1600} y={360}>historyₖ</InputLabel>
 
         {nodes.map((node) => (
