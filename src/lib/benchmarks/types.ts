@@ -15,14 +15,23 @@ export interface BenchmarkResult {
 
 /** Anything that can generate a response to a prompt */
 export interface ModelAdapter {
-  /** "gpt-4o-mini" | "gpt-4o" | "piro-student" */
+  /** Human-readable model name shown in benchmark output. */
   name: string;
+  /** Stable persisted identity, such as a model UUID or provider:model. */
+  targetKey?: string;
   /** true = not a real model, results are noise */
   isStub?: boolean;
   generate(prompt: string): Promise<GenerateResult>;
+  /** Generate from ordered invocation inputs without concatenating state boundaries. */
+  generateInputs?(inputs: string[]): Promise<GenerateResult>;
+}
+
+export interface BenchmarkContext {
+  datasetR2Prefix?: string;
+  episodes?: number;
 }
 
 export interface BenchmarkDef {
   name: string;
-  run(model: ModelAdapter): Promise<BenchmarkResult>;
+  run(model: ModelAdapter, context?: BenchmarkContext): Promise<BenchmarkResult>;
 }

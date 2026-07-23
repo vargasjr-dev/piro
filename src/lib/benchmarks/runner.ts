@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../../data/db";
 import {
   benchmarkRun,
@@ -7,117 +7,118 @@ import {
   modelHostedApi,
   modelTrainingRun,
 } from "../../../data/schema";
-import type { BenchmarkDef, ModelAdapter } from "./types";
+import type { BenchmarkContext, BenchmarkDef, ModelAdapter } from "./types";
 import { sanityCheck } from "./sanity-check";
 import { oodGeneralization } from "./ood-generalization";
 import { adaptiveCompute } from "./adaptive-compute";
+import { ashfall } from "./ashfall";
 import { makeGPTAdapter, makePiroModelAdapter } from "./openai";
-
-// ── Benchmark registry (static) ───────────────────────────────────────────────
 
 export const BENCHMARKS: BenchmarkDef[] = [
   sanityCheck,
   oodGeneralization,
   adaptiveCompute,
+  ashfall,
 ];
 
-// ── Dynamic target resolution from DB ────────────────────────────────────────
-
-/**
- * Build ModelAdapter instances for the given model IDs (or all models for userId
- * if targetIds is null). Resolves each model's type from DB:
- *  - modelHostedApi  → makeGPTAdapter(apiModelName)
- *  - modelTrainingRun → makePiroStudentAdapter keyed by model.id
- */
 async function resolveTargets(
   userId: string,
   targetIds: string[] | null,
 ): Promise<ModelAdapter[]> {
-  const models = targetIds?.length
-    ? await db.select({ id: model.id, name: model.name, inferenceEndpoint: model.inferenceEndpoint }).from(model).where(inArray(model.id, targetIds))
-    : await db.select({ id: model.id, name: model.name, inferenceEndpoint: model.inferenceEndpoint }).from(model).where(eq(model.userId, userId));
+  const requestedVirtualTargets = (targetIds ?? []).filter((id) => id.startsWith("openai:"));
+  const virtualTargets = requestedVirtualTargets.map((target) =>
+    makeGPTAdapter(target.slice("openai:".length)),
+  );
+  const requestedModelIds = targetIds?.filter((id) => !id.startsWith("openai:")) ?? null;
 
-  if (models.length === 0) return [];
+  const models = requestedModelIds
+    ? requestedModelIds.length
+      ? await db
+          .select({ id: model.id, name: model.name, inferenceEndpoint: model.inferenceEndpoint })
+          .from(model)
+          .where(and(eq(model.userId, userId), inArray(model.id, requestedModelIds)))
+      : []
+    : await db
+        .select({ id: model.id, name: model.name, inferenceEndpoint: model.inferenceEndpoint })
+        .from(model)
+        .where(eq(model.userId, userId));
 
-  const ids = models.map((m) => m.id);
+  if (requestedModelIds && models.length !== requestedModelIds.length) {
+    const found = new Set(models.map((item) => item.id));
+    const missing = requestedModelIds.filter((id) => !found.has(id));
+    throw new Error(`Requested model target is unavailable for this user: ${missing.join(", ")}`);
+  }
 
+  if (models.length === 0) return virtualTargets;
+
+  const ids = models.map((item) => item.id);
   const [hostedApis, trainingLinks] = await Promise.all([
     db.select().from(modelHostedApi).where(inArray(modelHostedApi.modelId, ids)),
     db.select().from(modelTrainingRun).where(inArray(modelTrainingRun.modelId, ids)),
   ]);
 
-  const hostedById = Object.fromEntries(hostedApis.map((h) => [h.modelId, h]));
-  const trainingById = Object.fromEntries(trainingLinks.map((t) => [t.modelId, t]));
-
-  return models.map((m): ModelAdapter => {
-    const hosted = hostedById[m.id];
+  const hostedById = Object.fromEntries(hostedApis.map((item) => [item.modelId, item]));
+  const trainingById = Object.fromEntries(trainingLinks.map((item) => [item.modelId, item]));
+  const modelTargets = models.map((item): ModelAdapter => {
+    const hosted = hostedById[item.id];
     if (hosted) {
-      // Hosted API model — route through provider
-      return makeGPTAdapter(hosted.apiModelName);
+      const adapter = makeGPTAdapter(hosted.apiModelName);
+      return { ...adapter, name: item.name };
     }
-    if (trainingById[m.id]) {
-      if (!m.inferenceEndpoint) {
-        // Trained before weight/endpoint persistence — mark as stub so results aren't shown as real
+    if (trainingById[item.id]) {
+      if (!item.inferenceEndpoint) {
         return {
-          name: m.name,
+          name: item.name,
+          targetKey: item.id,
           isStub: true,
-          generate: async () => { throw new Error(`No inference endpoint for model ${m.name} — retrain to enable inference`); },
+          generate: async () => {
+            throw new Error(`No inference endpoint for model ${item.name}`);
+          },
         };
       }
-      return makePiroModelAdapter(m.id, m.name, m.inferenceEndpoint);
+      return makePiroModelAdapter(item.id, item.name, item.inferenceEndpoint);
     }
-    // Fallback stub
     return {
-      name: m.name,
+      name: item.name,
+      targetKey: item.id,
       isStub: true,
       generate: async () => ({ text: "", inputTokens: 0, outputTokens: 0 }),
     };
   });
+
+  return [...modelTargets, ...virtualTargets];
 }
 
-// ── Suite runner ──────────────────────────────────────────────────────────────
-
-/**
- * Run a subset of benchmarks against a subset of targets.
- * Writes each result to DB immediately. Marks the suite run complete (or error)
- * when done. Designed to be called inside waitUntil().
- *
- * @param suiteRunId   ID of the benchmark_suite_run row (already created)
- * @param userId       Owner — written onto each benchmark_run row
- * @param benchmarkFilter  null = all; string[] = names to include
- * @param targetFilter     null = all; string[] = model names to include
- */
 export async function runSuite(
   suiteRunId: string,
   userId: string,
   benchmarkFilter: string[] | null,
   targetFilter: string[] | null,
+  context?: BenchmarkContext,
 ): Promise<void> {
   const benchmarks = benchmarkFilter?.length
-    ? BENCHMARKS.filter((b) => benchmarkFilter.includes(b.name))
+    ? BENCHMARKS.filter((benchmark) => benchmarkFilter.includes(benchmark.name))
     : BENCHMARKS;
-
-  // targetFilter is now a list of model UUIDs (or null = all)
-  const targets = await resolveTargets(userId, targetFilter?.length ? targetFilter : null);
-
   const ranAt = new Date();
 
   try {
-    // Run each target in parallel; within each target, run benchmarks sequentially
-    // (keeps OpenAI concurrency bounded to n_targets while still being fast)
+    const targets = await resolveTargets(userId, targetFilter?.length ? targetFilter : null);
     await Promise.all(
       targets.map(async (target) => {
         for (const benchmark of benchmarks) {
           let result;
           try {
-            result = await benchmark.run(target);
-          } catch (e) {
-            // Individual benchmark failure — record a zero score with error metadata
+            result = await benchmark.run(target, context);
+          } catch (error) {
             result = {
               score: 0,
               costUsd: 0,
               durationMs: 0,
-              metadata: { error: String(e) },
+              metadata: {
+                error: String(error),
+                modelName: target.name,
+                targetKey: target.targetKey ?? target.name,
+              },
             };
           }
 
@@ -126,7 +127,7 @@ export async function runSuite(
             userId,
             suiteRunId,
             benchmarkName: benchmark.name,
-            target: target.name,
+            target: target.targetKey ?? target.name,
             score: result.score,
             costUsd: result.costUsd,
             durationMs: result.durationMs,
@@ -137,15 +138,14 @@ export async function runSuite(
       }),
     );
 
-    // Mark suite complete
     await db
       .update(benchmarkSuiteRun)
       .set({ status: "complete", completedAt: new Date() })
       .where(eq(benchmarkSuiteRun.id, suiteRunId));
-  } catch (e) {
+  } catch (error) {
     await db
       .update(benchmarkSuiteRun)
-      .set({ status: "error", error: String(e), completedAt: new Date() })
+      .set({ status: "error", error: String(error), completedAt: new Date() })
       .where(eq(benchmarkSuiteRun.id, suiteRunId));
   }
 }
