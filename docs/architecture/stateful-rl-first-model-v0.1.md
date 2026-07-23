@@ -27,7 +27,7 @@ computed by the model’s internal learning mechanism.
 
 ```mermaid
 %% Piro Stateful RL-First Model v0.1
-%% Pseudocode view: initial boundary and state initialization only while flow is reviewed
+%% Pseudocode view: initialization and Attention inputs while recurrent flow is reviewed
 flowchart LR
     classDef current fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
     classDef proposed fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
@@ -42,15 +42,23 @@ flowchart LR
         E -->|x| S[InitializeOrRetrieveState]:::proposed
         W[Weights]:::proposed -->|internal_weights| S
 
-        A[Attention]:::current
-        D[ComputeStateDelta]:::current
-        R[ApplyGatedStateUpdate]:::current
-        N[UpdateHistory]:::current
+        subgraph LOOP[Recurrent loop · k]
+            A[Attention]:::current
+            D[ComputeStateDelta]:::current
+            R[ApplyGatedStateUpdate]:::current
+            N[UpdateHistory]:::current
+            Sh[ShouldHalt]:::control
+        end
+
+        S -->|hₖ| A
+        E -->|x| A
+        W -->|weights| A
+        N -->|historyₖ| A
+
         P[PredictionHead]:::learning
         V[ValueHead]:::learning
         O[OutputHead]:::current
         Ha[HaltHead]:::control
-        Sh[ShouldHalt]:::control
         Pc[PlasticityController]:::learning
     end
 ```
@@ -58,9 +66,10 @@ flowchart LR
 
 ## Pseudocode method contracts
 
-The top-level diagram uses the pseudocode as its organizing contract. The graph
-currently shows only the boundary and state-initialization edges; later edges will
-be restored one transformation at a time as the flow is reviewed.
+The top-level diagram uses the pseudocode as its organizing contract. The graph currently shows the boundary, state-initialization edges, and the four
+inputs to Attention. `ShouldHalt` is explicitly part of the recurrent loop because
+it decides whether the loop stops; later edges will be restored one transformation
+at a time.
 
 ```text
 x = Embed(PiroInput)
