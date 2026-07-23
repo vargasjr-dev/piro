@@ -277,7 +277,7 @@ export default function StatefulArchitectureDiagram() {
 
         {arrowPath("M785 393.75V332.5", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
         <InputLabel x={785} y={365}>weights</InputLabel>
-        {arrowPath("M886.25 435H980V350H1050", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        {arrowPath("M886.25 435H980V291.25H1050", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
         <InputLabel x={955} y={340}>weights</InputLabel>
 
         {arrowPath("M897.5 291.25H1050", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
