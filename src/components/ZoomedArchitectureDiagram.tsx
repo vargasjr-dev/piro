@@ -10,10 +10,7 @@ type DiagramKind =
   | "delta"
   | "residual"
   | "history"
-  | "prediction"
-  | "value"
   | "output"
-  | "halt"
   | "shouldHalt"
   | "weights"
   | "plasticity";
@@ -47,21 +44,9 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
     title: "UpdateHistory",
     subtitle: "The method that records the new state as the next temporal context.",
   },
-  prediction: {
-    title: "PredictionHead",
-    subtitle: "The readout method that produces predictionₖ from hₖ₊₁.",
-  },
-  value: {
-    title: "ValueHead",
-    subtitle: "The readout method that produces valueₖ from hₖ₊₁.",
-  },
   output: {
     title: "OutputHead",
     subtitle: "The readout method that runs after the recurrent loop exits and produces outputₖ from hₖ₊₁.",
-  },
-  halt: {
-    title: "HaltHead",
-    subtitle: "The method that estimates haltₖ from current state, prior state, and prediction.",
   },
   shouldHalt: {
     title: "ShouldHalt",
@@ -296,24 +281,6 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
     output: "historyₖ₊₁",
     relation: "records the new state trajectory",
     tone: "blue",
-  },
-  prediction: {
-    input: "hₖ₊₁",
-    output: "predictionₖ",
-    relation: "reads the model's current prediction",
-    tone: "orange",
-  },
-  value: {
-    input: "hₖ₊₁",
-    output: "valueₖ",
-    relation: "reads the current value estimate",
-    tone: "orange",
-  },
-  halt: {
-    input: "hₖ₊₁ + hₖ + predictionₖ",
-    output: "haltₖ",
-    relation: "estimates whether this tick is ready to stop",
-    tone: "orange",
   },
   shouldHalt: {
     input: "haltₖ + k + budget",

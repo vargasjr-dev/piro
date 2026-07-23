@@ -12,7 +12,7 @@ flowchart LR
     subgraph PIRO[Piro model]
         I -->|observation| E[Embed]:::current
         E -->|x| S[InitializeOrRetrieveState]:::proposed
-        W[Weights]:::proposed -->|internal_weights| S
+        W[Weights]:::proposed -->|weights| S
 
         subgraph LOOP[Recurrent loop · k]
             A[Attention]:::current
@@ -26,10 +26,6 @@ flowchart LR
         E -->|x| A
         W -->|weights| A
         N -->|historyₖ| A
-
-        P[PredictionHead]:::learning
-        V[ValueHead]:::learning
         O[OutputHead]:::current
-        Ha[HaltHead]:::control
         Pc[PlasticityController]:::learning
     end
