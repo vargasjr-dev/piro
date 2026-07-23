@@ -54,6 +54,13 @@ flowchart LR
         E -->|x| A
         W -->|weights| A
         N -->|historyₖ| A
+
+        A -->|contextₖ| D
+        S -->|hₖ| D
+        E -->|x| D
+        W -->|weights| D
+        N -->|historyₖ| D
+
         O[OutputHead]:::current
         Pc[PlasticityController]:::learning
     end
@@ -62,8 +69,8 @@ flowchart LR
 
 ## Pseudocode method contracts
 
-The top-level diagram uses the pseudocode as its organizing contract. The graph currently shows the boundary, state-initialization edges, and the four
-inputs to Attention. `ShouldHalt` is explicitly part of the recurrent loop because
+The top-level diagram uses the pseudocode as its organizing contract. The graph currently shows the boundary, state-initialization edges, the four
+inputs to Attention, and the five inputs to ComputeStateDelta. `ShouldHalt` is explicitly part of the recurrent loop because
 it decides whether the loop stops; later edges will be restored one transformation
 at a time.
 
