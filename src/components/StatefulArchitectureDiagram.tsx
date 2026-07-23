@@ -256,7 +256,7 @@ export default function StatefulArchitectureDiagram() {
         </defs>
 
         <text x="24" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">PSEUDOCODE VIEW · METHOD INPUTS ARE EXPLICIT EDGES</text>
-        <text x="24" y="74" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each node is a transformation. The graph currently shows the trusted initialization flow and the inputs feeding Attention so each later edge can be reviewed independently.</text>
+        <text x="24" y="74" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each node is a transformation. The graph currently shows the trusted initialization flow and the inputs feeding Attention and ComputeStateDelta so each later edge can be reviewed independently.</text>
 
         <rect x="260" y="92" width="2010" height="1048" rx="30" fill="rgb(16 12 10 / 0.22)" stroke="rgb(251 191 36 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
         <text x="292" y="128" fill="rgb(251 191 36 / 0.68)" fontSize="13" letterSpacing="2">PIRO MODEL</text>
@@ -272,24 +272,35 @@ export default function StatefulArchitectureDiagram() {
 
         {arrowPath("M518.75 385V291.25H650", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
         <InputLabel x={585} y={350}>x</InputLabel>
-        {arrowPath("M518.75 385C700 385 820 330 1050 291.25", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
-        <InputLabel x={735} y={370}>x</InputLabel>
+        {arrowPath("M518.75 385V520H920V291.25H1050", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        <InputLabel x={760} y={512}>x</InputLabel>
 
         {arrowPath("M785 393.75V332.5", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
         <InputLabel x={785} y={365}>weights</InputLabel>
-        {arrowPath("M886.25 435C930 435 965 330 1050 291.25", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={955} y={400}>weights</InputLabel>
+        {arrowPath("M886.25 435H980V350H1050", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={955} y={340}>weights</InputLabel>
 
         {arrowPath("M897.5 291.25H1050", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
         <InputLabel x={970} y={280}>hₖ</InputLabel>
-        {arrowPath("M2182.5 500C1800 500 1400 345 1050 291.25", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={1680} y={465}>historyₖ</InputLabel>
+        {arrowPath("M2182.5 500H1380V291.25H1050", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1680} y={490}>historyₖ</InputLabel>
+
+        {arrowPath("M1305 291.25H1460", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        <InputLabel x={1382} y={280}>contextₖ</InputLabel>
+        {arrowPath("M897.5 291.25H1180V215H1400V291.25H1460", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
+        <InputLabel x={1190} y={205}>hₖ</InputLabel>
+        {arrowPath("M518.75 385V560H1360V310H1460", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        <InputLabel x={940} y={552}>x</InputLabel>
+        {arrowPath("M886.25 435H1280V350H1460", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1130} y={340}>weights</InputLabel>
+        {arrowPath("M1957.5 500H1320V370H1460", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1600} y={360}>historyₖ</InputLabel>
 
         {nodes.map((node) => (
           <DiagramNodeCard key={node.id} node={node} onClick={() => router.push(`/docs/architecture/${node.id}`)} />
         ))}
 
-        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Attention inputs now converge directly on the transformation; later recurrent edges remain intentionally omitted while the flow is reviewed one transformation at a time.</text>
+        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Attention and ComputeStateDelta inputs now use boxed orthogonal routes; later recurrent edges remain intentionally omitted while the flow is reviewed one transformation at a time.</text>
       </svg>
     </div>
   );

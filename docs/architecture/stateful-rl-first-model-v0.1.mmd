@@ -26,6 +26,13 @@ flowchart LR
         E -->|x| A
         W -->|weights| A
         N -->|historyₖ| A
+
+        A -->|contextₖ| D
+        S -->|hₖ| D
+        E -->|x| D
+        W -->|weights| D
+        N -->|historyₖ| D
+
         O[OutputHead]:::current
         Pc[PlasticityController]:::learning
     end
