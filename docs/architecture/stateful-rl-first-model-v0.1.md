@@ -27,7 +27,7 @@ computed by the model’s internal learning mechanism.
 
 ```mermaid
 %% Piro Stateful RL-First Model v0.1
-%% Pseudocode view: initial boundary and state initialization only while flow is reviewed
+%% Pseudocode view: initialization and Attention inputs while recurrent flow is reviewed
 flowchart LR
     classDef current fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
     classDef proposed fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
@@ -40,17 +40,28 @@ flowchart LR
     subgraph PIRO[Piro model]
         I -->|observation| E[Embed]:::current
         E -->|x| S[InitializeOrRetrieveState]:::proposed
-        W[Weights]:::proposed -->|internal_weights| S
+        W[Weights]:::proposed -->|weights| S
 
-        A[Attention]:::current
-        D[Update]:::current
-        R[ApplyGatedResidual]:::current
-        N[UpdateHistory]:::current
-        P[PredictionHead]:::learning
-        V[ValueHead]:::learning
+        subgraph LOOP[Recurrent loop · k]
+            A[Attention]:::current
+            D[ComputeStateDelta]:::current
+            R[ApplyGatedStateUpdate]:::current
+            N[UpdateHistory]:::current
+            Sh[ShouldHalt]:::control
+        end
+
+        S -->|hₖ| A
+        E -->|x| A
+        W -->|weights| A
+        N -->|historyₖ| A
+
+        A -->|contextₖ| D
+        S -->|hₖ| D
+        E -->|x| D
+        W -->|weights| D
+        N -->|historyₖ| D
+
         O[OutputHead]:::current
-        Ha[HaltHead]:::control
-        Sh[ShouldHalt]:::control
         Pc[PlasticityController]:::learning
     end
 ```
@@ -58,20 +69,21 @@ flowchart LR
 
 ## Pseudocode method contracts
 
-The top-level diagram uses the pseudocode as its organizing contract. The graph
-currently shows only the boundary and state-initialization edges; later edges will
-be restored one transformation at a time as the flow is reviewed.
+The top-level diagram uses the pseudocode as its organizing contract. The graph currently shows the boundary, state-initialization edges, the four
+inputs to Attention, and the five inputs to ComputeStateDelta. `ShouldHalt` is explicitly part of the recurrent loop because
+it decides whether the loop stops; later edges will be restored one transformation
+at a time.
 
 ```text
 x = Embed(PiroInput)
 
-h₀ = InitializeOrRetrieveState(x, internal_weights)
+h₀ = InitializeOrRetrieveState(x, weights)
 
 for k = 0 ... Kmax:
 
     contextₖ = Attention(hₖ, historyₖ, x, weights)
 
-    deltaₖ = Update(
+    deltaₖ = ComputeStateDelta(
         hₖ,
         x,
         contextₖ,
@@ -79,25 +91,22 @@ for k = 0 ... Kmax:
         weights
     )
 
-    hₖ₊₁ = hₖ + gateₖ · deltaₖ
+    hₖ₊₁ = ApplyGatedStateUpdate(hₖ, gateₖ, deltaₖ)
 
     historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁)
 
-predictionₖ = PredictionHead(hₖ₊₁)
-valueₖ      = ValueHead(hₖ₊₁)
-outputₖ     = OutputHead(hₖ₊₁)
-haltₖ       = HaltHead(hₖ₊₁, hₖ, predictionₖ)
-
-if ShouldHalt(hₖ₊₁, haltₖ, k):
+if ShouldHalt(hₖ₊₁, k):
+    outputₖ = OutputHead(hₖ₊₁)
     return outputₖ
 ```
 
-`ShouldHalt` receives the final state, halt signal, and tick index in this
-working contract. The head calculations are shown outside the recurrent loop for
-now while we clean up the exact control-flow semantics. The learned gate remains
-inside the residual update rather than appearing as a separate transformation.
-The model-internal plasticity controller remains visible as an isolated node until
-its edge is reviewed.
+`ShouldHalt` receives the final state and tick index in this working contract.
+Prediction, value, and halt heads are treated as implementation details of
+`ShouldHalt`, so they are omitted from the top-level graph. `OutputHead` runs only
+after the recurrent loop exits. The learned gate and residual addition are
+represented by the `ApplyGatedStateUpdate` transformation rather than as separate
+nodes. The model-internal plasticity controller remains visible as an isolated node
+until its edge is reviewed.
 
 ## Observation input contract
 

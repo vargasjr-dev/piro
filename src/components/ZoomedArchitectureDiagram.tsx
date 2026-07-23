@@ -10,10 +10,7 @@ type DiagramKind =
   | "delta"
   | "residual"
   | "history"
-  | "prediction"
-  | "value"
   | "output"
-  | "halt"
   | "shouldHalt"
   | "weights"
   | "plasticity";
@@ -36,32 +33,20 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
     subtitle: "The method that combines current state, history, input, and weights into contextₖ.",
   },
   delta: {
-    title: "Update",
+    title: "ComputeStateDelta",
     subtitle: "The method that computes the candidate state change deltaₖ from the current tick inputs.",
   },
   residual: {
-    title: "ApplyGatedResidual",
-    subtitle: "The method that applies a learned internal gate to deltaₖ and produces hₖ₊₁.",
+    title: "ApplyGatedStateUpdate",
+    subtitle: "The method that computes hₖ + gateₖ · deltaₖ and produces hₖ₊₁.",
   },
   history: {
     title: "UpdateHistory",
     subtitle: "The method that records the new state as the next temporal context.",
   },
-  prediction: {
-    title: "PredictionHead",
-    subtitle: "The readout method that produces predictionₖ from hₖ₊₁.",
-  },
-  value: {
-    title: "ValueHead",
-    subtitle: "The readout method that produces valueₖ from hₖ₊₁.",
-  },
   output: {
     title: "OutputHead",
     subtitle: "The readout method that runs after the recurrent loop exits and produces outputₖ from hₖ₊₁.",
-  },
-  halt: {
-    title: "HaltHead",
-    subtitle: "The method that estimates haltₖ from current state, prior state, and prediction.",
   },
   shouldHalt: {
     title: "ShouldHalt",
@@ -276,7 +261,7 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   attention: {
     input: "hₖ + historyₖ + x + weights",
     output: "contextₖ",
-    relation: "builds the context used by Update",
+    relation: "builds the context used by ComputeStateDelta",
     tone: "green",
   },
   delta: {
@@ -288,7 +273,7 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   residual: {
     input: "hₖ + deltaₖ + weights",
     output: "hₖ₊₁",
-    relation: "applies a learned internal gate to the residual update",
+    relation: "computes hₖ + gateₖ · deltaₖ",
     tone: "green",
   },
   history: {
@@ -296,24 +281,6 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
     output: "historyₖ₊₁",
     relation: "records the new state trajectory",
     tone: "blue",
-  },
-  prediction: {
-    input: "hₖ₊₁",
-    output: "predictionₖ",
-    relation: "reads the model's current prediction",
-    tone: "orange",
-  },
-  value: {
-    input: "hₖ₊₁",
-    output: "valueₖ",
-    relation: "reads the current value estimate",
-    tone: "orange",
-  },
-  halt: {
-    input: "hₖ₊₁ + hₖ + predictionₖ",
-    output: "haltₖ",
-    relation: "estimates whether this tick is ready to stop",
-    tone: "orange",
   },
   shouldHalt: {
     input: "haltₖ + k + budget",

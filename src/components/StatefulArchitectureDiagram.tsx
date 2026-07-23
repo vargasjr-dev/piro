@@ -10,9 +10,6 @@ type NodeId =
   | "delta"
   | "residual"
   | "history"
-  | "prediction"
-  | "value"
-  | "halt"
   | "shouldHalt"
   | "output"
   | "weights"
@@ -35,20 +32,20 @@ const nodes: DiagramNode[] = [
   {
     id: "observation",
     title: "Observation",
-    x: 28,
-    y: 330,
-    width: 220,
-    height: 110,
+    x: 55.5,
+    y: 343.75,
+    width: 165,
+    height: 82.5,
     tone: "violet",
     zoomable: true,
   },
   {
     id: "embedding",
     title: "Embed",
-    x: 300,
-    y: 330,
-    width: 250,
-    height: 110,
+    x: 331.25,
+    y: 343.75,
+    width: 187.5,
+    height: 82.5,
     tone: "green",
     zoomable: true,
   },
@@ -56,9 +53,9 @@ const nodes: DiagramNode[] = [
     id: "initialize",
     title: "InitializeOrRetrieveState",
     x: 650,
-    y: 150,
-    width: 330,
-    height: 110,
+    y: 250,
+    width: 247.5,
+    height: 82.5,
     tone: "blue",
     zoomable: true,
   },
@@ -66,109 +63,79 @@ const nodes: DiagramNode[] = [
     id: "attention",
     title: "Attention",
     x: 1050,
-    y: 150,
-    width: 340,
-    height: 110,
+    y: 250,
+    width: 255,
+    height: 82.5,
     tone: "green",
     zoomable: true,
   },
   {
     id: "delta",
-    title: "Update",
+    title: "ComputeStateDelta",
     x: 1460,
-    y: 150,
-    width: 390,
-    height: 110,
+    y: 250,
+    width: 292.5,
+    height: 82.5,
     tone: "green",
     zoomable: true,
   },
   {
     id: "residual",
-    title: "ApplyGatedResidual",
+    title: "ApplyGatedStateUpdate",
     x: 1920,
-    y: 150,
-    width: 300,
-    height: 110,
+    y: 250,
+    width: 225,
+    height: 82.5,
     tone: "green",
     zoomable: true,
   },
   {
     id: "history",
     title: "UpdateHistory",
-    x: 1920,
-    y: 430,
-    width: 300,
-    height: 110,
+    x: 1957.5,
+    y: 458.75,
+    width: 225,
+    height: 82.5,
     tone: "blue",
-    zoomable: true,
-  },
-  {
-    id: "prediction",
-    title: "PredictionHead",
-    x: 760,
-    y: 770,
-    width: 300,
-    height: 110,
-    tone: "orange",
-    zoomable: true,
-  },
-  {
-    id: "value",
-    title: "ValueHead",
-    x: 1110,
-    y: 770,
-    width: 270,
-    height: 110,
-    tone: "orange",
-    zoomable: true,
-  },
-  {
-    id: "halt",
-    title: "HaltHead",
-    x: 1430,
-    y: 770,
-    width: 340,
-    height: 110,
-    tone: "orange",
     zoomable: true,
   },
   {
     id: "shouldHalt",
     title: "ShouldHalt",
-    x: 1800,
-    y: 770,
-    width: 340,
-    height: 110,
+    x: 1842.5,
+    y: 783.75,
+    width: 255,
+    height: 82.5,
     tone: "orange",
     zoomable: true,
   },
   {
     id: "output",
     title: "OutputHead",
-    x: 1430,
-    y: 1010,
-    width: 300,
-    height: 110,
+    x: 1467.5,
+    y: 1023.75,
+    width: 225,
+    height: 82.5,
     tone: "green",
     zoomable: true,
   },
   {
     id: "weights",
     title: "Weights",
-    x: 650,
-    y: 300,
-    width: 270,
-    height: 110,
+    x: 683.75,
+    y: 393.75,
+    width: 202.5,
+    height: 82.5,
     tone: "blue",
     zoomable: true,
   },
   {
     id: "plasticity",
     title: "PlasticityController",
-    x: 330,
-    y: 960,
-    width: 360,
-    height: 110,
+    x: 375,
+    y: 973.75,
+    width: 270,
+    height: 82.5,
     tone: "orange",
     zoomable: true,
   },
@@ -282,36 +249,58 @@ export default function StatefulArchitectureDiagram() {
         aria-label="Piro CTM pseudocode mapped to method nodes and data flow"
       >
         <defs>
-          <marker id="arrow-gold" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
-          <marker id="arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
-          <marker id="arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(192 132 252 / 0.7)" /></marker>
+          <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(110 231 183 / 0.7)" /></marker>
+          <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
+          <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
         </defs>
 
         <text x="24" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">PSEUDOCODE VIEW · METHOD INPUTS ARE EXPLICIT EDGES</text>
-        <text x="24" y="74" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each node is a transformation. The graph currently shows only the flow into state initialization so each later edge can be reviewed independently.</text>
+        <text x="24" y="74" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each node is a transformation. The graph currently shows the trusted initialization flow and the inputs feeding Attention and ComputeStateDelta so each later edge can be reviewed independently.</text>
 
         <rect x="260" y="92" width="2010" height="1048" rx="30" fill="rgb(16 12 10 / 0.22)" stroke="rgb(251 191 36 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
         <text x="292" y="128" fill="rgb(251 191 36 / 0.68)" fontSize="13" letterSpacing="2">PIRO MODEL</text>
 
-        <rect x="610" y="150" width="1660" height="760" rx="30" fill="rgb(21 42 34 / 0.1)" stroke="rgb(110 231 183 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
-        <text x="642" y="186" fill="rgb(110 231 183 / 0.7)" fontSize="12" letterSpacing="1.8">INFERENCE DYNAMICS · k</text>
+        <rect x="1000" y="150" width="1270" height="760" rx="30" fill="rgb(21 42 34 / 0.1)" stroke="rgb(110 231 183 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
+        <text x="1032" y="186" fill="rgb(110 231 183 / 0.7)" fontSize="12" letterSpacing="1.8">RECURRENT LOOP · k · SHOULDHALT CONTROL</text>
 
         <rect x="260" y="930" width="2000" height="210" rx="30" fill="rgb(57 39 24 / 0.1)" stroke="rgb(253 186 116 / 0.3)" strokeWidth="2" strokeDasharray="7 7" />
         <text x="292" y="966" fill="rgb(253 186 116 / 0.72)" fontSize="12" letterSpacing="1.8">ONLINE WEIGHT UPDATE</text>
 
-        {arrowPath("M248 385H300", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={274} y={368}>Observation</InputLabel>
+        {arrowPath("M220.5 385H331.25", "rgb(192 132 252 / 0.7)", { marker: "arrow-violet" })}
+        <InputLabel x={275} y={368}>Observation</InputLabel>
 
-        {arrowPath("M550 385V205H650", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={594} y={310}>x</InputLabel>
-        {arrowPath("M785 300V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={835} y={282}>internal_weights</InputLabel>
+        {arrowPath("M518.75 385V291.25H650", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        <InputLabel x={585} y={350}>x</InputLabel>
+        {arrowPath("M518.75 385V520H920V291.25H1050", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        <InputLabel x={760} y={512}>x</InputLabel>
+
+        {arrowPath("M785 393.75V332.5", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={785} y={365}>weights</InputLabel>
+        {arrowPath("M886.25 435H980V291.25H1050", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={955} y={340}>weights</InputLabel>
+
+        {arrowPath("M897.5 291.25H1050", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
+        <InputLabel x={970} y={280}>hₖ</InputLabel>
+        {arrowPath("M2182.5 500H1380V291.25H1050", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1680} y={490}>historyₖ</InputLabel>
+
+        {arrowPath("M1305 291.25H1460", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        <InputLabel x={1382} y={280}>contextₖ</InputLabel>
+        {arrowPath("M897.5 291.25H1180V215H1400V291.25H1460", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
+        <InputLabel x={1190} y={205}>hₖ</InputLabel>
+        {arrowPath("M518.75 385V560H1360V310H1460", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        <InputLabel x={940} y={552}>x</InputLabel>
+        {arrowPath("M886.25 435H1280V350H1460", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1130} y={340}>weights</InputLabel>
+        {arrowPath("M1957.5 500H1320V370H1460", "rgb(125 211 252 / 0.7)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1600} y={360}>historyₖ</InputLabel>
 
         {nodes.map((node) => (
           <DiagramNodeCard key={node.id} node={node} onClick={() => router.push(`/docs/architecture/${node.id}`)} />
         ))}
 
-        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Post-initialization edges are intentionally omitted while the recurrent flow is reviewed one transformation at a time.</text>
+        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Attention and ComputeStateDelta inputs now use boxed orthogonal routes; later recurrent edges remain intentionally omitted while the flow is reviewed one transformation at a time.</text>
       </svg>
     </div>
   );
