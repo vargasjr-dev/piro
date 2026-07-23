@@ -1,5 +1,10 @@
 import { r2Get } from "~/lib/r2";
-import type { BenchmarkContext, BenchmarkDef, BenchmarkResult, ModelAdapter } from "./types";
+import type {
+  BenchmarkContext,
+  BenchmarkDef,
+  BenchmarkResult,
+  ModelAdapter,
+} from "./types";
 import { computeCost } from "./openai";
 
 const DEFAULT_EPISODES = 1_000;
@@ -11,18 +16,25 @@ interface AshfallEpisode {
 }
 
 function extractText(input: unknown): string {
-  if (!input || typeof input !== "object") throw new Error("Ashfall input must be an object");
+  if (!input || typeof input !== "object")
+    throw new Error("Ashfall input must be an object");
   const parts = (input as { parts?: unknown }).parts;
-  if (!Array.isArray(parts) || parts.length !== 1) throw new Error("Ashfall input must contain one part");
+  if (!Array.isArray(parts) || parts.length !== 1)
+    throw new Error("Ashfall input must contain one part");
   const part = parts[0];
-  if (!part || typeof part !== "object" || typeof (part as { text?: unknown }).text !== "string") {
+  if (
+    !part ||
+    typeof part !== "object" ||
+    typeof (part as { text?: unknown }).text !== "string"
+  ) {
     throw new Error("Ashfall input part must contain text");
   }
   return (part as { text: string }).text;
 }
 
 function parseEpisode(record: unknown): AshfallEpisode {
-  if (!record || typeof record !== "object") throw new Error("Ashfall record must be an object");
+  if (!record || typeof record !== "object")
+    throw new Error("Ashfall record must be an object");
   const inputs = (record as { inputs?: unknown }).inputs;
   if (!Array.isArray(inputs) || inputs.length !== 3) {
     throw new Error("Ashfall records must contain exactly three inputs");
@@ -31,16 +43,20 @@ function parseEpisode(record: unknown): AshfallEpisode {
   const targetLine = writes
     .split("\n")
     .find((line) => line.startsWith(`${query} = `));
-  if (!targetLine) throw new Error(`Ashfall query ${query} has no matching write`);
+  if (!targetLine)
+    throw new Error(`Ashfall query ${query} has no matching write`);
   return {
     inputs: [writes, distractors, query],
     answer: targetLine.slice(targetLine.indexOf("=") + 1).trim(),
   };
 }
 
-async function loadEpisodes(context: BenchmarkContext | undefined): Promise<AshfallEpisode[]> {
+async function loadEpisodes(
+  context: BenchmarkContext | undefined,
+): Promise<AshfallEpisode[]> {
   const prefix = context?.datasetR2Prefix;
-  if (!prefix) throw new Error("Ashfall evaluation requires a dataset R2 prefix");
+  if (!prefix)
+    throw new Error("Ashfall evaluation requires a dataset R2 prefix");
   const content = await r2Get(`${prefix.replace(/\/$/, "")}/train.jsonl`);
   if (!content) throw new Error("Ashfall dataset train.jsonl not found");
   const episodes = content
@@ -67,9 +83,13 @@ function normalizeAnswer(text: string): string {
 
 export const ashfall: BenchmarkDef = {
   name: "Ashfall",
-  async run(model: ModelAdapter, context?: BenchmarkContext): Promise<BenchmarkResult> {
+  async run(
+    model: ModelAdapter,
+    context?: BenchmarkContext,
+  ): Promise<BenchmarkResult> {
     const episodes = await loadEpisodes(context);
-    if (!model.generateInputs) throw new Error(`${model.name} does not support ordered Ashfall inputs`);
+    if (!model.generateSequence)
+      throw new Error(`${model.name} does not support ordered Ashfall inputs`);
 
     const started = performance.now();
     let correct = 0;
@@ -82,7 +102,7 @@ export const ashfall: BenchmarkDef = {
       const batch = episodes.slice(offset, offset + concurrency);
       const results = await Promise.all(
         batch.map(async (episode) => {
-          const result = await model.generateInputs!(episode.inputs);
+          const result = await model.generateSequence!(episode.inputs);
           return { episode, result };
         }),
       );
@@ -91,13 +111,18 @@ export const ashfall: BenchmarkDef = {
         outputTokens += result.outputTokens;
         const actual = normalizeAnswer(result.text);
         if (actual === episode.answer.toLowerCase()) correct += 1;
-        else if (failures.length < MAX_FAILURES) failures.push({ expected: episode.answer, actual });
+        else if (failures.length < MAX_FAILURES)
+          failures.push({ expected: episode.answer, actual });
       }
     }
 
     const durationMs = Math.round(performance.now() - started);
     const costUsd = model.targetKey?.startsWith("openai:")
-      ? computeCost(model.targetKey.slice("openai:".length), inputTokens, outputTokens)
+      ? computeCost(
+          model.targetKey.slice("openai:".length),
+          inputTokens,
+          outputTokens,
+        )
       : 0;
     return {
       score: correct / episodes.length,
@@ -111,7 +136,12 @@ export const ashfall: BenchmarkDef = {
         inputTokens,
         outputTokens,
         failures,
-        protocol: "three ordered Ashfall inputs; validation holdout; exact value_NNN match",
+        protocol:
+          "three separate sequential invocations per Ashfall episode; validation holdout; exact value_NNN match",
+        requestCountPerEpisode: 3,
+        stateBoundary: model.targetKey?.startsWith("openai:")
+          ? "conversation replayed across three HTTP requests"
+          : "serialized recurrent state returned and supplied across three HTTP requests",
       },
     };
   },
