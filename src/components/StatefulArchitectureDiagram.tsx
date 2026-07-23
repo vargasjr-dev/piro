@@ -74,7 +74,7 @@ const nodes: DiagramNode[] = [
   },
   {
     id: "delta",
-    title: "ComputeStateDelta",
+    title: "Update",
     x: 1460,
     y: 150,
     width: 390,
@@ -288,7 +288,7 @@ export default function StatefulArchitectureDiagram() {
         </defs>
 
         <text x="24" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">PSEUDOCODE VIEW · METHOD INPUTS ARE EXPLICIT EDGES</text>
-        <text x="24" y="74" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each node is a transformation; state and data values travel on the edges between transformations.</text>
+        <text x="24" y="74" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each node is a transformation. The graph currently shows only the flow into state initialization so each later edge can be reviewed independently.</text>
 
         <rect x="260" y="92" width="2010" height="1048" rx="30" fill="rgb(16 12 10 / 0.22)" stroke="rgb(251 191 36 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
         <text x="292" y="128" fill="rgb(251 191 36 / 0.68)" fontSize="13" letterSpacing="2">PIRO MODEL</text>
@@ -305,70 +305,13 @@ export default function StatefulArchitectureDiagram() {
         {arrowPath("M550 385V205H650", "rgb(251 191 36 / 0.72)")}
         <InputLabel x={594} y={310}>x</InputLabel>
         {arrowPath("M785 300V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={835} y={282}>weights</InputLabel>
-
-        {arrowPath("M980 205H1050", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={1015} y={188}>h₀ enters as hₖ</InputLabel>
-        {arrowPath("M980 205V300H1420V260", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={1220} y={292}>hₖ</InputLabel>
-        {arrowPath("M980 205V350H1880V260", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={1410} y={342}>hₖ</InputLabel>
-
-        {arrowPath("M1390 205H1460", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={1425} y={188}>contextₖ</InputLabel>
-        {arrowPath("M1850 205H1920", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={1885} y={188}>deltaₖ</InputLabel>
-
-        {arrowPath("M2220 260V430H2070", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={2150} y={410}>hₖ₊₁</InputLabel>
-        {arrowPath("M2070 540V640H1010V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={1530} y={625}>historyₖ₊₁ becomes historyₖ</InputLabel>
-        {arrowPath("M2070 540V665H1395V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={1730} y={650}>historyₖ</InputLabel>
-
-        {arrowPath("M2220 205H2280V82H1010V150", "rgb(110 231 183 / 0.72)", { dashed: true, marker: "arrow-gold" })}
-        {arrowPath("M2220 205H2290V68H1420V150", "rgb(110 231 183 / 0.72)", { dashed: true, marker: "arrow-gold" })}
-        {arrowPath("M2220 205H2300V54H1880V150", "rgb(110 231 183 / 0.72)", { dashed: true, marker: "arrow-gold" })}
-        <InputLabel x={2140} y={72}>hₖ₊₁ → hₖ on next tick</InputLabel>
-        <InputLabel x={2170} y={98}>recurrent state loop</InputLabel>
-
-        {arrowPath("M2220 540V700H910V770", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
-        {arrowPath("M2220 540V685H1245V770", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
-        {arrowPath("M2220 540V670H1560V770", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
-        <InputLabel x={1080} y={690}>hₖ₊₁</InputLabel>
-        <InputLabel x={1390} y={675}>hₖ₊₁</InputLabel>
-        <InputLabel x={1710} y={660}>hₖ₊₁</InputLabel>
-
-        {arrowPath("M1060 825H1110", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        {arrowPath("M1380 825H1430", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        {arrowPath("M1770 825H1800", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        <InputLabel x={1785} y={808}>haltₖ</InputLabel>
-
-        {arrowPath("M920 355H1000V205H1050", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={980} y={345}>weights</InputLabel>
-        {arrowPath("M920 355H1400V205H1460", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={1190} y={345}>weights</InputLabel>
-        {arrowPath("M920 355H1880V205H1920", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={1640} y={345}>weights · internal gate</InputLabel>
-
-        {arrowPath("M1970 880V1010H1730", "rgb(110 231 183 / 0.72)", { marker: "arrow-gold" })}
-        <text x="1840" y="965" fill="rgb(110 231 183 / 0.68)" fontSize="12">exit → OutputHead</text>
-        {arrowPath("M2070 260V960H1580V1010", "rgb(110 231 183 / 0.72)", { dashed: true, marker: "arrow-gold" })}
-        <InputLabel x={1830} y={945}>hₖ₊₁ held for output</InputLabel>
-        <text x="2150" y="610" fill="rgb(110 231 183 / 0.68)" fontSize="12" textAnchor="middle">continue while k &lt; Kmax</text>
-
-        {arrowPath("M1060 825V900H510V960", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
-        {arrowPath("M1380 825V915H570V960", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
-        {arrowPath("M1770 825V930H630V960", "rgb(253 186 116 / 0.78)", { dashed: true, marker: "arrow-orange" })}
-        <InputLabel x={790} y={900}>prediction · value · learning signals</InputLabel>
-        {arrowPath("M690 1015H785V410", "rgb(253 186 116 / 0.78)", { marker: "arrow-orange" })}
-        <InputLabel x={715} y={1000}>updated weights</InputLabel>
+        <InputLabel x={835} y={282}>internal_weights</InputLabel>
 
         {nodes.map((node) => (
           <DiagramNodeCard key={node.id} node={node} onClick={() => router.push(`/docs/architecture/${node.id}`)} />
         ))}
 
-        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">OutputHead runs after ShouldHalt selects the exit; plasticity remains a parallel model-internal path for later deep dive.</text>
+        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Post-initialization edges are intentionally omitted while the recurrent flow is reviewed one transformation at a time.</text>
       </svg>
     </div>
   );

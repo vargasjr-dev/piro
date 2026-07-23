@@ -27,7 +27,7 @@ computed by the model’s internal learning mechanism.
 
 ```mermaid
 %% Piro Stateful RL-First Model v0.1
-%% Pseudocode view: transformations with explicit state/data edges
+%% Pseudocode view: initial boundary and state initialization only while flow is reviewed
 flowchart LR
     classDef current fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
     classDef proposed fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
@@ -39,75 +39,65 @@ flowchart LR
 
     subgraph PIRO[Piro model]
         I -->|observation| E[Embed]:::current
-    E -->|x| S[InitializeOrRetrieveState]:::proposed
-    W[Weights]:::proposed -->|weights| S
-    S -->|h₀| A[Attention]:::current
-    E -->|x| A
-    W -->|weights| A
-    H[historyₖ]:::proposed -->|historyₖ| A
-    A -->|contextₖ| D[ComputeStateDelta]:::current
-    S -->|hₖ| D
-    E -->|x| D
-    W -->|weights| D
-    H -->|historyₖ| D
-    D -->|deltaₖ| R[ApplyGatedResidual]:::current
-    S -->|hₖ| R
-    W -->|weights · internal gate| R
-    R -->|hₖ₊₁| N[UpdateHistory]:::current
-    H -->|historyₖ| N
-    N -->|historyₖ₊₁ → historyₖ| A
-    N -->|historyₖ₊₁ → historyₖ| D
-    R -->|hₖ₊₁| P[PredictionHead]:::learning
-    R -->|hₖ₊₁| V[ValueHead]:::learning
-    R -->|hₖ₊₁| Ha[HaltHead]:::control
-    S -->|hₖ| Ha
-    P -->|predictionₖ| Ha
-    Ha -->|haltₖ| Sh[ShouldHalt]:::control
-    Sh -->|continue| A
-    K[k / Kmax]:::proposed -->|loop exit condition| Sh
-    Sh -->|exit with hₖ₊₁| O[OutputHead]:::current
-    P -->|prediction signal| Pc[PlasticityController]:::learning
-    V -->|value signal| Pc
-    Ha -->|learning signals| Pc
-    Pc -->|updated weights| W
-    end
+        E -->|x| S[InitializeOrRetrieveState]:::proposed
+        W[Weights]:::proposed -->|internal_weights| S
 
-    O --> X
+        A[Attention]:::current
+        D[Update]:::current
+        R[ApplyGatedResidual]:::current
+        N[UpdateHistory]:::current
+        P[PredictionHead]:::learning
+        V[ValueHead]:::learning
+        O[OutputHead]:::current
+        Ha[HaltHead]:::control
+        Sh[ShouldHalt]:::control
+        Pc[PlasticityController]:::learning
+    end
 ```
 
 
 ## Pseudocode method contracts
 
-The top-level diagram uses the pseudocode as its organizing contract. Each
-method-shaped node represents one invocation, and every incoming edge is one of
-that invocation's arguments or control inputs:
+The top-level diagram uses the pseudocode as its organizing contract. The graph
+currently shows only the boundary and state-initialization edges; later edges will
+be restored one transformation at a time as the flow is reviewed.
 
 ```text
-x = Embed(Observation)
+x = Embed(PiroInput)
 
-h₀ = InitializeOrRetrieveState(x, weights)
+h₀ = InitializeOrRetrieveState(x, internal_weights)
 
 for k = 0 ... Kmax:
+
     contextₖ = Attention(hₖ, historyₖ, x, weights)
-    deltaₖ = ComputeStateDelta(hₖ, x, contextₖ, historyₖ, weights)
-    hₖ₊₁ = ApplyGatedResidual(hₖ, deltaₖ, weights)
-    # The learned gate is internal to ApplyGatedResidual; it is not a separate state input.
+
+    deltaₖ = Update(
+        hₖ,
+        x,
+        contextₖ,
+        historyₖ,
+        weights
+    )
+
+    hₖ₊₁ = hₖ + gateₖ · deltaₖ
+
     historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁)
 
-    predictionₖ = PredictionHead(hₖ₊₁)
-    valueₖ = ValueHead(hₖ₊₁)
-    haltₖ = HaltHead(hₖ₊₁, hₖ, predictionₖ)
+predictionₖ = PredictionHead(hₖ₊₁)
+valueₖ      = ValueHead(hₖ₊₁)
+outputₖ     = OutputHead(hₖ₊₁)
+haltₖ       = HaltHead(hₖ₊₁, hₖ, predictionₖ)
 
-    if ShouldHalt(haltₖ) or k == Kmax:
-        return OutputHead(hₖ₊₁)
+if ShouldHalt(hₖ₊₁, haltₖ, k):
+    return outputₖ
 ```
 
-`ShouldHalt` controls whether the recurrent tick continues. `Kmax` is another
-exit edge from the loop. `OutputHead` runs after the loop exits, using the final
-`hₖ₊₁`. The learned gate is internal to `ApplyGatedResidual`; it is not shown
-as a separate transformation in this top-level view. The model-internal
-plasticity controller remains a parallel learning path that consumes inference
-signals and updates the weights used by later invocations.
+`ShouldHalt` receives the final state, halt signal, and tick index in this
+working contract. The head calculations are shown outside the recurrent loop for
+now while we clean up the exact control-flow semantics. The learned gate remains
+inside the residual update rather than appearing as a separate transformation.
+The model-internal plasticity controller remains visible as an isolated node until
+its edge is reviewed.
 
 ## Observation input contract
 
