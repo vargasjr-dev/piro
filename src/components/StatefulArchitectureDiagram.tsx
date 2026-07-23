@@ -56,9 +56,9 @@ const nodes: DiagramNode[] = [
     id: "initialize",
     title: "InitializeOrRetrieveState",
     x: 650,
-    y: 190,
-    width: 330,
-    height: 110,
+    y: 250,
+    width: 247.5,
+    height: 82.5,
     tone: "blue",
     zoomable: true,
   },
@@ -66,9 +66,9 @@ const nodes: DiagramNode[] = [
     id: "attention",
     title: "Attention",
     x: 1050,
-    y: 190,
-    width: 340,
-    height: 110,
+    y: 250,
+    width: 255,
+    height: 82.5,
     tone: "green",
     zoomable: true,
   },
@@ -76,9 +76,9 @@ const nodes: DiagramNode[] = [
     id: "delta",
     title: "ComputeStateDelta",
     x: 1460,
-    y: 190,
-    width: 390,
-    height: 110,
+    y: 250,
+    width: 292.5,
+    height: 82.5,
     tone: "green",
     zoomable: true,
   },
@@ -86,9 +86,9 @@ const nodes: DiagramNode[] = [
     id: "residual",
     title: "ApplyGatedStateUpdate",
     x: 1920,
-    y: 190,
-    width: 300,
-    height: 110,
+    y: 250,
+    width: 225,
+    height: 82.5,
     tone: "green",
     zoomable: true,
   },
@@ -156,7 +156,7 @@ const nodes: DiagramNode[] = [
     id: "weights",
     title: "Weights",
     x: 650,
-    y: 340,
+    y: 380,
     width: 270,
     height: 110,
     tone: "blue",
@@ -288,13 +288,13 @@ export default function StatefulArchitectureDiagram() {
         </defs>
 
         <text x="24" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">PSEUDOCODE VIEW · METHOD INPUTS ARE EXPLICIT EDGES</text>
-        <text x="24" y="74" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each node is a transformation. The graph currently shows only the flow into state initialization so each later edge can be reviewed independently.</text>
+        <text x="24" y="74" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each node is a transformation. The graph currently shows the trusted initialization flow and the inputs feeding Attention so each later edge can be reviewed independently.</text>
 
         <rect x="260" y="92" width="2010" height="1048" rx="30" fill="rgb(16 12 10 / 0.22)" stroke="rgb(251 191 36 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
         <text x="292" y="128" fill="rgb(251 191 36 / 0.68)" fontSize="13" letterSpacing="2">PIRO MODEL</text>
 
-        <rect x="610" y="150" width="1660" height="760" rx="30" fill="rgb(21 42 34 / 0.1)" stroke="rgb(110 231 183 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
-        <text x="642" y="186" fill="rgb(110 231 183 / 0.7)" fontSize="12" letterSpacing="1.8">INFERENCE DYNAMICS · k</text>
+        <rect x="1000" y="150" width="1270" height="760" rx="30" fill="rgb(21 42 34 / 0.1)" stroke="rgb(110 231 183 / 0.28)" strokeWidth="2" strokeDasharray="9 8" />
+        <text x="1032" y="186" fill="rgb(110 231 183 / 0.7)" fontSize="12" letterSpacing="1.8">RECURRENT LOOP · k · SHOULDHALT CONTROL</text>
 
         <rect x="260" y="930" width="2000" height="210" rx="30" fill="rgb(57 39 24 / 0.1)" stroke="rgb(253 186 116 / 0.3)" strokeWidth="2" strokeDasharray="7 7" />
         <text x="292" y="966" fill="rgb(253 186 116 / 0.72)" fontSize="12" letterSpacing="1.8">ONLINE WEIGHT UPDATE</text>
@@ -302,16 +302,25 @@ export default function StatefulArchitectureDiagram() {
         {arrowPath("M248 385H300", "rgb(251 191 36 / 0.72)")}
         <InputLabel x={274} y={368}>Observation</InputLabel>
 
-        {arrowPath("M550 385V245H650", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={594} y={330}>x</InputLabel>
-        {arrowPath("M785 340V300", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={835} y={325}>internal_weights</InputLabel>
+        {arrowPath("M550 385V291.25H650", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={594} y={350}>x</InputLabel>
+        {arrowPath("M785 380V332.5", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={835} y={365}>internal_weights</InputLabel>
+        {arrowPath("M897.5 291.25H1050", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={970} y={280}>hₖ</InputLabel>
+        {arrowPath("M920 435H1000V291.25H1050", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={960} y={425}>weights</InputLabel>
+        {arrowPath("M550 385V500H950V291.25H1050", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={760} y={492}>x</InputLabel>
+        {arrowPath("M1920 485H980V291.25H1050", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={1740} y={475}>historyₖ</InputLabel>
+
 
         {nodes.map((node) => (
           <DiagramNodeCard key={node.id} node={node} onClick={() => router.push(`/docs/architecture/${node.id}`)} />
         ))}
 
-        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Post-initialization edges are intentionally omitted while the recurrent flow is reviewed one transformation at a time.</text>
+        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Attention inputs are now shown; later recurrent edges remain intentionally omitted while the flow is reviewed one transformation at a time.</text>
       </svg>
     </div>
   );
