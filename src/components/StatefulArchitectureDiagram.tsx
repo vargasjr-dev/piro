@@ -56,7 +56,7 @@ const nodes: DiagramNode[] = [
     id: "initialize",
     title: "InitializeOrRetrieveState",
     x: 650,
-    y: 150,
+    y: 190,
     width: 330,
     height: 110,
     tone: "blue",
@@ -66,7 +66,7 @@ const nodes: DiagramNode[] = [
     id: "attention",
     title: "Attention",
     x: 1050,
-    y: 150,
+    y: 190,
     width: 340,
     height: 110,
     tone: "green",
@@ -74,9 +74,9 @@ const nodes: DiagramNode[] = [
   },
   {
     id: "delta",
-    title: "Update",
+    title: "ComputeStateDelta",
     x: 1460,
-    y: 150,
+    y: 190,
     width: 390,
     height: 110,
     tone: "green",
@@ -84,9 +84,9 @@ const nodes: DiagramNode[] = [
   },
   {
     id: "residual",
-    title: "ApplyGatedResidual",
+    title: "ApplyGatedStateUpdate",
     x: 1920,
-    y: 150,
+    y: 190,
     width: 300,
     height: 110,
     tone: "green",
@@ -156,7 +156,7 @@ const nodes: DiagramNode[] = [
     id: "weights",
     title: "Weights",
     x: 650,
-    y: 300,
+    y: 340,
     width: 270,
     height: 110,
     tone: "blue",
@@ -302,10 +302,10 @@ export default function StatefulArchitectureDiagram() {
         {arrowPath("M248 385H300", "rgb(251 191 36 / 0.72)")}
         <InputLabel x={274} y={368}>Observation</InputLabel>
 
-        {arrowPath("M550 385V205H650", "rgb(251 191 36 / 0.72)")}
-        <InputLabel x={594} y={310}>x</InputLabel>
-        {arrowPath("M785 300V260", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
-        <InputLabel x={835} y={282}>internal_weights</InputLabel>
+        {arrowPath("M550 385V245H650", "rgb(251 191 36 / 0.72)")}
+        <InputLabel x={594} y={330}>x</InputLabel>
+        {arrowPath("M785 340V300", "rgb(125 211 252 / 0.72)", { dashed: true, marker: "arrow-blue" })}
+        <InputLabel x={835} y={325}>internal_weights</InputLabel>
 
         {nodes.map((node) => (
           <DiagramNodeCard key={node.id} node={node} onClick={() => router.push(`/docs/architecture/${node.id}`)} />

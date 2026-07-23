@@ -43,8 +43,8 @@ flowchart LR
         W[Weights]:::proposed -->|internal_weights| S
 
         A[Attention]:::current
-        D[Update]:::current
-        R[ApplyGatedResidual]:::current
+        D[ComputeStateDelta]:::current
+        R[ApplyGatedStateUpdate]:::current
         N[UpdateHistory]:::current
         P[PredictionHead]:::learning
         V[ValueHead]:::learning
@@ -71,7 +71,7 @@ for k = 0 ... Kmax:
 
     contextₖ = Attention(hₖ, historyₖ, x, weights)
 
-    deltaₖ = Update(
+    deltaₖ = ComputeStateDelta(
         hₖ,
         x,
         contextₖ,
@@ -79,7 +79,7 @@ for k = 0 ... Kmax:
         weights
     )
 
-    hₖ₊₁ = hₖ + gateₖ · deltaₖ
+    hₖ₊₁ = ApplyGatedStateUpdate(hₖ, gateₖ, deltaₖ)
 
     historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁)
 
@@ -94,8 +94,8 @@ if ShouldHalt(hₖ₊₁, haltₖ, k):
 
 `ShouldHalt` receives the final state, halt signal, and tick index in this
 working contract. The head calculations are shown outside the recurrent loop for
-now while we clean up the exact control-flow semantics. The learned gate remains
-inside the residual update rather than appearing as a separate transformation.
+now while we clean up the exact control-flow semantics. The learned gate and residual addition are represented by the
+`ApplyGatedStateUpdate` transformation rather than as separate nodes.
 The model-internal plasticity controller remains visible as an isolated node until
 its edge is reviewed.
 

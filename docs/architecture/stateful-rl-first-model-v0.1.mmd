@@ -15,8 +15,8 @@ flowchart LR
         W[Weights]:::proposed -->|internal_weights| S
 
         A[Attention]:::current
-        D[Update]:::current
-        R[ApplyGatedResidual]:::current
+        D[ComputeStateDelta]:::current
+        R[ApplyGatedStateUpdate]:::current
         N[UpdateHistory]:::current
         P[PredictionHead]:::learning
         V[ValueHead]:::learning
