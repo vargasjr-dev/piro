@@ -271,35 +271,35 @@ export default function StatefulArchitectureDiagram() {
 
         {arrowPath("M518.75 385V291.25H650", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
         <InputLabel x={585} y={350}>x</InputLabel>
-        {arrowPath("M518.75 385V520H920V291.25H1050", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
-        <InputLabel x={760} y={512}>x</InputLabel>
+        {arrowPath("M518.75 385C700 385 820 305 1050 305", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        <InputLabel x={735} y={365}>x</InputLabel>
 
         {arrowPath("M785 393.75V332.5", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
         <InputLabel x={785} y={365}>weights</InputLabel>
-        {arrowPath("M886.25 435H920V520", "rgb(125 211 252 / 0.7)")}
-        <InputLabel x={835} y={420}>weights</InputLabel>
+        {arrowPath("M886.25 435C930 435 965 265 1050 265", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
+        <InputLabel x={955} y={365}>weights</InputLabel>
 
-        {arrowPath("M897.5 291.25H1050", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
+        {arrowPath("M897.5 291.25C950 285 1000 285 1050 285", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
         <InputLabel x={970} y={280}>hₖ</InputLabel>
-        {arrowPath("M2182.5 500H1380V291.25H1050", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
-        <InputLabel x={1680} y={490}>historyₖ</InputLabel>
+        {arrowPath("M2182.5 500C1800 500 1400 325 1050 325", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
+        <InputLabel x={1680} y={465}>historyₖ</InputLabel>
 
         {arrowPath("M1305 291.25H1460", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
         <InputLabel x={1382} y={280}>contextₖ</InputLabel>
-        {arrowPath("M897.5 291.25H1180V215H1400V291.25H1460", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
+        {arrowPath("M897.5 291.25C1080 215 1260 215 1460 275", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
         <InputLabel x={1190} y={205}>hₖ</InputLabel>
-        {arrowPath("M518.75 385V560H1360V310H1460", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
+        {arrowPath("M518.75 385C800 560 1170 420 1460 305", "rgb(110 231 183 / 0.7)", { marker: "arrow-green" })}
         <InputLabel x={940} y={552}>x</InputLabel>
-        {arrowPath("M886.25 435H1280V350H1460", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
-        <InputLabel x={1130} y={340}>weights</InputLabel>
-        {arrowPath("M1957.5 500H1320V370H1460", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
-        <InputLabel x={1600} y={360}>historyₖ</InputLabel>
+        {arrowPath("M886.25 435C1060 435 1260 350 1460 325", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
+        <InputLabel x={1130} y={390}>weights</InputLabel>
+        {arrowPath("M1957.5 500C1800 500 1650 390 1460 345", "rgb(125 211 252 / 0.7)", { marker: "arrow-blue" })}
+        <InputLabel x={1600} y={415}>historyₖ</InputLabel>
 
         {nodes.map((node) => (
           <DiagramNodeCard key={node.id} node={node} onClick={() => router.push(`/docs/architecture/${node.id}`)} />
         ))}
 
-        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Attention and ComputeStateDelta inputs now use boxed orthogonal routes; later recurrent edges remain intentionally omitted while the flow is reviewed one transformation at a time.</text>
+        <text x="650" y="1175" fill="rgb(253 230 138 / 0.62)" fontSize="13">Attention and ComputeStateDelta inputs now use smooth converging routes; later recurrent edges remain intentionally omitted while the flow is reviewed one transformation at a time.</text>
       </svg>
     </div>
   );
