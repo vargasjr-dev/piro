@@ -58,7 +58,7 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   plasticity: {
     title: "PlasticityController",
-    subtitle: "The model-internal method that turns learning signals into updated weights.",
+    subtitle: "The model-internal method that updates plastic weights before each completed inference returns.",
   },
 };
 
@@ -289,9 +289,9 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
     tone: "orange",
   },
   plasticity: {
-    input: "prediction + value + credit signals",
+    input: "weights + prediction + value + credit signals",
     output: "updated weights",
-    relation: "changes the model's own memory parameters",
+    relation: "updates plastic weights on every completed inference and consolidates durable weights more slowly",
     tone: "orange",
   },
 };

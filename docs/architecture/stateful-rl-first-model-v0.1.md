@@ -21,8 +21,9 @@ architecture page in the application.
 implementation-level object used to represent that boundary. `Embed` produces the
 shared representation `x`; `InitializeOrRetrieveState` establishes the starting
 state; the recurrent loop performs attention, state-delta computation, gated state
-updates, and history updates; `ShouldHalt` controls loop exit; and `OutputHead`
-produces the final output after the loop exits.
+updates, and history updates; `ShouldHalt` controls loop exit; `OutputHead`
+produces the final output; and `PlasticityController` updates the model’s weights
+before each completed inference returns.
 
 ## Pseudocode method contracts
 
@@ -49,15 +50,25 @@ for k = 0 ... Kmax:
 
     if ShouldHalt(hₖ₊₁, k):
         outputₖ = OutputHead(hₖ₊₁)
+
+        weights = PlasticityController(
+            weights,
+            predictionₖ,
+            valueₖ,
+            creditₖ
+        )
+
         return outputₖ
 ```
 
 `ShouldHalt` receives the current state and tick index inside each loop iteration in this working contract.
 Prediction, value, and halt heads are implementation details of `ShouldHalt`, so
-they are not separate top-level transformations. The learned gate and residual
-addition are represented by `ApplyGatedStateUpdate` rather than hidden inside a
-neighboring method. `weights` is part of the Piro model and remains an explicit
-input to the transformations that consume it.
+they are not separate top-level transformations. `predictionₖ`, `valueₖ`, and
+`creditₖ` are the learning signals available to `PlasticityController`; credit may
+be assigned through eligibility traces when its consequence arrives later. The
+learned gate and residual addition are represented by `ApplyGatedStateUpdate`
+rather than hidden inside a neighboring method. `weights` is part of the Piro
+model and remains an explicit input to the transformations that consume it.
 
 The application currently defaults to this pseudocode view. A diagram view may be
 added as a secondary tab later; the existing Mermaid source and diagram component
@@ -145,8 +156,10 @@ both are part of Piro’s own learned state.
 ### 4. Self-update is part of Piro’s design
 
 The learned self-update mechanism receives internal prediction, value,
-eligibility, and credit signals. It determines how plasticity and consolidation
-modify the model’s weights while inference is running. This is different from a conventional deployed
+eligibility, and credit signals. `PlasticityController` runs before every
+completed inference returns, updating fast plastic weights immediately when the
+available signals justify it. Durable weights can use a slower consolidation path
+inside the same controller. This is different from a conventional deployed
 frontier model whose optimizer is external and whose weights remain fixed during
 ordinary use.
 
@@ -189,7 +202,7 @@ be measured:
 2. It predicts the next observation and eventual utility.
 3. The environment returns observations, not an immediate correctness label.
 4. The model maintains an eligibility trace over recent actions.
-5. The learned self-update mechanism modifies the model’s plastic weights.
+5. `PlasticityController` updates the model’s plastic weights before each completed inference returns.
 6. We compare against:
    - no adaptation,
    - immediate reward-only adaptation,
