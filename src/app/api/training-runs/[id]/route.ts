@@ -1,5 +1,6 @@
 import {
   getOwnedTrainingRun,
+  reconcileStaleTrainingRun,
   resolveTrainingRunUserId,
   serializeTrainingRun,
 } from "~/lib/training-runs.server";
@@ -15,5 +16,6 @@ export async function GET(
   const run = await getOwnedTrainingRun(id, userId);
   if (!run) return Response.json({ error: "Not found" }, { status: 404 });
 
-  return Response.json({ run: serializeTrainingRun(run) });
+  const reconciled = await reconcileStaleTrainingRun(run);
+  return Response.json({ run: serializeTrainingRun(reconciled) });
 }

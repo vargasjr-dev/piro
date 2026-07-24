@@ -185,11 +185,14 @@ class Trainer:
         self.model.eval()
         total_loss = 0.0
         correct = 0
+        device = next(self.model.parameters()).device
 
         with torch.no_grad():
             for emb, label in data:
-                logits = _get_logits(self.model, emb)
-                loss = F.cross_entropy(logits.unsqueeze(0), torch.tensor([label]))
+                logits = _get_logits(self.model, emb.to(device))
+                loss = F.cross_entropy(
+                    logits.unsqueeze(0), torch.tensor([label], device=device)
+                )
                 total_loss += loss.item()
                 if logits.argmax().item() == label:
                     correct += 1
@@ -199,9 +202,12 @@ class Trainer:
 
     def _batch_loss(self, batch: list[Sample]) -> torch.Tensor:
         losses = []
+        device = next(self.model.parameters()).device
         for emb, label in batch:
-            logits = _get_logits(self.model, emb)
-            losses.append(F.cross_entropy(logits.unsqueeze(0), torch.tensor([label])))
+            logits = _get_logits(self.model, emb.to(device))
+            losses.append(
+                F.cross_entropy(logits.unsqueeze(0), torch.tensor([label], device=device))
+            )
         return torch.stack(losses).mean()
 
 

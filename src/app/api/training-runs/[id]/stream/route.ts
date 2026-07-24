@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
+import { reconcileStaleTrainingRun } from "~/lib/training-run-observability.server";
 import { db } from "../../../../../../data/db";
 import { trainingRun } from "../../../../../../data/schema";
 import { eq, and } from "drizzle-orm";
@@ -31,7 +32,12 @@ export async function GET(
         const [run] = await db
           .select()
           .from(trainingRun)
-          .where(and(eq(trainingRun.id, id), eq(trainingRun.userId, session.user.id)))
+          .where(
+            and(
+              eq(trainingRun.id, id),
+              eq(trainingRun.userId, session.user.id),
+            ),
+          )
           .limit(1);
 
         if (!run) {
@@ -40,36 +46,59 @@ export async function GET(
           return;
         }
 
+        const reconciled = await reconcileStaleTrainingRun(run);
+
         // Push epoch progress if new epochs have arrived
-        if (run.currentEpoch !== null && run.currentEpoch > lastEpoch) {
+        if (
+          reconciled.currentEpoch !== null &&
+          reconciled.currentEpoch > lastEpoch
+        ) {
           let history: unknown[] = [];
-          if (run.epochHistoryJson) {
-            try { history = JSON.parse(run.epochHistoryJson); } catch { /* ignore */ }
+          if (reconciled.epochHistoryJson) {
+            try {
+              history = JSON.parse(reconciled.epochHistoryJson);
+            } catch {
+              /* ignore */
+            }
           }
-          controller.enqueue(event("progress", {
-            currentEpoch: run.currentEpoch,
-            epochs: run.epochs,
-            history,
-            status: run.status,
-          }));
-          lastEpoch = run.currentEpoch;
+          controller.enqueue(
+            event("progress", {
+              currentEpoch: reconciled.currentEpoch,
+              epochs: reconciled.epochs,
+              history,
+              status: reconciled.status,
+            }),
+          );
+          lastEpoch = reconciled.currentEpoch;
         }
 
         // Terminal states — send final event and close
-        if (run.status === "complete") {
-          controller.enqueue(event("complete", {
-            finalTrainLoss: run.finalTrainLoss,
-            finalValLoss: run.finalValLoss,
-            finalValAccuracy: run.finalValAccuracy,
-            epochHistoryJson: run.epochHistoryJson,
-            completedAt: run.completedAt?.toISOString() ?? null,
-          }));
+        if (reconciled.status === "complete") {
+          controller.enqueue(
+            event("complete", {
+              finalTrainLoss: reconciled.finalTrainLoss,
+              finalValLoss: reconciled.finalValLoss,
+              finalValAccuracy: reconciled.finalValAccuracy,
+              epochHistoryJson: reconciled.epochHistoryJson,
+              completedAt: reconciled.completedAt?.toISOString() ?? null,
+              runtimeMs: reconciled.runtimeMs,
+              costUsd: reconciled.costUsd,
+              costBasis: reconciled.costBasis,
+            }),
+          );
           controller.close();
           return;
         }
 
-        if (run.status === "error") {
-          controller.enqueue(event("error", { message: run.error ?? "Unknown error" }));
+        if (reconciled.status === "error") {
+          controller.enqueue(
+            event("error", {
+              message: reconciled.error ?? "Unknown error",
+              runtimeMs: reconciled.runtimeMs,
+              costUsd: reconciled.costUsd,
+              costBasis: reconciled.costBasis,
+            }),
+          );
           controller.close();
           return;
         }
