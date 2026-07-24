@@ -250,9 +250,24 @@ Attention(hₖ, historyₖ, x, k, weights):
     retrievalWeightsₖ = softmax(contentScoresₖ + timeBiasₖ + syncBiasₖ)
     retrievedₖ = retrievalWeightsₖ · valuesₖ
     contextₖ = OutputProjection(retrievedₖ, weights)
-    readGateₖ = sigmoid(ReadGate(hₖ, x, contextₖ, weights))
+    readGateₖ = ReadGate(
+        hₖ,
+        x,
+        contextₖ,
+        weights
+    )
 
     return readGateₖ ⊙ contextₖ
+
+ReadGate(hₖ, x, contextₖ, weights):
+
+    gateInputₖ = Normalize(Concatenate(hₖ, x, contextₖ))
+    gateLogitsₖ = gateInputₖ · weights.attention.readGate.W
+        + weights.attention.readGate.b
+    readGateₖ = sigmoid(gateLogitsₖ)
+
+    assert Shape(readGateₖ) == Shape(contextₖ)
+    return readGateₖ
 
 BuildMemorySlots(historyₖ, k):
 

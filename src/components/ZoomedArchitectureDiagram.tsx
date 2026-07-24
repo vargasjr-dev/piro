@@ -341,7 +341,7 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   relativeTimeBias: { input: "memoryₖ.age + weights", output: "timeBiasₖ", relation: "adjusts retrieval scores using explicit memory age", tone: "green" },
   synchronizationBias: { input: "hₖ + memoryₖ + weights", output: "syncBiasₖ", relation: "adjusts retrieval scores using dynamical compatibility", tone: "green" },
   outputProjection: { input: "retrievedₖ + weights", output: "contextₖ", relation: "returns the weighted memory read in CTM context space", tone: "green" },
-  readGate: { input: "hₖ + x + contextₖ + weights", output: "readGateₖ", relation: "controls how much retrieved context can influence the update", tone: "green" },
+  readGate: { input: "hₖ + x + contextₖ + weights", output: "readGateₖ", relation: "computes a feature-wise memory admission gate", tone: "green" },
   delta: { input: "hₖ + x + contextₖ + historyₖ + weights", output: "deltaₖ", relation: "computes the candidate state change", tone: "green" },
   residual: { input: "hₖ + deltaₖ + weights", output: "hₖ₊₁", relation: "computes hₖ + gateₖ · deltaₖ", tone: "green" },
   history: { input: "historyₖ + hₖ₊₁ + x + k", output: "historyₖ₊₁", relation: "records state, input, and tick metadata", tone: "blue" },
@@ -466,7 +466,7 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
       {line(<>        retrievedₖ,</>)}
       {line(<>        weights</>)}
       {line(<>    )</>)}
-      {line(<>    {variable("readGateₖ")} = sigmoid({call("ReadGate", "readGate")}</>)}
+      {line(<>    {variable("readGateₖ")} = {call("ReadGate", "readGate")}</>)}
       {line(<>        hₖ,</>)}
       {line(<>        x,</>)}
       {line(<>        contextₖ,</>)}
@@ -512,7 +512,20 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
     relativeTimeBias: line(<>{call("RelativeTimeBias", "relativeTimeBias")}age, weights):</>),
     synchronizationBias: line(<>{call("SynchronizationBias", "synchronizationBias")}hₖ, memoryₖ, weights):</>),
     outputProjection: line(<>{call("OutputProjection", "outputProjection")}retrievedₖ, weights):</>),
-    readGate: line(<>{call("ReadGate", "readGate")}hₖ, x, contextₖ, weights):</>),
+    readGate: <>
+      {line(<>{call("ReadGate", "readGate")}</>)}
+      {line(<>    hₖ,</>)}
+      {line(<>    x,</>)}
+      {line(<>    contextₖ,</>)}
+      {line(<>    weights</>)}
+      {line(<>):</>)}
+      {line(<>    gateInputₖ = Normalize(Concatenate(hₖ, x, contextₖ))</>)}
+      {line(<>    gateLogitsₖ = gateInputₖ · weights.attention.readGate.W</>)}
+      {line(<>        + weights.attention.readGate.b</>)}
+      {line(<>    readGateₖ = sigmoid(gateLogitsₖ)</>)}
+      {line(<>    assert Shape(readGateₖ) == Shape(contextₖ)</>)}
+      {line(<>    return readGateₖ</>)}
+    </>,
     delta: <>
       {line(<>{variable("deltaₖ")} = {call("ComputeStateDelta", "delta")}</>)}
       {line(<>    hₖ,</>)}
@@ -559,7 +572,7 @@ const explanations: Partial<Record<DiagramKind, { doing: string; why: string }>>
   relativeTimeBias: { doing: "Maps each explicit memory age to an additive retrieval-score bias.", why: "Recency can matter, but it should adjust content retrieval rather than silently replace it." },
   synchronizationBias: { doing: "Scores compatibility between the current recurrent state and each candidate memory slot.", why: "The same content can have different relevance depending on the current dynamical regime." },
   outputProjection: { doing: "Projects the weighted sum of retrieved values back into CTM context space.", why: "Attention’s internal value space does not have to be identical to the representation consumed by ComputeStateDelta." },
-  readGate: { doing: "Produces a sigmoid gate from the current state, input, and retrieved context, then scales the context elementwise.", why: "A memory read should help without automatically overwriting the current thought." },
+  readGate: { doing: "Normalizes the current state, input, and retrieved context, projects them into gate logits with the learned read-gate weights, applies sigmoid, and returns one gate value per context feature.", why: "A memory read should help without automatically overwriting the current thought; the gate must have the same shape as contextₖ so the final elementwise multiplication is well-defined." },
   delta: { doing: "Combines the current state, input, context, history, and weights into deltaₖ.", why: "Separating the candidate change from the residual update makes the state transition auditable." },
   residual: { doing: "Applies the learned gate to deltaₖ and adds it to hₖ to produce hₖ₊₁.", why: "The recurrent state needs a controlled update rather than an unconditional replacement." },
   history: { doing: "Appends the new state together with x and tick k so future retrieval can recover content and age.", why: "History is both the state trajectory and the source of Attention’s timestamped memory slots." },
