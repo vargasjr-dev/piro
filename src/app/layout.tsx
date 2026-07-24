@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Piro",
-  description: "Train your own tiny, RL-first model — built to grow, not decay.",
+  description: "Deploy a dedicated, stateful Piro model that follows the latest experiment.",
   icons: {
     icon: "/favicon.svg",
   },
