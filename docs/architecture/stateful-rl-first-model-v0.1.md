@@ -37,7 +37,7 @@ h₀ = InitializeOrRetrieveState(x, weights)
 
 for k = 0 ... Kmax:
 
-    contextₖ = Attention(hₖ, historyₖ, x, weights)
+    contextₖ = Attention(hₖ, historyₖ, x, k, weights)
 
     deltaₖ = ComputeStateDelta(
         hₖ,
@@ -49,7 +49,7 @@ for k = 0 ... Kmax:
 
     hₖ₊₁ = ApplyGatedStateUpdate(hₖ, gateₖ, deltaₖ)
 
-    historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁)
+    historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁, x, k)
 
     if ShouldHalt(hₖ₊₁, k):
         outputₖ = OutputHead(hₖ₊₁)
@@ -223,3 +223,41 @@ stable knowledge?
 
 These are intentionally left open. The architecture is an end-state representation;
 experiments will determine the exact module boundaries and update rules.
+
+
+## Attention detail contract
+
+```text
+Attention(hₖ, historyₖ, x, k, weights):
+
+    memoryₖ = BuildMemorySlots(historyₖ, x, k, weights)
+
+    syncFeaturesₖ = SummarizeSynchronization(hₖ, historyₖ, weights)
+
+    attentionShape = GetAttentionShape(weights)
+    d_head = attentionShape.d_head
+
+    queryₖ = QueryProjection(
+        Normalize(Concatenate(hₖ, x, syncFeaturesₖ)),
+        weights
+    )
+
+    keysₖ = KeyProjection(memoryₖ, weights)
+    valuesₖ = ValueProjection(memoryₖ, weights)
+    contentScoresₖ = queryₖ · keysₖᵀ / sqrt(d_head)
+    timeBiasₖ = RelativeTimeBias(memoryₖ.age, weights)
+    syncBiasₖ = SynchronizationBias(hₖ, memoryₖ, weights)
+    retrievalWeightsₖ = softmax(contentScoresₖ + timeBiasₖ + syncBiasₖ)
+    retrievedₖ = retrievalWeightsₖ · valuesₖ
+    contextₖ = OutputProjection(retrievedₖ, weights)
+    readGateₖ = sigmoid(ReadGate(hₖ, x, contextₖ, weights))
+
+    return readGateₖ ⊙ contextₖ
+
+BuildMemorySlots(historyₖ, x, k, weights):
+
+    for each entryₜ in historyₖ:
+        slotₜ.content = Concatenate(entryₜ.state, entryₜ.input)
+        slotₜ.createdAt = entryₜ.tick
+        slotₜ.age = k - slotₜ.createdAt
+```
