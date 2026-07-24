@@ -295,7 +295,7 @@ class Trainer:
         started_at = datetime.now(timezone.utc)
         timeout_at = started_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
         cur.execute(
-            'UPDATE training_run SET status = %s, "startedAt" = %s, "heartbeatAt" = %s, "timeoutAt" = %s, "resourceType" = %s, "gpuType" = %s, "cpuCores" = %s, "memoryMb" = %s WHERE id = %s',
+            'UPDATE training_run SET status = %s, "startedAt" = %s, "heartbeatAt" = %s, "timeoutAt" = %s, "resourceType" = %s, "gpuType" = %s, "cpuCores" = %s, "memoryMb" = %s WHERE id = %s AND status = %s',
             (
                 "running",
                 started_at,
@@ -306,8 +306,15 @@ class Trainer:
                 TRAINING_CPU,
                 TRAINING_MEMORY_MB,
                 run_id,
+                "queued",
             ),
         )
+        if cur.rowcount != 1:
+            conn.rollback()
+            cur.close()
+            conn.close()
+            print(f"[piro] run {run_id} was no longer queued; skipping worker claim")
+            return
         conn.commit()
 
         try:
@@ -529,7 +536,7 @@ class Trainer:
                     "runtimeMs"        = %s,
                     "costUsd"          = %s,
                     "costBasis"        = %s
-                WHERE id = %s
+                WHERE id = %s AND status = 'running'
                 """,
                 (
                     "complete",
@@ -544,7 +551,14 @@ class Trainer:
                     run_id,
                 ),
             )
+            completed_update_count = cur.rowcount
             conn.commit()
+            if completed_update_count != 1:
+                print(
+                    f"[piro] run {run_id} was already terminal when worker completed; "
+                    "skipping model publication"
+                )
+                return
 
             # ── Create model + model_training_run rows (with weights) ─────────
             param_count = sum(p.numel() for p in model.parameters())

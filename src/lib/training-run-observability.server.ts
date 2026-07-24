@@ -3,6 +3,7 @@ import { db } from "../../data/db";
 import { trainingRun } from "../../data/schema";
 
 const STALE_RUN_GRACE_MS = 5 * 60 * 1000;
+const DEFAULT_QUEUE_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 55 * 60 * 1000;
 const GPU_RATE_USD_PER_SECOND: Record<string, number> = {
   T4: 0.000164,
@@ -29,9 +30,29 @@ function estimateCostUsd(
 export async function reconcileStaleTrainingRun(
   run: typeof trainingRun.$inferSelect,
 ) {
+  const now = new Date();
+
+  if (run.status === "queued") {
+    const queueDeadline =
+      run.timeoutAt ??
+      new Date(run.queuedAt.getTime() + DEFAULT_QUEUE_TIMEOUT_MS);
+    if (now <= queueDeadline) return run;
+
+    const [updated] = await db
+      .update(trainingRun)
+      .set({
+        status: "error",
+        error: "Training worker was not started before the dispatch deadline.",
+        completedAt: now,
+        heartbeatAt: now,
+      })
+      .where(and(eq(trainingRun.id, run.id), eq(trainingRun.status, "queued")))
+      .returning();
+    return updated ?? run;
+  }
+
   if (run.status !== "running" || !run.startedAt) return run;
 
-  const now = new Date();
   const deadline =
     run.timeoutAt ?? new Date(run.startedAt.getTime() + DEFAULT_TIMEOUT_MS);
   const heartbeat = run.heartbeatAt ?? run.startedAt;
