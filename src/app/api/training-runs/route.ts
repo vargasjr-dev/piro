@@ -8,6 +8,10 @@ import {
   user,
 } from "../../../../data/schema";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
+import {
+  resolveTrainingRunUserId,
+  serializeTrainingRun,
+} from "~/lib/training-runs.server";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
@@ -19,37 +23,18 @@ import { isAdmin } from "~/lib/admin";
 
 // ── GET /api/training-runs ────────────────────────────────────────────────────
 
-export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session)
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(request: Request) {
+  const userId = await resolveTrainingRunUserId(request);
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const runs = await db
     .select()
     .from(trainingRun)
-    .where(eq(trainingRun.userId, session.user.id))
+    .where(eq(trainingRun.userId, userId))
     .orderBy(desc(trainingRun.queuedAt))
     .limit(50);
 
-  return Response.json({
-    runs: runs.map((r) => ({
-      id: r.id,
-      architecturePath: r.architecturePath,
-      datasetId: r.datasetId,
-      status: r.status,
-      epochs: r.epochs,
-      configJson: r.configJson,
-      finalTrainLoss: r.finalTrainLoss,
-      finalValLoss: r.finalValLoss,
-      finalValAccuracy: r.finalValAccuracy,
-      epochHistoryJson: r.epochHistoryJson,
-      currentEpoch: r.currentEpoch,
-      error: r.error,
-      queuedAt: r.queuedAt.toISOString(),
-      startedAt: r.startedAt?.toISOString() ?? null,
-      completedAt: r.completedAt?.toISOString() ?? null,
-    })),
-  });
+  return Response.json({ runs: runs.map(serializeTrainingRun) });
 }
 
 // ── POST /api/training-runs ───────────────────────────────────────────────────
