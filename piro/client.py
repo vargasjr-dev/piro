@@ -174,13 +174,13 @@ class PiroClient:
         self,
         architecture_path: str,
         dataset_id: str,
-        epochs: int = 10,
+        max_steps: int = 5000,
         model_name: str | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "architecturePath": architecture_path,
             "datasetId": dataset_id,
-            "epochs": epochs,
+            "maxSteps": max_steps,
         }
         if model_name:
             payload["modelName"] = model_name

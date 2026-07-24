@@ -25,12 +25,12 @@ export function architecturePath(name: string): string {
 
 export async function architectureTrain(
   name: string,
-  opts: { dataset: string; epochs?: string; modelName?: string },
+  opts: { dataset: string; maxSteps?: string; modelName?: string },
 ): Promise<void> {
   const config = resolveConfig();
-  const epochs = opts.epochs === undefined ? 10 : Number(opts.epochs);
-  if (!Number.isInteger(epochs) || epochs < 1) {
-    console.error("Error: --epochs must be a positive integer");
+  const maxSteps = opts.maxSteps === undefined ? 5000 : Number(opts.maxSteps);
+  if (!Number.isInteger(maxSteps) || maxSteps < 1) {
+    console.error("Error: --max-steps must be a positive integer");
     process.exit(1);
   }
 
@@ -39,7 +39,7 @@ export async function architectureTrain(
     body: JSON.stringify({
       architecturePath: architecturePath(name),
       datasetId: opts.dataset,
-      epochs,
+      maxSteps,
       ...(opts.modelName ? { modelName: opts.modelName } : {}),
     }),
   });

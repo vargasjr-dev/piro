@@ -1,7 +1,12 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../../data/db";
-import { model, modelHostedApi, modelTrainingRun, trainingRun } from "../../../../../data/schema";
+import {
+  model,
+  modelHostedApi,
+  modelTrainingRun,
+  trainingRun,
+} from "../../../../../data/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function PATCH(
@@ -10,7 +15,8 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const [m] = await db
     .select({ id: model.id })
@@ -34,7 +40,8 @@ export async function GET(
 ) {
   const { id } = await params;
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const [m] = await db
     .select()
@@ -81,11 +88,13 @@ export async function GET(
           id: run.id,
           architecturePath: run.architecturePath,
           configJson: run.configJson,
-          epochs: run.epochs,
+          maxSteps: run.maxSteps,
           finalTrainLoss: run.finalTrainLoss,
           finalValLoss: run.finalValLoss,
           finalValAccuracy: run.finalValAccuracy,
-          epochHistoryJson: run.epochHistoryJson,
+          stepHistoryJson: run.stepHistoryJson,
+          checkpointStep: run.checkpointStep,
+          checkpointAt: run.checkpointAt?.toISOString() ?? null,
           queuedAt: run.queuedAt.toISOString(),
           startedAt: run.startedAt?.toISOString() ?? null,
           completedAt: run.completedAt?.toISOString() ?? null,

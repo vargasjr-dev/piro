@@ -11,7 +11,7 @@ The Trainer wraps that interface and runs:
     - Cross-entropy loss
     - Adam optimiser (configurable lr / weight_decay)
     - Identical train/eval split from the data pipeline
-    - Per-epoch metrics: train_loss, val_loss, val_accuracy
+    - Periodic metrics: train_loss, val_loss, val_accuracy
 
 Usage
 -----
@@ -24,7 +24,7 @@ Usage
     base = BaselineTransformer(TransformerConfig())
 
     # Shared trainer config
-    cfg = TrainerConfig(epochs=20, lr=1e-3, batch_size=32, seed=42)
+    cfg = TrainerConfig(max_steps=5000, lr=1e-3, batch_size=32, seed=42)
 
     # Train both on the same data
     ctm_history  = Trainer(ctm,  cfg).fit(train_data, val_data)
@@ -40,7 +40,7 @@ Each dataset is a list of (embeddings, label) pairs where:
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol
 
 import torch
@@ -71,19 +71,19 @@ class ModelProtocol(Protocol):
 
 @dataclass
 class TrainerConfig:
-    epochs: int = 10
+    max_steps: int = 5000
     lr: float = 1e-3
     weight_decay: float = 1e-4
     batch_size: int = 32
     seed: int = 42
-    log_every: int = 1          # print metrics every N epochs (0 = silent)
+    eval_interval: int = 250    # evaluate and record metrics every N steps
 
 
-# ── Per-epoch metrics ─────────────────────────────────────────────────────────
+# ── Step metrics ───────────────────────────────────────────────────────────────
 
 @dataclass
-class EpochMetrics:
-    epoch: int
+class StepMetrics:
+    step: int
     train_loss: float
     val_loss: float
     val_accuracy: float
@@ -126,62 +126,63 @@ class Trainer:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def fit(self, train_data: Dataset, val_data: Dataset) -> list[EpochMetrics]:
-        """Train for `config.epochs` epochs and return per-epoch history.
+    def fit(self, train_data: Dataset, val_data: Dataset) -> list[StepMetrics]:
+        """Train for a fixed optimizer-step budget and return evaluation history."""
+        if self.config.max_steps <= 0:
+            raise ValueError("max_steps must be positive")
+        if self.config.batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        if self.config.eval_interval <= 0:
+            raise ValueError("eval_interval must be positive")
+        if not train_data:
+            raise ValueError("train_data must not be empty")
 
-        Parameters
-        ----------
-        train_data : Dataset
-        val_data   : Dataset
-
-        Returns
-        -------
-        list[EpochMetrics]
-            One entry per epoch.
-        """
         _seed_everything(self.config.seed)
-        history: list[EpochMetrics] = []
+        history: list[StepMetrics] = []
+        order = list(range(len(train_data)))
+        cursor = 0
 
-        for epoch in range(1, self.config.epochs + 1):
-            train_loss = self._train_epoch(train_data)
-            val_loss, val_acc = self._eval_epoch(val_data)
+        for step in range(1, self.config.max_steps + 1):
+            if cursor == 0:
+                random.shuffle(order)
+            batch_indices = [
+                order[(cursor + offset) % len(order)]
+                for offset in range(min(self.config.batch_size, len(order)))
+            ]
+            cursor = (cursor + len(batch_indices)) % len(order)
+            batch = [train_data[index] for index in batch_indices]
+            train_loss = self._train_step(batch)
 
-            metrics = EpochMetrics(
-                epoch=epoch,
+            if step % self.config.eval_interval != 0 and step != self.config.max_steps:
+                continue
+
+            val_loss, val_acc = self._evaluate(val_data)
+            metrics = StepMetrics(
+                step=step,
                 train_loss=train_loss,
                 val_loss=val_loss,
                 val_accuracy=val_acc,
             )
             history.append(metrics)
-
-            if self.config.log_every > 0 and epoch % self.config.log_every == 0:
-                print(
-                    f"[epoch {epoch:>3}/{self.config.epochs}] "
-                    f"train_loss={train_loss:.4f}  "
-                    f"val_loss={val_loss:.4f}  "
-                    f"val_acc={val_acc:.3f}"
-                )
+            print(
+                f"[step {step:>6}/{self.config.max_steps}] "
+                f"train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  "
+                f"val_acc={val_acc:.3f}"
+            )
 
         return history
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
-    def _train_epoch(self, data: Dataset) -> float:
+    def _train_step(self, batch: list[Sample]) -> float:
         self.model.train()
-        random.shuffle(data)
-        total_loss = 0.0
+        self.optimizer.zero_grad()
+        loss = self._batch_loss(batch)
+        loss.backward()
+        self.optimizer.step()
+        return float(loss.detach())
 
-        for batch in _batch(data, self.config.batch_size):
-            self.optimizer.zero_grad()
-            loss = self._batch_loss(batch)
-            loss.backward()
-            self.optimizer.step()
-            total_loss += loss.item()
-
-        n_batches = max(1, len(data) // self.config.batch_size)
-        return total_loss / n_batches
-
-    def _eval_epoch(self, data: Dataset) -> tuple[float, float]:
+    def _evaluate(self, data: Dataset) -> tuple[float, float]:
         self.model.eval()
         total_loss = 0.0
         correct = 0

@@ -27,7 +27,7 @@ Start a training run against a generated dataset owned by the active API key:
 ```bash
 piro architecture train ctm \
   --dataset <dataset-id> \
-  --epochs 20 \
+  --max-steps 5000 \
   --name ashfall-ctm
 ```
 
@@ -112,7 +112,7 @@ piro classes push <class-id> --file model.py
 # (the source lives at sources/associative-recall/main.py)
 
 # Train an architecture through the platform CLI.
-piro architecture train ctm --dataset <dataset-id> --epochs 20
+piro architecture train ctm --dataset <dataset-id> --max-steps 5000
 
 # Run the dedicated stateful persistent-memory benchmark
 python model/run_persistent_memory.py --episodes 200 --delay 8 --writes 3
