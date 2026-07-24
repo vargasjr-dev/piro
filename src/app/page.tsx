@@ -1,363 +1,156 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import FlameLogo from "~/components/FlameLogo";
+import { getLatestPiroModel } from "~/lib/latest-experiment";
 
 export default async function HomePage() {
-  // Check if the user is logged in so we can swap the CTAs.
-  // We do NOT redirect — logged-in users can still view the landing page.
   const cookieStore = await cookies();
   const isLoggedIn =
     cookieStore.has("better-auth.session_token") ||
     cookieStore.has("__Secure-better-auth.session_token");
+  const latestModel = getLatestPiroModel();
 
   return (
     <main className="min-h-screen bg-[#0d0a08] text-amber-100">
-      {/* Public navigation — Docs belongs here, not in the authenticated dashboard. */}
-      <header className="absolute top-0 inset-x-0 z-20 border-b border-amber-900/20 bg-[#0d0a08]/70 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition">
-            <FlameLogo size={24} />
-            <span className="font-bold text-amber-50 tracking-tight">Piro</span>
-          </Link>
-          <nav className="flex items-center gap-5 text-sm">
-            <Link href="/pricing" className="text-amber-300/60 hover:text-amber-100 transition-colors">
-              Pricing
+      <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6 sm:px-6">
+        <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight text-amber-50">
+          <FlameLogo size={28} />
+          Piro
+        </Link>
+        <div className="flex items-center gap-5 text-sm text-amber-300/70">
+          <Link href="/docs" className="transition-colors hover:text-amber-100">Docs</Link>
+          <Link href="/pricing" className="transition-colors hover:text-amber-100">Pricing</Link>
+          {isLoggedIn ? (
+            <Link href="/repos" className="rounded-full border border-amber-700/50 px-4 py-2 text-amber-100 transition-colors hover:border-orange-400/70 hover:bg-orange-500/10">
+              Open Piro →
             </Link>
-            <Link href="/docs" className="text-amber-300/60 hover:text-amber-100 transition-colors">
-              Docs
+          ) : (
+            <Link href="/login" className="rounded-full border border-amber-700/50 px-4 py-2 text-amber-100 transition-colors hover:border-orange-400/70 hover:bg-orange-500/10">
+              Sign in
             </Link>
-            {isLoggedIn ? (
-              <Link href="/repos" className="text-amber-300/60 hover:text-amber-100 transition-colors">
-                Dashboard
-              </Link>
-            ) : (
-              <Link href="/login" className="text-amber-300/60 hover:text-amber-100 transition-colors">
-                Sign in
-              </Link>
-            )}
-          </nav>
-        </div>
-      </header>
-
-      {/* ── HERO ──────────────────────────────────────────────────────── */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-hidden">
-        {/* Ambient glow */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-orange-600/10 rounded-full blur-[120px]" />
-        </div>
-
-        <div className="relative z-10 text-center max-w-3xl">
-          <div className="mb-8 flex justify-center">
-            <FlameLogo size={72} />
-          </div>
-
-          <h1 className="text-5xl sm:text-6xl font-black tracking-tight mb-6 leading-[1.05]">
-            <span className="text-amber-50">
-              Open weights are not enough.
-            </span>
-            <br />
-            <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">
-              Build your own model.
-            </span>
-          </h1>
-
-          <p className="text-amber-200/70 text-lg sm:text-xl mb-12 leading-relaxed max-w-2xl mx-auto">
-            Train your own ML Model using{" "}
-            <span className="text-orange-400 font-semibold">
-              your own data and benchmarks
-            </span>
-            . Join the community actively looking for the cheaper and{" "}
-            <span className="text-orange-400 font-semibold">
-              memory-enabled successor to the transformer
-            </span>
-            .
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            {isLoggedIn ? (
-              <Link
-                href="/repos"
-                className="px-8 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:to-red-500 transition-all ember-glow text-base"
-              >
-                Go To Models →
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/signup"
-                  className="px-8 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:to-red-500 transition-all ember-glow text-base"
-                >
-                  Build your model — $100/mo
-                </Link>
-                <Link
-                  href="/login"
-                  className="px-8 py-3.5 border border-amber-900/50 text-amber-200 font-semibold rounded-xl hover:border-orange-500/50 hover:text-amber-50 transition-all text-base"
-                >
-                  Sign in
-                </Link>
-              </>
-            )}
-          </div>
-
-          {!isLoggedIn && (
-            <p className="text-amber-400/40 text-sm mt-6">
-              2 training runs per month · unlimited inference · cancel anytime
-            </p>
           )}
         </div>
+      </nav>
 
-        {/* Scroll cue */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-amber-400/40 animate-bounce text-xs">
-          ↓
-        </div>
-      </section>
-
-      {/* ── OPEN WEIGHTS ≠ OPEN SOURCE ──────────────────────────────── */}
-      <section className="py-24 sm:py-32 px-4 border-t border-amber-900/20">
-        <div className="max-w-4xl mx-auto">
-          <p className="text-orange-400/80 text-sm font-semibold uppercase tracking-widest mb-4">
-            The distinction
-          </p>
-          <h2 className="text-3xl sm:text-5xl font-bold text-amber-50 mb-12 leading-tight">
-            Open weights are not open source.
-          </h2>
-
-          <div className="space-y-6 text-lg text-amber-200/80 leading-relaxed max-w-3xl">
-            <p>
-              The open-weight models — Llama, Qwen, DeepSeek, Mistral — are{" "}
-              <span className="text-amber-50 font-semibold">genuinely good</span>.
-              You can download them, run them locally, and fine-tune them. That's
-              real progress, and we celebrate it.
-            </p>
-
-            <p>
-              But free weights give you{" "}
-              <span className="text-amber-50 font-semibold">inference</span>, not{" "}
-              <span className="text-amber-50 font-semibold">agency</span>. You
-              can't retrain the model from scratch. You can't change the
-              architecture. You can't swap the attention mechanism for something
-              with memory. You're renting a pre-built brain and customizing the
-              furniture.
-            </p>
-
-            <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6 my-8">
-              <p className="text-base text-amber-200/90 font-medium mb-3">
-                Open source means you control the full pipeline:
-              </p>
-              <ul className="space-y-2 text-sm text-amber-400/70">
-                <li className="flex gap-3">
-                  <span className="text-orange-400 shrink-0">→</span>
-                  The <span className="text-amber-50">architecture</span> — not
-                  just the weights, the design of the model itself
-                </li>
-                <li className="flex gap-3">
-                  <span className="text-orange-400 shrink-0">→</span>
-                  The <span className="text-amber-50">training pipeline</span> —
-                  how it learns, what it learns on, how it improves
-                </li>
-                <li className="flex gap-3">
-                  <span className="text-orange-400 shrink-0">→</span>
-                  The <span className="text-amber-50">data</span> — your corpus,
-                  your domain, not a generic internet scrape
-                </li>
-                <li className="flex gap-3">
-                  <span className="text-orange-400 shrink-0">→</span>
-                  The <span className="text-amber-50">weights</span> — yours to
-                  keep, version, and deploy anywhere
-                </li>
-              </ul>
-            </div>
-
-            <p>
-              That's what Piro gives you. Not a model to download — a{" "}
-              <span className="text-amber-50 font-semibold">model to build</span>.
-            </p>
+      <section className="relative overflow-hidden px-4 pb-24 pt-16 sm:px-6 sm:pb-32 sm:pt-24">
+        <div className="pointer-events-none absolute left-1/2 top-0 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-orange-600/10 blur-3xl" />
+        <div className="relative mx-auto max-w-5xl text-center">
+          <div className="mx-auto mb-8 flex w-fit items-center gap-2 rounded-full border border-orange-500/30 bg-orange-500/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-orange-400" />
+            Stateful intelligence, deployed for you
           </div>
-        </div>
-      </section>
-
-      {/* ── WHAT PIRO IS ────────────────────────────────────────────── */}
-      <section className="py-24 sm:py-32 px-4 border-t border-amber-900/20 bg-[#0a0806]">
-        <div className="max-w-4xl mx-auto">
-          <p className="text-orange-400/80 text-sm font-semibold uppercase tracking-widest mb-4">
-            What Piro is
+          <h1 className="mx-auto max-w-4xl text-5xl font-black leading-[0.98] tracking-[-0.045em] text-amber-50 sm:text-7xl lg:text-8xl">
+            Your model should
+            <span className="block bg-gradient-to-r from-orange-300 via-amber-200 to-red-500 bg-clip-text text-transparent ember-text-glow">
+              remember you.
+            </span>
+          </h1>
+          <p className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-amber-200/70 sm:text-xl">
+            Piro is a stateful model that carries context across invocations — not a stateless chat window that forgets you between requests. Deploy your own dedicated instance, then let it grow with your work.
           </p>
-          <h2 className="text-3xl sm:text-5xl font-bold text-amber-50 mb-12 leading-tight">
-            The platform to train your own model.
-          </h2>
-
-          <div className="space-y-6 text-lg text-amber-200/80 leading-relaxed max-w-3xl">
-            <p>
-              Piro trains a{" "}
-              <span className="text-amber-50 font-semibold">tiny model</span> —
-              ~10M parameters — on{" "}
-              <span className="text-amber-50 font-semibold">your data</span>,
-              against{" "}
-              <span className="text-amber-50 font-semibold">your benchmarks</span>.
-              Not a fine-tune of someone else's model. A model trained from
-              scratch, on your terms, that you own completely.
-            </p>
-
-            <p>
-              The architecture is a{" "}
-              <span className="text-amber-50 font-semibold">
-                Continuous Thought Machine
-              </span>{" "}
-              — a memory-enabled successor to the transformer. Instead of
-              processing tokens in a single pass, it thinks in bursts: refining,
-              recalling, and adjusting across multiple cycles. It's the research
-              frontier for models that reason, not just predict.
-            </p>
-
-            <p>
-              You keep the weights. Query them forever. No per-token tax, no API
-              dependency, no one can take it away.
-            </p>
-          </div>
-
-          {/* How it works */}
-          <div className="grid sm:grid-cols-3 gap-6 mt-16">
-            <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
-              <div className="text-3xl font-black text-orange-400 mb-3">1</div>
-              <p className="text-base font-semibold text-amber-50 mb-2">
-                Connect your data
-              </p>
-              <p className="text-sm text-amber-400/60 leading-relaxed">
-                GitHub repos, Gmail, Notion, anything text. Piro trains on the
-                corpus you choose.
-              </p>
-            </div>
-            <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
-              <div className="text-3xl font-black text-orange-400 mb-3">2</div>
-              <p className="text-base font-semibold text-amber-50 mb-2">
-                Train your model
-              </p>
-              <p className="text-sm text-amber-400/60 leading-relaxed">
-                We run the GPUs. You keep the weights — checkpointed and
-                versioned.
-              </p>
-            </div>
-            <div className="rounded-xl border border-amber-900/30 bg-[#13100c] p-6">
-              <div className="text-3xl font-black text-orange-400 mb-3">3</div>
-              <p className="text-base font-semibold text-amber-50 mb-2">
-                Query it forever
-              </p>
-              <p className="text-sm text-amber-400/60 leading-relaxed">
-                Unlimited inference. Your model, your API, your cost — fixed
-                regardless of usage.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── PRICING + WHAT YOU GET ──────────────────────────────────── */}
-      <section className="py-24 sm:py-32 px-4 border-t border-amber-900/20 bg-[#0a0806]">
-        <div className="max-w-3xl mx-auto">
-          <p className="text-orange-400/80 text-sm font-semibold uppercase tracking-widest mb-4 text-center">
-            Pro plan
-          </p>
-          <h2 className="text-3xl sm:text-5xl font-bold text-amber-50 mb-12 leading-tight text-center">
-            One plan. One price. No surprises.
-          </h2>
-
-          <div className="rounded-2xl border border-orange-500/30 bg-gradient-to-b from-orange-500/5 to-transparent p-8 sm:p-10 mb-10">
-            <div className="text-center mb-8">
-              <div className="flex items-end justify-center gap-1 mb-2">
-                <span className="text-6xl font-black text-amber-50">$100</span>
-                <span className="text-amber-400/50 mb-3">/month</span>
-              </div>
-              <p className="text-amber-400/60 text-sm">
-                Less than one week of a frontier API habit.
-              </p>
-            </div>
-
-            <ul className="space-y-3 mb-8">
-              {[
-                [
-                  "🏋️",
-                  "2 training runs / month",
-                  "Full GPU training on your data",
-                ],
-                [
-                  "⚡️",
-                  "Unlimited inference",
-                  "Query your trained model anytime",
-                ],
-                [
-                  "🤖",
-                  "Architecture Copilot (GLM 5.2)",
-                  "Design help for your model classes",
-                ],
-                [
-                  "📊",
-                  "Benchmark suite",
-                  "Sanity, generalization, adaptive compute",
-                ],
-                ["📦", "Model versioning", "Roll back to any prior checkpoint"],
-                ["🔑", "API access", "Use your model in your own apps"],
-              ].map(([icon, label, detail]) => (
-                <li key={label} className="flex items-start gap-3 py-2">
-                  <span className="text-lg mt-0.5">{icon}</span>
-                  <div>
-                    <p className="text-sm text-amber-100 font-medium">
-                      {label}
-                    </p>
-                    <p className="text-xs text-amber-400/50">{detail}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            <Link
-              href="/pricing"
-              className="block text-center w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:to-red-500 transition-all ember-glow text-base"
-            >
-              See all plans →
+          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <Link href={isLoggedIn ? "/repos" : "/signup"} className="ember-glow rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-8 py-4 text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500">
+              {isLoggedIn ? "Open your model →" : "Deploy your model →"}
+            </Link>
+            <Link href="#how-it-works" className="rounded-xl border border-amber-800/50 px-8 py-4 text-base font-semibold text-amber-200 transition-colors hover:border-amber-500/70 hover:bg-amber-500/5">
+              See how it works
             </Link>
           </div>
-
-          <p className="text-center text-amber-400/50 text-sm">
-            Cancel anytime from your billing portal. No commitment. No per-token
-            tax.
-          </p>
-        </div>
-      </section>
-
-      {/* ── FINAL CTA ────────────────────────────────────────────────── */}
-      <section className="py-24 sm:py-32 px-4 border-t border-amber-900/20">
-        <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-5xl font-bold text-amber-50 mb-6 leading-tight">
-            Stop renting intelligence.
-            <br />
-            <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">
-              Build your own.
-            </span>
-          </h2>
-
-          <p className="text-amber-200/70 text-lg mb-10 leading-relaxed">
-            Join the community training tiny, owned models on their own data —
-            and exploring what comes after the transformer.
-          </p>
-
-          <Link
-            href={isLoggedIn ? "/repos" : "/signup"}
-            className="inline-block px-10 py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-400 hover:red-500 transition-all ember-glow text-base"
-          >
-            {isLoggedIn ? "Go To Models →" : "Start training your model →"}
-          </Link>
-
-          <div className="mt-12 flex justify-center">
-            <FlameLogo size={40} />
+          <div className="mx-auto mt-14 grid max-w-3xl gap-3 text-left sm:grid-cols-3">
+            {[
+              ["STATEFUL", "Memory that survives the request"],
+              ["DEDICATED", "A model instance that is yours"],
+              ["CURRENT", `${latestModel.label} · always updated`],
+            ].map(([eyebrow, detail]) => (
+              <div key={eyebrow} className="rounded-2xl border border-amber-900/40 bg-[#13100c]/80 p-4 backdrop-blur-sm">
+                <p className="text-[10px] font-bold tracking-[0.2em] text-orange-400">{eyebrow}</p>
+                <p className="mt-2 text-sm leading-relaxed text-amber-100/80">{detail}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ── FOOTER ──────────────────────────────────────────────────── */}
-      <footer className="py-10 px-4 border-t border-amber-900/20 text-center text-amber-400/40 text-xs">
-        <p>Piro — tiny ML, owned forever. © 2026.</p>
-        <p className="mt-1">© 2026 VargasJR LLC. All rights reserved.</p>
-      </footer>
+      <section id="how-it-works" className="border-t border-amber-900/20 bg-[#0a0806] px-4 py-24 sm:px-6 sm:py-32">
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-2xl">
+            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.22em] text-orange-400">The difference</p>
+            <h2 className="text-3xl font-bold leading-tight text-amber-50 sm:text-5xl">Not another API key.<br /><span className="text-orange-300">A model with continuity.</span></h2>
+            <p className="mt-6 text-lg leading-relaxed text-amber-200/65">Frontier chat APIs are optimized for disposable conversations. Piro is built around the part that matters after the first prompt: a persistent internal state that can be updated, queried, checkpointed, and improved.</p>
+          </div>
+
+          <div className="mt-16 grid gap-5 md:grid-cols-3">
+            {[
+              ["01", "Start with a working state", "Every invocation begins with the state your model has already accumulated — your context, your patterns, your history."],
+              ["02", "Let it adapt", "Piro updates its state as it works. The model can carry forward what it learned instead of re-reading the same world from scratch."],
+              ["03", "Keep the deployment", "Your dedicated model is versioned and addressable. Move from experiment to useful personal intelligence without rebuilding the relationship each time."],
+            ].map(([number, title, body]) => (
+              <article key={number} className="group rounded-2xl border border-amber-900/35 bg-[#13100c] p-7 transition-colors hover:border-orange-500/40">
+                <p className="text-4xl font-black text-orange-400/80 transition-colors group-hover:text-orange-300">{number}</p>
+                <h3 className="mt-8 text-xl font-bold text-amber-50">{title}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-amber-300/60">{body}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-amber-900/20 px-4 py-24 sm:px-6 sm:py-32">
+        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1fr_0.82fr] lg:items-center">
+          <div>
+            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.22em] text-orange-400">Always current</p>
+            <h2 className="max-w-xl text-3xl font-bold leading-tight text-amber-50 sm:text-5xl">Your deployment follows the frontier.</h2>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-amber-200/65">Piro’s research moves through named experiments. When a new architecture becomes the latest validated model, the hosted starting point changes with it — no stale model name hardcoded into the promise.</p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-sm text-orange-200">Latest experiment: {latestModel.experiment}</span>
+              <span className="rounded-full border border-amber-700/40 px-4 py-2 font-mono text-sm text-amber-300/80">{latestModel.architecture}</span>
+            </div>
+          </div>
+          <div className="relative rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-500/10 via-[#13100c] to-[#0d0a08] p-7 shadow-[0_0_80px_rgba(249,115,22,0.12)] sm:p-10">
+            <div className="absolute right-6 top-6 flex items-center gap-2 text-xs text-emerald-300"><span className="h-2 w-2 rounded-full bg-emerald-400" /> live model track</div>
+            <p className="pt-8 text-xs font-semibold uppercase tracking-[0.2em] text-amber-400/60">The current Piro model</p>
+            <p className="mt-5 text-4xl font-black tracking-tight text-amber-50 sm:text-5xl">{latestModel.label}</p>
+            <div className="mt-8 border-t border-amber-800/30 pt-6 text-sm text-amber-200/65">
+              <div className="flex justify-between gap-4 py-2"><span>State</span><span className="font-semibold text-emerald-300">Persistent</span></div>
+              <div className="flex justify-between gap-4 py-2"><span>Deployment</span><span className="font-semibold text-amber-100">Dedicated</span></div>
+              <div className="flex justify-between gap-4 py-2"><span>Model selection</span><span className="font-semibold text-amber-100">Dynamic</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-amber-900/20 bg-[#0a0806] px-4 py-24 sm:px-6 sm:py-32">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-12 text-center">
+            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.22em] text-orange-400">Piro · $100/month</p>
+            <h2 className="text-3xl font-bold text-amber-50 sm:text-5xl">One dedicated model. One predictable price.</h2>
+            <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-amber-200/65">The subscription buys inference on the latest Piro model, deployed as your own stateful instance. As the research advances, your model track advances with it.</p>
+          </div>
+          <div className="rounded-3xl border border-orange-500/35 bg-gradient-to-b from-orange-500/10 to-transparent p-8 sm:p-12">
+            <div className="grid gap-10 md:grid-cols-[0.8fr_1fr] md:items-center">
+              <div><div className="flex items-end gap-2"><span className="text-6xl font-black text-amber-50">$100</span><span className="mb-3 text-amber-400/60">/month</span></div><p className="mt-4 text-sm leading-relaxed text-amber-300/60">Inference access to <span className="font-semibold text-orange-200">{latestModel.label}</span>, resolved from the latest experiment.</p></div>
+              <ul className="grid gap-4 sm:grid-cols-2">
+                {[
+                  ["Dedicated state", "Your model’s working state persists between calls."],
+                  ["Latest model track", "Automatically points at the newest validated experiment."],
+                  ["Unlimited inference", "Use the model without a per-token meter."],
+                  ["Versioned checkpoints", "Inspect and recover the state that powers your deployment."],
+                  ["API access", "Connect your model to the tools and workflows you already use."],
+                  ["Research-grade evals", "See how the model behaves as Piro keeps improving."],
+                ].map(([title, detail]) => <li key={title} className="border-l border-orange-400/50 pl-4"><p className="text-sm font-semibold text-amber-50">{title}</p><p className="mt-1 text-xs leading-relaxed text-amber-300/55">{detail}</p></li>)}
+              </ul>
+            </div>
+            <Link href="/pricing" className="mt-10 block rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-6 py-4 text-center text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500 ember-glow">Deploy the latest Piro model →</Link>
+          </div>
+          <p className="mt-6 text-center text-sm text-amber-400/50">Cancel anytime. The model is yours to use while your subscription is active.</p>
+        </div>
+      </section>
+
+      <section className="border-t border-amber-900/20 px-4 py-24 text-center sm:px-6 sm:py-32">
+        <div className="mx-auto max-w-2xl"><h2 className="text-3xl font-bold leading-tight text-amber-50 sm:text-5xl">Give your intelligence<br /><span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">somewhere to grow.</span></h2><p className="mt-6 text-lg leading-relaxed text-amber-200/65">Deploy a stateful Piro model built on the latest experiment — and stop starting from zero.</p><Link href={isLoggedIn ? "/repos" : "/signup"} className="ember-glow mt-10 inline-block rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-10 py-4 text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500">{isLoggedIn ? "Open your model →" : "Deploy your model →"}</Link><div className="mt-12 flex justify-center"><FlameLogo size={40} /></div></div>
+      </section>
+
+      <footer className="border-t border-amber-900/20 px-4 py-10 text-center text-xs text-amber-400/40"><p>Piro — stateful intelligence, deployed for you. © 2026.</p><p className="mt-1">© 2026 VargasJR LLC. All rights reserved.</p></footer>
     </main>
   );
 }
