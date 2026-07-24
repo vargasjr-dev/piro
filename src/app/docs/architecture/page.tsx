@@ -2,8 +2,8 @@ import Link from "next/link";
 import FlameLogo from "~/components/FlameLogo";
 
 export const metadata = {
-  title: "Stateful RL-First Architecture — Piro",
-  description: "The pseudocode contract for Piro's stateful, RL-first model.",
+  title: "Piro Inference Architecture",
+  description: "The pseudocode contract for Piro's inference architecture.",
 };
 
 type MethodLinkProps = {
@@ -47,16 +47,11 @@ export default function ArchitecturePage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-6 py-12 lg:px-10">
-        <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-300/70">Piro architecture</p>
-          <h1 className="mt-4 text-4xl font-bold tracking-tight text-amber-50 md:text-5xl">
-            Stateful RL-first model
+      <div className="mx-auto max-w-7xl px-6 py-12 lg:px-10">
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight text-amber-50 md:text-5xl">
+            Piro Inference Architecture
           </h1>
-          <p className="mt-5 text-lg leading-8 text-amber-200/65">
-            Piro is a multimodal, stateful CTM whose internal weights serve as memory
-            and whose architecture includes the mechanism that updates those weights.
-          </p>
         </div>
 
         <div className="mt-10 flex items-center gap-1 border-b border-amber-900/30" role="tablist" aria-label="Architecture views">
@@ -79,18 +74,8 @@ export default function ArchitecturePage() {
         </div>
 
         <section className="mt-8 rounded-2xl border border-amber-900/25 bg-[#100c0a] p-6 shadow-2xl shadow-black/10 sm:p-8">
-          <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-300/70">Top-level contract</p>
-              <h2 className="mt-2 text-2xl font-semibold text-amber-50">Piro inference loop</h2>
-            </div>
-            <p className="max-w-sm text-sm leading-6 text-right text-amber-200/55">
-              Follow any linked method to open its nested architecture page.
-            </p>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-amber-900/20 bg-[#0b0908] px-4 py-5 sm:px-6" role="region" aria-label="Piro top-level pseudocode">
-            <code className="block min-w-[40ch] font-mono text-sm leading-6 text-amber-100/85 sm:min-w-[42rem] sm:text-[0.95rem]">
+          <div className="overflow-x-auto rounded-xl border border-amber-900/20 bg-[#0b0908] px-4 py-5 sm:px-6" role="region" aria-label="Piro inference pseudocode">
+            <code className="block min-w-[40ch] font-mono text-sm leading-6 text-amber-100/85 sm:min-w-[42rem]">
               <div className="whitespace-pre"><Variable>weights</Variable> = <MethodLink href="/docs/architecture/loadWeights">LoadWeights</MethodLink>()</div>
               <div className="whitespace-pre"><Variable>x</Variable> = <MethodLink href="/docs/architecture/embedding">Embed</MethodLink>(<Link href="/docs/architecture/observation" className="text-violet-300 underline decoration-violet-500/40 underline-offset-4 transition hover:text-violet-100">PiroInput</Link>)</div>
               <div className="whitespace-pre"><Variable>h₀</Variable> = <MethodLink href="/docs/architecture/initialize">InitializeOrRetrieveState</MethodLink>(<Variable>x</Variable>, <Variable>weights</Variable>)</div>
@@ -124,25 +109,6 @@ export default function ArchitecturePage() {
               <div className="whitespace-pre">        <MethodLink href="/docs/architecture/plasticity">PlasticityController</MethodLink>(<Variable>hₖ₊₁</Variable>)</div>
               <div className="whitespace-pre">        <Keyword>return</Keyword> <Variable>outputₖ</Variable></div>
             </code>
-          </div>
-        </section>
-
-        <section className="mt-8 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-amber-900/25 bg-[#100c0a] p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-300/70">How to read this</p>
-            <p className="mt-3 text-sm leading-7 text-amber-200/65">
-              The method names are the architecture. The values passed between them
-              make state, history, inputs, learning signals, and updated weights
-              explicit without requiring a separate graph to decode the flow.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-amber-900/25 bg-[#100c0a] p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-300/70">Nested detail</p>
-            <p className="mt-3 text-sm leading-7 text-amber-200/65">
-              Each linked method opens the deeper contract for that transformation.
-              Plasticity runs before every completed inference returns. Nested
-              pages expose the same pseudocode-first/diagram-second tabs.
-            </p>
           </div>
         </section>
 
