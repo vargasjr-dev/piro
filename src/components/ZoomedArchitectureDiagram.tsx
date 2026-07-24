@@ -79,7 +79,7 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   outputProjection: {
     title: "OutputProjection",
-    subtitle: "Maps the weighted memory read into the context representation consumed by the recurrent update.",
+    subtitle: "Normalizes retrieval scores, combines the selected values, and maps the memory read into recurrent context space.",
   },
   readGate: {
     title: "ReadGate",
@@ -340,7 +340,7 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   valueProjection: { input: "memoryₖ + weights", output: "valuesₖ", relation: "maps each memory slot into returned information space", tone: "green" },
   relativeTimeBias: { input: "memoryₖ.age + weights", output: "timeBiasₖ", relation: "adjusts retrieval scores using explicit memory age", tone: "green" },
   synchronizationBias: { input: "hₖ + memoryₖ + weights", output: "syncBiasₖ", relation: "adjusts retrieval scores using dynamical compatibility", tone: "green" },
-  outputProjection: { input: "retrievedₖ + weights", output: "contextₖ", relation: "returns the weighted memory read in CTM context space", tone: "green" },
+  outputProjection: { input: "contentScoresₖ + timeBiasₖ + syncBiasₖ + valuesₖ + weights", output: "contextₖ", relation: "normalizes retrieval scores, combines values, and projects the memory read into context space", tone: "green" },
   readGate: { input: "hₖ + x + contextₖ + weights", output: "readGateₖ", relation: "computes a feature-wise memory admission gate", tone: "green" },
   delta: { input: "hₖ + x + contextₖ + historyₖ + weights", output: "deltaₖ", relation: "computes the candidate state change", tone: "green" },
   residual: { input: "hₖ + deltaₖ + weights", output: "hₖ₊₁", relation: "computes hₖ + gateₖ · deltaₖ", tone: "green" },
@@ -460,10 +460,11 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
       {line(<>        memoryₖ,</>)}
       {line(<>        weights</>)}
       {line(<>    )</>)}
-      {line(<>    {variable("retrievalWeightsₖ")} = softmax(contentScoresₖ + timeBiasₖ + syncBiasₖ)</>)}
-      {line(<>    {variable("retrievedₖ")} = retrievalWeightsₖ · valuesₖ</>)}
       {line(<>    {variable("contextₖ")} = {call("OutputProjection", "outputProjection")}</>)}
-      {line(<>        retrievedₖ,</>)}
+      {line(<>        contentScoresₖ,</>)}
+      {line(<>        timeBiasₖ,</>)}
+      {line(<>        syncBiasₖ,</>)}
+      {line(<>        valuesₖ,</>)}
       {line(<>        weights</>)}
       {line(<>    )</>)}
       {line(<>    {variable("readGateₖ")} = {call("ReadGate", "readGate")}</>)}
@@ -511,7 +512,21 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
     valueProjection: line(<>{call("ValueProjection", "valueProjection")}memoryₖ, weights):</>),
     relativeTimeBias: line(<>{call("RelativeTimeBias", "relativeTimeBias")}age, weights):</>),
     synchronizationBias: line(<>{call("SynchronizationBias", "synchronizationBias")}hₖ, memoryₖ, weights):</>),
-    outputProjection: line(<>{call("OutputProjection", "outputProjection")}retrievedₖ, weights):</>),
+    outputProjection: <>
+      {line(<>{call("OutputProjection", "outputProjection")}</>)}
+      {line(<>    contentScoresₖ,</>)}
+      {line(<>    timeBiasₖ,</>)}
+      {line(<>    syncBiasₖ,</>)}
+      {line(<>    valuesₖ,</>)}
+      {line(<>    weights</>)}
+      {line(<>):</>)}
+      {line(<>    retrievalScoresₖ = contentScoresₖ + timeBiasₖ + syncBiasₖ</>)}
+      {line(<>    retrievalWeightsₖ = softmax(retrievalScoresₖ)</>)}
+      {line(<>    retrievedₖ = retrievalWeightsₖ · valuesₖ</>)}
+      {line(<>    contextₖ = retrievedₖ · weights.attention.outputProjection.W</>)}
+      {line(<>        + weights.attention.outputProjection.b</>)}
+      {line(<>    return contextₖ</>)}
+    </>,
     readGate: <>
       {line(<>{call("ReadGate", "readGate")}</>)}
       {line(<>    hₖ,</>)}
@@ -571,7 +586,7 @@ const explanations: Partial<Record<DiagramKind, { doing: string; why: string }>>
   valueProjection: { doing: "Projects each memory slot with Wv into the information returned after retrieval weights are computed.", why: "Keys decide which memory wins; values determine what information comes back." },
   relativeTimeBias: { doing: "Maps each explicit memory age to an additive retrieval-score bias.", why: "Recency can matter, but it should adjust content retrieval rather than silently replace it." },
   synchronizationBias: { doing: "Scores compatibility between the current recurrent state and each candidate memory slot.", why: "The same content can have different relevance depending on the current dynamical regime." },
-  outputProjection: { doing: "Projects the weighted sum of retrieved values back into CTM context space.", why: "Attention’s internal value space does not have to be identical to the representation consumed by ComputeStateDelta." },
+  outputProjection: { doing: "Combines content, temporal, and synchronization scores, normalizes them into retrieval weights, uses those weights to combine value vectors, and projects the result into CTM context space.", why: "OutputProjection owns the complete boundary from retrieval evidence to contextₖ, so Attention does not need to carry retrievalWeightsₖ and retrievedₖ as separate intermediate outputs." },
   readGate: { doing: "Normalizes the current state, input, and retrieved context, projects them into gate logits with the learned read-gate weights, applies sigmoid, and returns one gate value per context feature.", why: "A memory read should help without automatically overwriting the current thought; the gate must have the same shape as contextₖ so the final elementwise multiplication is well-defined." },
   delta: { doing: "Combines the current state, input, context, history, and weights into deltaₖ.", why: "Separating the candidate change from the residual update makes the state transition auditable." },
   residual: { doing: "Applies the learned gate to deltaₖ and adds it to hₖ to produce hₖ₊₁.", why: "The recurrent state needs a controlled update rather than an unconditional replacement." },
