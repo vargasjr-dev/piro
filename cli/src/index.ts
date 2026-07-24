@@ -70,7 +70,7 @@ function usage(msg?: string): never {
   console.error("  piro datasets get <id>");
   console.error("  piro dataset head <id>");
   console.error(
-    "  piro architecture train <name> --dataset <id> [--epochs <n>] [--name <model-name>]",
+    "  piro architecture train <name> --dataset <id> [--max-steps <n>] [--name <model-name>]",
   );
   console.error("  piro benchmarks eval <name>");
   console.error("  piro evals list");
@@ -213,7 +213,7 @@ switch (subject) {
         if (!dataset) usage("--dataset is required for train");
         await architectureTrain(name, {
           dataset,
-          epochs: opt(rest, "epochs"),
+          maxSteps: opt(rest, "max-steps"),
           modelName: opt(rest, "name"),
         });
         break;

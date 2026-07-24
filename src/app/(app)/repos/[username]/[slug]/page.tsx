@@ -158,7 +158,7 @@ export default async function RepoOverviewPage({
                     {r.modelName ?? r.architecturePath}
                   </span>
                   <span className="text-[10px] text-amber-700/30 ml-2">
-                    {r.epochs} epochs
+                    {r.maxSteps} steps
                   </span>
                 </div>
                 <span

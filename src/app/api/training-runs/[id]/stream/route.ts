@@ -26,7 +26,7 @@ export async function GET(
 
   const stream = new ReadableStream({
     async start(controller) {
-      let lastEpoch = -1;
+      let lastStep = -1;
 
       while (true) {
         const [run] = await db
@@ -48,28 +48,30 @@ export async function GET(
 
         const reconciled = await reconcileStaleTrainingRun(run);
 
-        // Push epoch progress if new epochs have arrived
+        // Push step progress when a new checkpoint has arrived
         if (
-          reconciled.currentEpoch !== null &&
-          reconciled.currentEpoch > lastEpoch
+          reconciled.currentStep !== null &&
+          reconciled.currentStep > lastStep
         ) {
           let history: unknown[] = [];
-          if (reconciled.epochHistoryJson) {
+          if (reconciled.stepHistoryJson) {
             try {
-              history = JSON.parse(reconciled.epochHistoryJson);
+              history = JSON.parse(reconciled.stepHistoryJson);
             } catch {
               /* ignore */
             }
           }
           controller.enqueue(
             event("progress", {
-              currentEpoch: reconciled.currentEpoch,
-              epochs: reconciled.epochs,
+              currentStep: reconciled.currentStep,
+              maxSteps: reconciled.maxSteps,
+              checkpointStep: reconciled.checkpointStep,
+              checkpointAt: reconciled.checkpointAt?.toISOString() ?? null,
               history,
               status: reconciled.status,
             }),
           );
-          lastEpoch = reconciled.currentEpoch;
+          lastStep = reconciled.currentStep;
         }
 
         // Terminal states — send final event and close
@@ -79,7 +81,7 @@ export async function GET(
               finalTrainLoss: reconciled.finalTrainLoss,
               finalValLoss: reconciled.finalValLoss,
               finalValAccuracy: reconciled.finalValAccuracy,
-              epochHistoryJson: reconciled.epochHistoryJson,
+              stepHistoryJson: reconciled.stepHistoryJson,
               completedAt: reconciled.completedAt?.toISOString() ?? null,
               runtimeMs: reconciled.runtimeMs,
               costUsd: reconciled.costUsd,

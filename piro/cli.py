@@ -245,19 +245,19 @@ def benchmarks_run(benchmark_id: str, model_id: str | None) -> None:
 @cli.command()
 @click.option("--architecture", "architecture_path", required=True, help="Repository architecture path (e.g. architectures/ctm)")
 @click.option("--dataset", "dataset_id", required=True, help="Generated dataset ID")
-@click.option("--epochs", default=10, help="Number of training epochs")
+@click.option("--max-steps", default=5000, help="Maximum optimizer steps")
 @click.option("--name", "model_name", help="Name for the trained model")
-def train(architecture_path: str, dataset_id: str, epochs: int, model_name: str | None) -> None:
+def train(architecture_path: str, dataset_id: str, max_steps: int, model_name: str | None) -> None:
     """Launch a training run on the Piro platform.
 
     \b
-    piro train --architecture architectures/ctm --dataset <dataset-id> --epochs 20
+    piro train --architecture architectures/ctm --dataset <dataset-id> --max-steps 5000
     """
     client = _get_client()
     result = client.create_training_run(
         architecture_path=architecture_path,
         dataset_id=dataset_id,
-        epochs=epochs,
+        max_steps=max_steps,
         model_name=model_name,
     )
     click.echo(f"Training run created: {json.dumps(result, indent=2)}")

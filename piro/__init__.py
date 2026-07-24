@@ -19,7 +19,7 @@ from .base import PiroModel
 from .input import PiroInput
 from .layer import PiroLayer
 from .schema import ArchitectureGraph, GraphEdge, GraphNode, ModelManifest
-from .trainer import Trainer, TrainerConfig, EpochMetrics
+from .trainer import Trainer, TrainerConfig, StepMetrics
 
 __all__ = [
     "PiroModel",
@@ -31,5 +31,5 @@ __all__ = [
     "GraphEdge",
     "Trainer",
     "TrainerConfig",
-    "EpochMetrics",
+    "StepMetrics",
 ]

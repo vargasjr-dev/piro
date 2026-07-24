@@ -58,6 +58,8 @@ TRAINING_CPU = 1.0
 TRAINING_MEMORY_MB = 4096
 TRAINING_TIMEOUT_SECONDS = 3300
 TRAINING_DEADLINE_SECONDS = 3000
+CHECKPOINT_INTERVAL_STEPS = 250
+CHECKPOINT_SAFETY_SECONDS = 120
 GPU_RATE_USD_PER_SECOND = 0.000164
 CPU_RATE_USD_PER_CORE_SECOND = 0.0000131
 MEMORY_RATE_USD_PER_GIB_SECOND = 0.00000222
@@ -135,7 +137,7 @@ class Trainer:
         import torch  # noqa: F401 — imported here so warm containers skip re-import
 
         from piro.data.sequences import generate_sorting_dataset
-        from piro.trainer import Trainer as _Trainer, TrainerConfig, EpochMetrics
+        from piro.trainer import Trainer as _Trainer, TrainerConfig
         from piro.ctm import ContinuousThoughtModel, CTMConfig
         from piro.baseline_transformer import BaselineTransformer, TransformerConfig
         from model.memory_encoding import memory_embedding
@@ -146,7 +148,6 @@ class Trainer:
         self._generate_sorting_dataset = generate_sorting_dataset
         self._Trainer = _Trainer
         self._TrainerConfig = TrainerConfig
-        self._EpochMetrics = EpochMetrics
         self._ContinuousThoughtModel = ContinuousThoughtModel
         self._CTMConfig = CTMConfig
         self._BaselineTransformer = BaselineTransformer
@@ -198,8 +199,9 @@ class Trainer:
         model_template: str,
         data_source: str,
         dataset_r2_prefix: str,
-        epochs: int,
+        max_steps: int,
         seed: int,
+        resume: bool = False,
     ) -> None:
         import io
         import json
@@ -286,34 +288,39 @@ class Trainer:
         conn = psycopg2.connect(os.environ["DATABASE_URL"])
         cur = conn.cursor()
 
-        # Fetch userId (needed to create model row on completion)
-        cur.execute('SELECT "userId" FROM training_run WHERE id = %s', (run_id,))
+        # Load the run lease and latest checkpoint metadata.
+        cur.execute(
+            'SELECT "userId", "checkpointR2Key", "checkpointStep", "stepHistoryJson", "startedAt", "timeoutAt" FROM training_run WHERE id = %s',
+            (run_id,),
+        )
         row = cur.fetchone()
         user_id: str = row[0] if row else ""
-
-        # Record startedAt — this is AFTER cold start, so queuedAt→startedAt = cold start latency
-        started_at = datetime.now(timezone.utc)
-        timeout_at = started_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
-        cur.execute(
-            'UPDATE training_run SET status = %s, "startedAt" = %s, "heartbeatAt" = %s, "timeoutAt" = %s, "resourceType" = %s, "gpuType" = %s, "cpuCores" = %s, "memoryMb" = %s WHERE id = %s AND status = %s',
-            (
-                "running",
-                started_at,
-                started_at,
-                timeout_at,
-                "gpu",
-                TRAINING_GPU,
-                TRAINING_CPU,
-                TRAINING_MEMORY_MB,
-                run_id,
-                "queued",
-            ),
-        )
+        checkpoint_key: str | None = row[1] if row else None
+        checkpoint_step: int = int(row[2] or 0) if row else 0
+        persisted_started_at = row[4] if row else None
+        # The first invocation claims queued→running. Resumed invocations
+        # retain the run lease and refresh the attempt deadline.
+        now = datetime.now(timezone.utc)
+        started_at = persisted_started_at or now
+        timeout_at = now + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
+        if resume:
+            cur.execute(
+                'UPDATE training_run SET "heartbeatAt" = %s, "timeoutAt" = %s WHERE id = %s AND status = %s',
+                (now, timeout_at, run_id, "running"),
+            )
+        else:
+            cur.execute(
+                'UPDATE training_run SET status = %s, "startedAt" = %s, "heartbeatAt" = %s, "timeoutAt" = %s, "resourceType" = %s, "gpuType" = %s, "cpuCores" = %s, "memoryMb" = %s WHERE id = %s AND status = %s',
+                (
+                    "running", started_at, now, timeout_at, "gpu", TRAINING_GPU,
+                    TRAINING_CPU, TRAINING_MEMORY_MB, run_id, "queued",
+                ),
+            )
         if cur.rowcount != 1:
             conn.rollback()
             cur.close()
             conn.close()
-            print(f"[piro] run {run_id} was no longer queued; skipping worker claim")
+            print(f"[piro] run {run_id} was not claimable; skipping worker")
             return
         conn.commit()
 
@@ -361,7 +368,9 @@ class Trainer:
             else:
                 raise ValueError(f"Unknown model_template: {model_template!r}")
 
-            # Persist arch config to training_run immediately
+            # Persist architecture and training-budget config immediately.
+            config_dict["maxSteps"] = max_steps
+            config_dict["checkpointIntervalSteps"] = CHECKPOINT_INTERVAL_STEPS
             config_json = json.dumps(config_dict)
             cur.execute(
                 'UPDATE training_run SET "configJson" = %s WHERE id = %s',
@@ -370,19 +379,27 @@ class Trainer:
             conn.commit()
 
             # ── Build dataset ─────────────────────────────────────────────────
-            # Associative recall reads the complete source JSONL and applies the
-            # canonical 80/20 split: 8,000 train records and 2,000 holdout
-            # records for the 10,000-record Ashfall source default.
+            # Keep the split deterministic across resumed invocations.
             train_data = _build_dataset(500, "train")
             val_data = _build_dataset(100, "val")
 
-            # ── Train with per-epoch progress + timing writes ─────────────────
-            trainer_cfg = self._TrainerConfig(epochs=epochs, seed=seed, log_every=0)
+            trainer_cfg = self._TrainerConfig(
+                max_steps=max_steps,
+                seed=seed,
+                eval_interval=CHECKPOINT_INTERVAL_STEPS,
+            )
             trainer = self._Trainer(model, trainer_cfg)
-            optimizer = torch.optim.Adam(model.parameters(), lr=trainer_cfg.lr, weight_decay=trainer_cfg.weight_decay)
-            history = []
+            history: list[dict] = []
+            order = list(range(len(train_data)))
+            cursor = 0
+            start_step = 0
+            r2 = _r2_client(os)
 
-            def _memory_prediction(episode: tuple[tuple[str, ...], str, str], *, train_mode: bool):
+            def _memory_prediction(
+                episode: tuple[tuple[str, ...], str, str],
+                *,
+                train_mode: bool,
+            ):
                 import torch.nn.functional as F
 
                 observations, query, value = episode
@@ -413,80 +430,194 @@ class Trainer:
                 )
                 logits = output.logits if hasattr(output, "logits") else output
                 target = int(value.removeprefix("value_"))
-                return logits, target, F.cross_entropy(logits.unsqueeze(0), torch.tensor([target], device=logits.device))
+                loss = F.cross_entropy(
+                    logits.unsqueeze(0),
+                    torch.tensor([target], device=logits.device),
+                )
+                return logits, target, loss
 
-            def _memory_epoch(data: list, *, train_mode: bool) -> tuple[float, float]:
+            def _restore_optimizer_device() -> None:
+                for state in trainer.optimizer.state.values():
+                    for key, value in state.items():
+                        if hasattr(value, "to"):
+                            state[key] = value.to(device)
+
+            def _load_checkpoint() -> None:
+                nonlocal history, order, cursor, start_step
+                if not checkpoint_key:
+                    return
+                response = r2.get_object(Bucket=R2_BUCKET, Key=checkpoint_key)
+                payload = torch.load(
+                    io.BytesIO(response["Body"].read()),
+                    map_location=device,
+                    weights_only=False,
+                )
+                checkpoint_config = payload.get("config", {})
+                if checkpoint_config.get("datasetR2Prefix") != dataset_r2_prefix:
+                    raise RuntimeError("checkpoint dataset does not match this run")
+                if checkpoint_config.get("modelTemplate") != model_template:
+                    raise RuntimeError("checkpoint architecture does not match this run")
+                model.load_state_dict(payload["model"])
+                trainer.optimizer.load_state_dict(payload["optimizer"])
+                _restore_optimizer_device()
+                history = list(payload.get("history", []))
+                order = list(payload.get("order", order))
+                cursor = int(payload.get("cursor", 0))
+                start_step = int(payload.get("step", checkpoint_step))
+                if len(order) != len(train_data):
+                    raise RuntimeError("checkpoint dataset ordering does not match current data")
+                random.setstate(payload["pythonRandomState"])
+                torch.set_rng_state(payload["torchRandomState"].cpu())
+                if device.type == "cuda" and payload.get("cudaRandomState") is not None:
+                    torch.cuda.set_rng_state_all(payload["cudaRandomState"])
+                print(f"[piro] resumed run {run_id} from checkpoint step {start_step}")
+
+            def _save_checkpoint(step: int) -> None:
+                if device.type == "cuda":
+                    torch.cuda.synchronize(device)
+                payload = {
+                    "version": 1,
+                    "step": step,
+                    "model": model.state_dict(),
+                    "optimizer": trainer.optimizer.state_dict(),
+                    "history": history,
+                    "order": order,
+                    "cursor": cursor,
+                    "pythonRandomState": random.getstate(),
+                    "torchRandomState": torch.get_rng_state(),
+                    "cudaRandomState": (
+                        torch.cuda.get_rng_state_all() if device.type == "cuda" else None
+                    ),
+                    "config": {
+                        "maxSteps": max_steps,
+                        "seed": seed,
+                        "datasetR2Prefix": dataset_r2_prefix,
+                        "modelTemplate": model_template,
+                    },
+                }
+                buffer = io.BytesIO()
+                torch.save(payload, buffer)
+                key = f"checkpoints/{run_id}/step-{step}.pt"
+                r2.put_object(
+                    Bucket=R2_BUCKET,
+                    Key=key,
+                    Body=buffer.getvalue(),
+                    ContentType="application/octet-stream",
+                )
+                checkpointed_at = datetime.now(timezone.utc)
+                cur.execute(
+                    """
+                    UPDATE training_run
+                    SET "currentStep" = %s,
+                        "stepHistoryJson" = %s,
+                        "checkpointR2Key" = %s,
+                        "checkpointStep" = %s,
+                        "checkpointAt" = %s,
+                        "heartbeatAt" = %s,
+                        "timeoutAt" = %s
+                    WHERE id = %s AND status = 'running'
+                    """,
+                    (
+                        step,
+                        json.dumps(history),
+                        key,
+                        step,
+                        checkpointed_at,
+                        checkpointed_at,
+                        checkpointed_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS),
+                        run_id,
+                    ),
+                )
+                if cur.rowcount != 1:
+                    conn.rollback()
+                    raise RuntimeError("training run became terminal while checkpointing")
+                conn.commit()
+
+            def _next_batch() -> list:
+                nonlocal cursor
+                if not train_data:
+                    raise ValueError("training dataset is empty")
+                if cursor == 0:
+                    random.shuffle(order)
+                size = min(trainer_cfg.batch_size, len(order))
+                indices = [order[(cursor + offset) % len(order)] for offset in range(size)]
+                cursor = (cursor + size) % len(order)
+                return [train_data[index] for index in indices]
+
+            def _memory_step(batch: list) -> float:
+                model.train()
+                trainer.optimizer.zero_grad()
+                losses = []
+                for episode in batch:
+                    _, _, loss = _memory_prediction(episode, train_mode=True)
+                    losses.append(loss)
+                    model.reset()
+                loss = torch.stack(losses).mean()
+                loss.backward()
+                trainer.optimizer.step()
+                return float(loss.detach())
+
+            def _memory_evaluate(data: list) -> tuple[float, float]:
                 total_loss = 0.0
                 correct = 0
-                model.train(train_mode)
+                model.eval()
                 for episode in data:
-                    if train_mode:
-                        optimizer.zero_grad()
-                    context = torch.enable_grad() if train_mode else torch.no_grad()
-                    with context:
-                        logits, target, loss = _memory_prediction(episode, train_mode=train_mode)
-                    if train_mode:
-                        loss.backward()
-                        optimizer.step()
+                    with torch.no_grad():
+                        logits, target, loss = _memory_prediction(episode, train_mode=False)
                     total_loss += float(loss.detach())
                     correct += int(int(logits.argmax().item()) == target)
                     model.reset()
                 count = max(1, len(data))
                 return total_loss / count, correct / count
 
-            for epoch in range(1, epochs + 1):
-                epoch_start = datetime.now(timezone.utc)
-                if epoch_start >= timeout_at:
-                    raise TimeoutError(
-                        f"training exceeded application deadline before epoch {epoch}"
-                    )
+            def _spawn_resume() -> None:
+                Trainer().run.spawn(
+                    run_id=run_id,
+                    model_name=model_name,
+                    model_template=model_template,
+                    data_source=data_source,
+                    dataset_r2_prefix=dataset_r2_prefix,
+                    max_steps=max_steps,
+                    seed=seed,
+                    resume=True,
+                )
+
+            _load_checkpoint()
+            for step in range(start_step + 1, max_steps + 1):
+                now = datetime.now(timezone.utc)
+                if now + timedelta(seconds=CHECKPOINT_SAFETY_SECONDS) >= timeout_at:
+                    _save_checkpoint(step - 1)
+                    _spawn_resume()
+                    print(f"[piro] run {run_id} checkpointed at step {step - 1}; spawned resume")
+                    return
+
+                batch = _next_batch()
+                if data_source == "associative-recall":
+                    train_loss = _memory_step(batch)
+                else:
+                    train_loss = trainer._train_step(batch)
+
+                if step % CHECKPOINT_INTERVAL_STEPS != 0 and step != max_steps:
+                    continue
 
                 if data_source == "associative-recall":
-                    train_loss, _ = _memory_epoch(train_data, train_mode=True)
-                    val_loss, val_acc = _memory_epoch(val_data, train_mode=False)
+                    val_loss, val_acc = _memory_evaluate(val_data)
                 else:
-                    train_data_copy = list(train_data)
-                    train_loss = trainer._train_epoch(train_data_copy)
-                    val_loss, val_acc = trainer._eval_epoch(val_data)
-
-                if device.type == "cuda":
-                    torch.cuda.synchronize(device)
-                epoch_end = datetime.now(timezone.utc)
-                duration_ms = int((epoch_end - epoch_start).total_seconds() * 1000)
-
-                m = self._EpochMetrics(
-                    epoch=epoch,
-                    train_loss=train_loss,
-                    val_loss=val_loss,
-                    val_accuracy=val_acc,
-                )
-                history.append(m)
-
-                print(
-                    f"[piro] run {run_id} epoch {epoch}/{epochs} — "
-                    f"train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  "
-                    f"val_acc={val_acc:.3f}  duration_ms={duration_ms}"
-                )
-
-                partial_history_json = json.dumps([
+                    val_loss, val_acc = trainer._evaluate(val_data)
+                history.append(
                     {
-                        "epoch": h.epoch,
-                        "trainLoss": h.train_loss,
-                        "valLoss": h.val_loss,
-                        "valAccuracy": h.val_accuracy,
-                        "durationMs": duration_ms if h.epoch == epoch else None,
+                        "step": step,
+                        "trainLoss": train_loss,
+                        "valLoss": val_loss,
+                        "valAccuracy": val_acc,
                     }
-                    for h in history
-                ])
-                cur.execute(
-                    """
-                    UPDATE training_run
-                    SET "currentEpoch" = %s, "epochHistoryJson" = %s, "heartbeatAt" = %s
-                    WHERE id = %s
-                    """,
-                    (epoch, partial_history_json, epoch_end, run_id),
                 )
-                conn.commit()
+                print(
+                    f"[piro] run {run_id} step {step}/{max_steps} — "
+                    f"train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  "
+                    f"val_acc={val_acc:.3f}"
+                )
+                _save_checkpoint(step)
 
             # ── Serialize + upload model weights to R2 ───────────────────────
             # Allocate the model ID before deriving its R2 prefix.
@@ -540,9 +671,9 @@ class Trainer:
                 """,
                 (
                     "complete",
-                    float(last.train_loss),
-                    float(last.val_loss),
-                    float(last.val_accuracy),
+                    float(last["trainLoss"]),
+                    float(last["valLoss"]),
+                    float(last["valAccuracy"]),
                     completed_at,
                     completed_at,
                     runtime_ms,
@@ -584,7 +715,7 @@ class Trainer:
             conn.commit()
             print(
                 f"[piro] run {run_id} complete — "
-                f"val_acc={last.val_accuracy:.3f}  val_loss={last.val_loss:.4f}  "
+                f"val_acc={last['valAccuracy']:.3f}  val_loss={last['valLoss']:.4f}  "
                 f"model_id={model_id}  name={resolved_name!r}  "
                 f"weights_bytes={len(pt_bytes)}"
             )
@@ -598,7 +729,7 @@ class Trainer:
                 SET status = %s, error = %s, "completedAt" = %s,
                     "heartbeatAt" = %s, "runtimeMs" = %s, "costUsd" = %s,
                     "costBasis" = %s
-                WHERE id = %s
+                WHERE id = %s AND status = 'running'
                 """,
                 (
                     "error",
@@ -1018,8 +1149,9 @@ def trigger(body: dict) -> dict:
             "modelName":     str | null,
             "architecturePath": str,
             "datasetR2Prefix": str,
-            "epochs":        int,
+            "maxSteps":      int,
             "seed":          int,
+            "resume":        bool,
             "secret":        str,
         }
     """
@@ -1041,6 +1173,10 @@ def trigger(body: dict) -> dict:
     if not architecture_path or not dataset_prefix:
         raise HTTPException(status_code=400, detail="architecturePath and datasetR2Prefix required")
 
+    max_steps = int(body.get("maxSteps", 5000))
+    if max_steps < 1 or max_steps > 1_000_000:
+        raise HTTPException(status_code=400, detail="maxSteps must be between 1 and 1,000,000")
+
     trainer = Trainer()
     trainer.run.spawn(
         run_id=run_id,
@@ -1048,8 +1184,9 @@ def trigger(body: dict) -> dict:
         model_template=model_template,
         data_source=data_source,
         dataset_r2_prefix=dataset_prefix,
-        epochs=int(body.get("epochs", 10)),
+        max_steps=max_steps,
         seed=int(body.get("seed", 42)),
+        resume=bool(body.get("resume", False)),
     )
 
     return {"ok": True, "runId": run_id}
