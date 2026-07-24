@@ -149,7 +149,10 @@ export async function POST(request: Request) {
 
   // ── Trigger Modal training worker ─────────────────────────────────────────
   const modalEndpoint = process.env.MODAL_TRAINING_ENDPOINT;
-  if (modalEndpoint) {
+  let dispatchError: string | null = null;
+  if (!modalEndpoint) {
+    dispatchError = "MODAL_TRAINING_ENDPOINT is not configured.";
+  } else {
     try {
       const res = await fetch(modalEndpoint, {
         method: "POST",
@@ -165,15 +168,34 @@ export async function POST(request: Request) {
         }),
       });
       if (!res.ok) {
-        console.error(`[training] Modal trigger returned ${res.status}`);
+        dispatchError = `Modal trigger returned HTTP ${res.status}.`;
       }
     } catch (err) {
-      console.error("[training] Modal trigger failed:", err);
+      dispatchError = `Modal trigger failed: ${err instanceof Error ? err.message : String(err)}`;
     }
-  } else {
-    console.warn(
-      "[training] MODAL_TRAINING_ENDPOINT not set — run will stay queued",
-    );
+  }
+
+  if (dispatchError) {
+    console.error(`[training] ${dispatchError}`);
+    await db
+      .update(trainingRun)
+      .set({
+        status: "error",
+        error: dispatchError,
+        completedAt: new Date(),
+      })
+      .where(and(eq(trainingRun.id, id), eq(trainingRun.status, "queued")));
+
+    if (!adminBypass) {
+      await db
+        .update(subscription)
+        .set({
+          trainingRunsUsed: sql`GREATEST(${subscription.trainingRunsUsed} - 1, 0)`,
+          updatedAt: new Date(),
+        })
+        .where(eq(subscription.userId, resolvedAuth.userId));
+    }
+    return Response.json({ error: dispatchError, id }, { status: 503 });
   }
 
   return Response.json({ id }, { status: 201 });
