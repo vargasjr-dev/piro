@@ -32,6 +32,7 @@ import { datasetHead, datasetsList, datasetsGet } from "./commands/datasets.js";
 import { architectureTrain } from "./commands/architectures.js";
 import { benchmarksEval } from "./commands/benchmarks.js";
 import { evalsGet, evalsList } from "./commands/evals.js";
+import { trainingGet, trainingList } from "./commands/training.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -74,6 +75,8 @@ function usage(msg?: string): never {
   console.error("  piro benchmarks eval <name>");
   console.error("  piro evals list");
   console.error("  piro evals get <id>");
+  console.error("  piro training list");
+  console.error("  piro training get <id>");
   process.exit(msg ? 1 : 0);
 }
 
@@ -182,6 +185,22 @@ switch (subject) {
       }
       default:
         usage(`unknown evals verb: ${verb}`);
+    }
+    break;
+
+  case "training":
+    switch (verb) {
+      case "list":
+        await trainingList();
+        break;
+      case "get": {
+        const id = arg(rest, 0);
+        if (!id) usage("training run id is required");
+        await trainingGet(id);
+        break;
+      }
+      default:
+        usage(`unknown training verb: ${verb}`);
     }
     break;
 
