@@ -247,9 +247,13 @@ Attention(hₖ, historyₖ, x, k, weights):
     contentScoresₖ = queryₖ · keysₖᵀ / sqrt(d_head)
     timeBiasₖ = RelativeTimeBias(memoryₖ.age, weights)
     syncBiasₖ = SynchronizationBias(hₖ, memoryₖ, weights)
-    retrievalWeightsₖ = softmax(contentScoresₖ + timeBiasₖ + syncBiasₖ)
-    retrievedₖ = retrievalWeightsₖ · valuesₖ
-    contextₖ = OutputProjection(retrievedₖ, weights)
+    contextₖ = OutputProjection(
+        contentScoresₖ,
+        timeBiasₖ,
+        syncBiasₖ,
+        valuesₖ,
+        weights
+    )
     readGateₖ = ReadGate(
         hₖ,
         x,
