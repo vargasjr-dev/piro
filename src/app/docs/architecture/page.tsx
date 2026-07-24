@@ -96,7 +96,13 @@ export default function ArchitecturePage() {
               <div className="whitespace-pre"><Variable>h₀</Variable> = <MethodLink href="/docs/architecture/initialize">InitializeOrRetrieveState</MethodLink>(<Variable>x</Variable>, <Variable>weights</Variable>)</div>
               <div className="whitespace-pre"><Keyword>for</Keyword> k = 0 ... Kmax:</div>
               <div className="h-3" aria-hidden="true" />
-              <div className="whitespace-pre">    <Variable>contextₖ</Variable> = <MethodLink href="/docs/architecture/attention">Attention</MethodLink>(<Variable>hₖ</Variable>, <Variable>historyₖ</Variable>, <Variable>x</Variable>, <Variable>weights</Variable>)</div>
+              <div className="whitespace-pre">    <Variable>contextₖ</Variable> = <MethodLink href="/docs/architecture/attention">Attention</MethodLink>(</div>
+              <div className="whitespace-pre">        <Variable>hₖ</Variable>,</div>
+              <div className="whitespace-pre">        <Variable>historyₖ</Variable>,</div>
+              <div className="whitespace-pre">        <Variable>x</Variable>,</div>
+              <div className="whitespace-pre">        k,</div>
+              <div className="whitespace-pre">        <Variable>weights</Variable></div>
+              <div className="whitespace-pre">    )</div>
               <div className="h-3" aria-hidden="true" />
               <div className="whitespace-pre">    <Variable>deltaₖ</Variable> = <MethodLink href="/docs/architecture/delta">ComputeStateDelta</MethodLink>(</div>
               <div className="whitespace-pre">        <Variable>hₖ</Variable>,</div>
@@ -107,7 +113,12 @@ export default function ArchitecturePage() {
               <div className="whitespace-pre">    )</div>
               <div className="h-3" aria-hidden="true" />
               <div className="whitespace-pre">    <Variable>hₖ₊₁</Variable> = <MethodLink href="/docs/architecture/residual">ApplyGatedStateUpdate</MethodLink>(<Variable>hₖ</Variable>, <Variable>gateₖ</Variable>, <Variable>deltaₖ</Variable>)</div>
-              <div className="whitespace-pre">    <Variable>historyₖ₊₁</Variable> = <MethodLink href="/docs/architecture/history">UpdateHistory</MethodLink>(<Variable>historyₖ</Variable>, <Variable>hₖ₊₁</Variable>)</div>
+              <div className="whitespace-pre">    <Variable>historyₖ₊₁</Variable> = <MethodLink href="/docs/architecture/history">UpdateHistory</MethodLink>(</div>
+              <div className="whitespace-pre">        <Variable>historyₖ</Variable>,</div>
+              <div className="whitespace-pre">        <Variable>hₖ₊₁</Variable>,</div>
+              <div className="whitespace-pre">        <Variable>x</Variable>,</div>
+              <div className="whitespace-pre">        k</div>
+              <div className="whitespace-pre">    )</div>
               <div className="whitespace-pre">    <Keyword>if</Keyword> <MethodLink href="/docs/architecture/shouldHalt">ShouldHalt</MethodLink>(<Variable>hₖ₊₁</Variable>, k):</div>
               <div className="whitespace-pre">        <Variable>outputₖ</Variable> = <MethodLink href="/docs/architecture/output">OutputHead</MethodLink>(<Variable>hₖ₊₁</Variable>)</div>
               <div className="whitespace-pre">        <MethodLink href="/docs/architecture/plasticity">PlasticityController</MethodLink>(<Variable>hₖ₊₁</Variable>)</div>

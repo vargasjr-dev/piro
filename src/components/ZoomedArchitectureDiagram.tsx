@@ -8,6 +8,16 @@ type DiagramKind =
   | "embedding"
   | "initialize"
   | "attention"
+  | "buildMemorySlots"
+  | "summarizeSynchronization"
+  | "getAttentionShape"
+  | "queryProjection"
+  | "keyProjection"
+  | "valueProjection"
+  | "relativeTimeBias"
+  | "synchronizationBias"
+  | "outputProjection"
+  | "readGate"
   | "delta"
   | "residual"
   | "history"
@@ -15,6 +25,7 @@ type DiagramKind =
   | "shouldHalt"
   | "weights"
   | "loadWeights"
+  | "saveWeights"
   | "plasticity";
 
 const details: Record<DiagramKind, { title: string; subtitle: string }> = {
@@ -33,6 +44,46 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   attention: {
     title: "Attention",
     subtitle: "The method that retrieves relevant history using content similarity, relative time, and CTM synchronization before gating the result into contextₖ.",
+  },
+  buildMemorySlots: {
+    title: "BuildMemorySlots",
+    subtitle: "Builds timestamped memory records from historical states and inputs so Attention has explicit retrieval candidates.",
+  },
+  summarizeSynchronization: {
+    title: "SummarizeSynchronization",
+    subtitle: "Compresses CTM synchronization signals into features that help form the current retrieval query.",
+  },
+  getAttentionShape: {
+    title: "GetAttentionShape",
+    subtitle: "Reads the configured attention width and head count, then derives d_head for scaled dot-product scores.",
+  },
+  queryProjection: {
+    title: "QueryProjection",
+    subtitle: "Projects the current state, input, and synchronization features into retrieval-query space.",
+  },
+  keyProjection: {
+    title: "KeyProjection",
+    subtitle: "Projects each memory slot into the key space used for content similarity matching.",
+  },
+  valueProjection: {
+    title: "ValueProjection",
+    subtitle: "Projects each memory slot into the value space returned by retrieval.",
+  },
+  relativeTimeBias: {
+    title: "RelativeTimeBias",
+    subtitle: "Turns each memory slot’s explicit age into an additive retrieval-score adjustment.",
+  },
+  synchronizationBias: {
+    title: "SynchronizationBias",
+    subtitle: "Turns compatibility between the current state and each memory slot into an auxiliary retrieval score.",
+  },
+  outputProjection: {
+    title: "OutputProjection",
+    subtitle: "Maps the weighted memory read into the context representation consumed by the recurrent update.",
+  },
+  readGate: {
+    title: "ReadGate",
+    subtitle: "Controls how strongly retrieved context is allowed to influence the next recurrent state update.",
   },
   delta: {
     title: "ComputeStateDelta",
@@ -61,6 +112,10 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   loadWeights: {
     title: "LoadWeights",
     subtitle: "The persistence boundary that sources the current model weights before inference begins.",
+  },
+  saveWeights: {
+    title: "SaveWeights",
+    subtitle: "Persists the updated weights after PlasticityController changes the model’s active memory.",
   },
   plasticity: {
     title: "PlasticityController",
@@ -275,54 +330,25 @@ function WeightsDiagram() {
 }
 
 const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights">, { input: string; output: string; relation: string; tone: "green" | "blue" | "orange" }> = {
-  initialize: {
-    input: "x + weights",
-    output: "h₀",
-    relation: "starts or retrieves the state for this input",
-    tone: "blue",
-  },
-  attention: {
-    input: "hₖ + historyₖ + x + weights",
-    output: "contextₖ",
-    relation: "builds the context used by ComputeStateDelta",
-    tone: "green",
-  },
-  delta: {
-    input: "hₖ + x + contextₖ + historyₖ + weights",
-    output: "deltaₖ",
-    relation: "computes the candidate state change",
-    tone: "green",
-  },
-  residual: {
-    input: "hₖ + deltaₖ + weights",
-    output: "hₖ₊₁",
-    relation: "computes hₖ + gateₖ · deltaₖ",
-    tone: "green",
-  },
-  history: {
-    input: "historyₖ + hₖ₊₁",
-    output: "historyₖ₊₁",
-    relation: "records the new state trajectory",
-    tone: "blue",
-  },
-  shouldHalt: {
-    input: "haltₖ + k + budget",
-    output: "continue / exit",
-    relation: "controls the recurrent loop or returns outputₖ",
-    tone: "orange",
-  },
-  loadWeights: {
-    input: "persistent model storage",
-    output: "weights",
-    relation: "sources the current model weights for this inference",
-    tone: "blue",
-  },
-  plasticity: {
-    input: "hₖ₊₁",
-    output: "persisted weight update",
-    relation: "derives prediction, value, eligibility, and credit signals, then saves the plasticity update without returning a value",
-    tone: "orange",
-  },
+  initialize: { input: "x + weights", output: "h₀", relation: "starts or retrieves the state for this input", tone: "blue" },
+  attention: { input: "hₖ + historyₖ + x + k + weights", output: "contextₖ", relation: "retrieves relevant memory and gates it into the recurrent context", tone: "green" },
+  buildMemorySlots: { input: "historyₖ + x + k + weights", output: "memoryₖ", relation: "turns timestamped history entries into retrievable slots", tone: "green" },
+  summarizeSynchronization: { input: "hₖ + historyₖ + weights", output: "syncFeaturesₖ", relation: "compresses CTM synchronization into query-side features", tone: "green" },
+  getAttentionShape: { input: "weights", output: "modelWidth + headCount + d_head", relation: "derives the score-scaling dimension from attention configuration", tone: "blue" },
+  queryProjection: { input: "hₖ + x + syncFeaturesₖ + weights", output: "queryₖ", relation: "maps the current situation into retrieval-query space", tone: "green" },
+  keyProjection: { input: "memoryₖ + weights", output: "keysₖ", relation: "maps each memory slot into comparable key space", tone: "green" },
+  valueProjection: { input: "memoryₖ + weights", output: "valuesₖ", relation: "maps each memory slot into returned information space", tone: "green" },
+  relativeTimeBias: { input: "memoryₖ.age + weights", output: "timeBiasₖ", relation: "adjusts retrieval scores using explicit memory age", tone: "green" },
+  synchronizationBias: { input: "hₖ + memoryₖ + weights", output: "syncBiasₖ", relation: "adjusts retrieval scores using dynamical compatibility", tone: "green" },
+  outputProjection: { input: "retrievedₖ + weights", output: "contextₖ", relation: "returns the weighted memory read in CTM context space", tone: "green" },
+  readGate: { input: "hₖ + x + contextₖ + weights", output: "readGateₖ", relation: "controls how much retrieved context can influence the update", tone: "green" },
+  delta: { input: "hₖ + x + contextₖ + historyₖ + weights", output: "deltaₖ", relation: "computes the candidate state change", tone: "green" },
+  residual: { input: "hₖ + deltaₖ + weights", output: "hₖ₊₁", relation: "computes hₖ + gateₖ · deltaₖ", tone: "green" },
+  history: { input: "historyₖ + hₖ₊₁ + x + k", output: "historyₖ₊₁", relation: "records state, input, and tick metadata", tone: "blue" },
+  shouldHalt: { input: "hₖ₊₁ + k + budget", output: "continue / exit", relation: "controls the recurrent loop or returns outputₖ", tone: "orange" },
+  loadWeights: { input: "persistent model storage", output: "weights", relation: "sources the current model weights for this inference", tone: "blue" },
+  saveWeights: { input: "weights", output: "persistent model storage", relation: "persists updated parameters for the next inference", tone: "blue" },
+  plasticity: { input: "hₖ₊₁", output: "persisted weight update", relation: "derives learning signals, updates active weights, and saves them without returning a value", tone: "orange" },
 };
 
 function MethodDiagram({ kind }: { kind: Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights"> }) {
@@ -384,66 +410,170 @@ function ObservationApiReference() {
 }
 
 function PseudocodeView({ kind }: { kind: DiagramKind }) {
-  const line = (children: ReactNode, className = "") => (
-    <div className={`whitespace-pre ${className}`}>{children}</div>
-  );
+  const line = (children: ReactNode, className = "") => <div className={`whitespace-pre ${className}`}>{children}</div>;
   const variable = (children: string) => <span className="text-sky-200/90">{children}</span>;
-  const method = (children: string) => <span className="text-emerald-300">{children}</span>;
+  const methodLink = (label: string, slug: string) => <Link href={`/docs/architecture/${slug}`} className="text-emerald-300 underline decoration-emerald-500/40 underline-offset-4 transition hover:text-emerald-100">{label}</Link>;
   const keyword = (children: string) => <span className="text-orange-300">{children}</span>;
-
+  const call = (label: string, slug: string) => <>{methodLink(label, slug)}(</>;
   const snippets: Record<DiagramKind, ReactNode> = {
     observation: line(<><span className="text-violet-300">PiroInput</span> = Observation()</>),
-    embedding: line(<>{variable("x")} = {method("Embed")}(PiroInput)</>),
-    initialize: line(<>{variable("h₀")} = {method("InitializeOrRetrieveState")}(x, weights)</>),
+    embedding: line(<>{variable("x")} = {methodLink("Embed", "embedding")}(<Link href="/docs/architecture/observation" className="text-violet-300 underline decoration-violet-500/40 underline-offset-4">PiroInput</Link>)</>),
+    initialize: line(<>{variable("h₀")} = {methodLink("InitializeOrRetrieveState", "initialize")}(x, weights)</>),
     attention: <>
-      {line(<>{method("Attention")}(hₖ, historyₖ, x, weights):</>)}
-      {line(<>    {variable("memoryₖ")} = {method("BuildMemorySlots")}(historyₖ, x, weights)</>)}
-      {line(<>    {variable("syncFeaturesₖ")} = {method("SummarizeSynchronization")}(hₖ, historyₖ, weights)</>)}
-      {line(<>    {variable("queryₖ")} = {method("QueryProjection")}(Normalize(Concatenate(hₖ, x, syncFeaturesₖ)), weights)</>)}
-      {line(<>    {variable("keysₖ")} = {method("KeyProjection")}(memoryₖ, weights)</>)}
-      {line(<>    {variable("valuesₖ")} = {method("ValueProjection")}(memoryₖ, weights)</>)}
+      {line(<>{call("Attention", "attention")}</>)}
+      {line(<>    hₖ,</>)}
+      {line(<>    historyₖ,</>)}
+      {line(<>    x,</>)}
+      {line(<>    k,</>)}
+      {line(<>    weights</>)}
+      {line(<>):</>)}
+      {line(<>    {variable("memoryₖ")} = {call("BuildMemorySlots", "buildMemorySlots")}</>)}
+      {line(<>        historyₖ,</>)}
+      {line(<>        x,</>)}
+      {line(<>        k,</>)}
+      {line(<>        weights</>)}
+      {line(<>    )</>)}
+      {line(<>    {variable("syncFeaturesₖ")} = {call("SummarizeSynchronization", "summarizeSynchronization")}</>)}
+      {line(<>        hₖ,</>)}
+      {line(<>        historyₖ,</>)}
+      {line(<>        weights</>)}
+      {line(<>    )</>)}
+      {line(<>    {variable("attentionShape")} = {call("GetAttentionShape", "getAttentionShape")}weights)</>)}
+      {line(<>    {variable("d_head")} = attentionShape.d_head</>)}
+      {line(<>    {variable("queryₖ")} = {call("QueryProjection", "queryProjection")}</>)}
+      {line(<>        Normalize(Concatenate(hₖ, x, syncFeaturesₖ)),</>)}
+      {line(<>        weights</>)}
+      {line(<>    )</>)}
+      {line(<>    {variable("keysₖ")} = {call("KeyProjection", "keyProjection")}</>)}
+      {line(<>        memoryₖ,</>)}
+      {line(<>        weights</>)}
+      {line(<>    )</>)}
+      {line(<>    {variable("valuesₖ")} = {call("ValueProjection", "valueProjection")}</>)}
+      {line(<>        memoryₖ,</>)}
+      {line(<>        weights</>)}
+      {line(<>    )</>)}
       {line(<>    {variable("contentScoresₖ")} = queryₖ · keysₖᵀ / sqrt(d_head)</>)}
-      {line(<>    {variable("timeBiasₖ")} = {method("RelativeTimeBias")}(memoryₖ.age, weights)</>)}
-      {line(<>    {variable("syncBiasₖ")} = {method("SynchronizationBias")}(hₖ, memoryₖ, weights)</>)}
+      {line(<>    {variable("timeBiasₖ")} = {call("RelativeTimeBias", "relativeTimeBias")}</>)}
+      {line(<>        memoryₖ.age,</>)}
+      {line(<>        weights</>)}
+      {line(<>    )</>)}
+      {line(<>    {variable("syncBiasₖ")} = {call("SynchronizationBias", "synchronizationBias")}</>)}
+      {line(<>        hₖ,</>)}
+      {line(<>        memoryₖ,</>)}
+      {line(<>        weights</>)}
+      {line(<>    )</>)}
       {line(<>    {variable("retrievalWeightsₖ")} = softmax(contentScoresₖ + timeBiasₖ + syncBiasₖ)</>)}
       {line(<>    {variable("retrievedₖ")} = retrievalWeightsₖ · valuesₖ</>)}
-      {line(<>    {variable("contextₖ")} = {method("OutputProjection")}(retrievedₖ, weights)</>)}
-      {line(<>    {variable("readGateₖ")} = sigmoid({method("ReadGate")}(hₖ, x, contextₖ, weights))</>)}
+      {line(<>    {variable("contextₖ")} = {call("OutputProjection", "outputProjection")}</>)}
+      {line(<>        retrievedₖ,</>)}
+      {line(<>        weights</>)}
+      {line(<>    )</>)}
+      {line(<>    {variable("readGateₖ")} = sigmoid({call("ReadGate", "readGate")}</>)}
+      {line(<>        hₖ,</>)}
+      {line(<>        x,</>)}
+      {line(<>        contextₖ,</>)}
+      {line(<>        weights</>)}
+      {line(<>    ))</>)}
       {line(<>    return readGateₖ ⊙ contextₖ</>)}
     </>,
+    buildMemorySlots: <>
+      {line(<>{call("BuildMemorySlots", "buildMemorySlots")}</>)}
+      {line(<>    historyₖ,</>)}
+      {line(<>    x,</>)}
+      {line(<>    k,</>)}
+      {line(<>    weights</>)}
+      {line(<>):</>)}
+      {line(<>    for each entryₜ in historyₖ:</>)}
+      {line(<>        slotₜ.content = Concatenate(entryₜ.state, entryₜ.input)</>)}
+      {line(<>        slotₜ.createdAt = entryₜ.tick</>)}
+      {line(<>        slotₜ.age = k - slotₜ.createdAt</>)}
+      {line(<>    return memoryₖ</>)}
+    </>,
+    summarizeSynchronization: <>
+      {line(<>{call("SummarizeSynchronization", "summarizeSynchronization")}</>)}
+      {line(<>    hₖ,</>)}
+      {line(<>    historyₖ,</>)}
+      {line(<>    weights</>)}
+      {line(<>):</>)}
+      {line(<>    syncMatrixₖ = CorrelationMatrix(historyₖ.states)</>)}
+      {line(<>    return SyncFeatureProjection(syncMatrixₖ, hₖ, weights)</>)}
+    </>,
+    getAttentionShape: <>
+      {line(<>{call("GetAttentionShape", "getAttentionShape")}weights):</>)}
+      {line(<>    modelWidth = weights.attention.modelWidth</>)}
+      {line(<>    headCount = weights.attention.headCount</>)}
+      {line(<>    assert modelWidth % headCount == 0</>)}
+      {line(<>    d_head = modelWidth / headCount</>)}
+      {line(<>    return modelWidth, headCount, d_head</>)}
+    </>,
+    queryProjection: line(<>{call("QueryProjection", "queryProjection")}queryInput, weights):</>),
+    keyProjection: line(<>{call("KeyProjection", "keyProjection")}memoryₖ, weights):</>),
+    valueProjection: line(<>{call("ValueProjection", "valueProjection")}memoryₖ, weights):</>),
+    relativeTimeBias: line(<>{call("RelativeTimeBias", "relativeTimeBias")}age, weights):</>),
+    synchronizationBias: line(<>{call("SynchronizationBias", "synchronizationBias")}hₖ, memoryₖ, weights):</>),
+    outputProjection: line(<>{call("OutputProjection", "outputProjection")}retrievedₖ, weights):</>),
+    readGate: line(<>{call("ReadGate", "readGate")}hₖ, x, contextₖ, weights):</>),
     delta: <>
-      {line(<>{variable("deltaₖ")} = {method("ComputeStateDelta")}(</>)}
+      {line(<>{variable("deltaₖ")} = {call("ComputeStateDelta", "delta")}</>)}
       {line(<>    hₖ,</>)}
       {line(<>    x,</>)}
       {line(<>    contextₖ,</>)}
       {line(<>    historyₖ,</>)}
       {line(<>    weights</>)}
-      {line(<> )</>)}
+      {line(<>))</>)}
     </>,
-    residual: line(<>{variable("hₖ₊₁")} = {method("ApplyGatedStateUpdate")}(hₖ, gateₖ, deltaₖ)</>),
-    history: line(<>{variable("historyₖ₊₁")} = {method("UpdateHistory")}(historyₖ, hₖ₊₁)</>),
-    output: line(<>{variable("outputₖ")} = {method("OutputHead")}(hₖ₊₁)</>),
-    shouldHalt: line(<>{keyword("if")} {method("ShouldHalt")}(hₖ₊₁, k):</>),
-    weights: line(<>{variable("weights")} = {method("LoadWeights")}()</>),
-    loadWeights: line(<>{variable("weights")} = {method("LoadWeights")}()</>),
+    residual: line(<>{variable("hₖ₊₁")} = {call("ApplyGatedStateUpdate", "residual")}hₖ, gateₖ, deltaₖ)</>),
+    history: <>
+      {line(<>{variable("historyₖ₊₁")} = {call("UpdateHistory", "history")}</>)}
+      {line(<>    historyₖ,</>)}
+      {line(<>    hₖ₊₁,</>)}
+      {line(<>    x,</>)}
+      {line(<>    k</>)}
+      {line(<>))</>)}
+    </>,
+    output: line(<>{variable("outputₖ")} = {call("OutputHead", "output")}hₖ₊₁)</>),
+    shouldHalt: line(<>{keyword("if")} {call("ShouldHalt", "shouldHalt")}hₖ₊₁, k):</>),
+    weights: line(<>{variable("weights")} = {call("LoadWeights", "loadWeights")})</>),
+    loadWeights: line(<>{variable("weights")} = {call("LoadWeights", "loadWeights")})</>),
+    saveWeights: line(<>{call("SaveWeights", "saveWeights")}weights)</>),
     plasticity: <>
-      {line(<>{method("PlasticityController")}(hₖ₊₁):</>)}
-      {line(<>    {variable("predictionₖ")} = derive prediction from hₖ₊₁</>)}
-      {line(<>    {variable("valueₖ")} = derive value from hₖ₊₁</>)}
-      {line(<>    {variable("creditₖ")} = assign credit using historyₖ and hₖ₊₁</>)}
+      {line(<>{call("PlasticityController", "plasticity")}hₖ₊₁):</>)}
+      {line(<>    predictionₖ = derive prediction from hₖ₊₁</>)}
+      {line(<>    valueₖ = derive value from hₖ₊₁</>)}
+      {line(<>    creditₖ = assign credit using historyₖ and hₖ₊₁</>)}
       {line(<>    weights = update plastic weights using predictionₖ, valueₖ, and creditₖ</>)}
-      {line(<>    {method("SaveWeights")}(weights)</>)}
+      {line(<>    {call("SaveWeights", "saveWeights")}weights)</>)}
       {line(<>    return nothing</>)}
     </>,
   };
-
-  return (
-    <div className="overflow-x-auto rounded-xl border border-amber-900/20 bg-[#0b0908] px-4 py-5 sm:px-6" role="region" aria-label={`${details[kind].title} pseudocode`}>
-      <code className="block min-w-[40ch] font-mono text-sm leading-6 text-amber-100/85 sm:min-w-[42rem] sm:text-[0.95rem]">{snippets[kind]}</code>
-    </div>
-  );
+  return <div className="overflow-x-auto rounded-xl border border-amber-900/20 bg-[#0b0908] px-4 py-5 sm:px-6" role="region" aria-label={`${details[kind].title} pseudocode`}><code className="block min-w-[40ch] font-mono text-sm leading-6 text-amber-100/85 sm:min-w-[42rem] sm:text-[0.95rem]">{snippets[kind]}</code></div>;
 }
-
+const explanations: Partial<Record<DiagramKind, { doing: string; why: string }>> = {
+  attention: { doing: "Builds a query from the current recurrent situation, scores timestamped memory slots with content similarity plus temporal and synchronization biases, then gates the retrieved context.", why: "Piro needs a real memory read: synchronization describes dynamical compatibility, while content keys and values retrieve what a prior state represented." },
+  buildMemorySlots: { doing: "Converts each history entry into a memory slot containing state/input content, its write tick, and age = current tick − write tick.", why: "Attention needs explicit candidates and explicit temporal provenance; age should not appear as an unexplained property of memory." },
+  summarizeSynchronization: { doing: "Summarizes CTM synchronization signals from the current state and historical trajectory into query-side features.", why: "CTM dynamics should influence retrieval without replacing semantic content matching." },
+  getAttentionShape: { doing: "Reads modelWidth and headCount from weights.attention, verifies divisibility, and derives d_head = modelWidth / headCount.", why: "Scaled dot-product attention must know each head’s dimensionality, so the source of d_head is explicit and reviewable." },
+  queryProjection: { doing: "Normalizes the current state, input, and synchronization features, then projects them with Wq into query space.", why: "The query represents what the current thought is looking for in memory." },
+  keyProjection: { doing: "Projects each memory slot with Wk into the space compared against the current query.", why: "Keys make historical states searchable by learned content similarity." },
+  valueProjection: { doing: "Projects each memory slot with Wv into the information returned after retrieval weights are computed.", why: "Keys decide which memory wins; values determine what information comes back." },
+  relativeTimeBias: { doing: "Maps each explicit memory age to an additive retrieval-score bias.", why: "Recency can matter, but it should adjust content retrieval rather than silently replace it." },
+  synchronizationBias: { doing: "Scores compatibility between the current recurrent state and each candidate memory slot.", why: "The same content can have different relevance depending on the current dynamical regime." },
+  outputProjection: { doing: "Projects the weighted sum of retrieved values back into CTM context space.", why: "Attention’s internal value space does not have to be identical to the representation consumed by ComputeStateDelta." },
+  readGate: { doing: "Produces a sigmoid gate from the current state, input, and retrieved context, then scales the context elementwise.", why: "A memory read should help without automatically overwriting the current thought." },
+  delta: { doing: "Combines the current state, input, context, history, and weights into deltaₖ.", why: "Separating the candidate change from the residual update makes the state transition auditable." },
+  residual: { doing: "Applies the learned gate to deltaₖ and adds it to hₖ to produce hₖ₊₁.", why: "The recurrent state needs a controlled update rather than an unconditional replacement." },
+  history: { doing: "Appends the new state together with x and tick k so future retrieval can recover content and age.", why: "History is both the state trajectory and the source of Attention’s timestamped memory slots." },
+  output: { doing: "Reads the final recurrent state into the externally returned output.", why: "The outside world needs a stable output boundary after the internal loop halts." },
+  shouldHalt: { doing: "Evaluates the current state and tick against the continuation budget and decides whether the loop exits.", why: "Adaptive computation lets Piro spend more recurrent steps when the state has not converged." },
+  loadWeights: { doing: "Loads the parameter set that shapes the entire inference from persistent model storage.", why: "Each completed inference must begin from the weights persisted by the previous completed inference." },
+  saveWeights: { doing: "Writes updated active weights to persistent model storage.", why: "Inference-time plasticity only affects the next inference if its mutation crosses an explicit persistence boundary." },
+  plasticity: { doing: "Derives prediction, value, eligibility, and credit internally from hₖ₊₁, updates active plastic weights, and saves them without returning a value.", why: "Learning belongs to the stateful controller that owns the weight mutation and must complete before the next inference loads parameters." },
+};
+function MethodExplanation({ kind }: { kind: DiagramKind }) {
+  const explanation = explanations[kind];
+  if (!explanation) return null;
+  return <section className="mt-8 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.04] p-5"><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200/70">What it does</p><p className="mt-3 text-sm leading-7 text-amber-100/75">{explanation.doing}</p></div><div className="rounded-2xl border border-orange-300/20 bg-orange-300/[0.04] p-5"><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-orange-200/70">Why it exists</p><p className="mt-3 text-sm leading-7 text-amber-100/75">{explanation.why}</p></div></section>;
+}
 export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind }) {
   const detail = details[kind];
   const [view, setView] = useState<"pseudocode" | "diagram">("pseudocode");
@@ -488,14 +618,14 @@ export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind 
         <div className="mt-8 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#100c0a] p-3 sm:p-6">
           {kind === "observation" && <ObservationDiagram />}
           {kind === "embedding" && <EmbeddingDiagram />}
-          {kind === "observation" && <ObservationDiagram />}
-          {kind === "embedding" && <EmbeddingDiagram />}
           {kind !== "observation" && kind !== "embedding" && kind !== "output" && kind !== "weights" && kind !== "loadWeights" && <MethodDiagram kind={kind} />}
           {kind === "output" && <OutputDiagram />}
           {kind === "weights" && <WeightsDiagram />}
           {kind === "loadWeights" && <LoadWeightsDiagram />}
         </div>
       )}
+
+      <MethodExplanation kind={kind} />
 
       {kind === "observation" && <ObservationApiReference />}
     </>
