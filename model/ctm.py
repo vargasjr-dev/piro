@@ -185,10 +185,10 @@ class SyncAttention(nn.Module):
 
 
 class BurstState:
-    def __init__(self, config: BurstConfig, n_neurons: int) -> None:
+    def __init__(self, config: BurstConfig, n_neurons: int, device: torch.device | None = None) -> None:
         self.config = config
-        self.burst_counter = torch.zeros(n_neurons, dtype=torch.long)
-        self.refractory_counter = torch.zeros(n_neurons, dtype=torch.long)
+        self.burst_counter = torch.zeros(n_neurons, dtype=torch.long, device=device)
+        self.refractory_counter = torch.zeros(n_neurons, dtype=torch.long, device=device)
 
     def tick(self, activations: torch.Tensor) -> None:
         for i, value in enumerate(activations.detach().cpu()):
@@ -379,11 +379,12 @@ class ContinuousThoughtModel(PiroModel):
         self._state = self._new_state()
 
     def _new_state(self) -> CTMState:
+        device = next(self.parameters()).device
         return CTMState(
             history=NeuronHistory(self.n_neurons, self.window_size),
-            burst=BurstState(self.burst_config, self.n_neurons) if self.burst_config else None,
-            plastic=PlasticSynapse(self.plastic_config, self.n_neurons) if self.plastic_config else None,
-            oscillator=OscillatorBank(self.oscillator_config, self.n_neurons) if self.oscillator_config else None,
+            burst=BurstState(self.burst_config, self.n_neurons, device=device) if self.burst_config else None,
+            plastic=PlasticSynapse(self.plastic_config, self.n_neurons, device=device) if self.plastic_config else None,
+            oscillator=OscillatorBank(self.oscillator_config, self.n_neurons, device=device) if self.oscillator_config else None,
         )
 
     @property

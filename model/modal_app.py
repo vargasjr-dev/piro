@@ -51,6 +51,17 @@ SERIALIZE_SOURCE_ENDPOINT = "https://dvargasfuertes--piro-serialize-source.modal
 # R2 bucket name — must match BUCKET() in src/lib/r2.ts
 R2_BUCKET = "piro-kb"
 
+# Keep training on an explicitly requested GPU. The 10x CTM fits comfortably
+# on a T4, and the explicit declaration prevents an accidental CPU fallback.
+TRAINING_GPU = "T4"
+TRAINING_CPU = 1.0
+TRAINING_MEMORY_MB = 4096
+TRAINING_TIMEOUT_SECONDS = 3300
+TRAINING_DEADLINE_SECONDS = 3000
+GPU_RATE_USD_PER_SECOND = 0.000164
+CPU_RATE_USD_PER_CORE_SECOND = 0.0000131
+MEMORY_RATE_USD_PER_GIB_SECOND = 0.00000222
+
 
 def _r2_client(os_module):
     """Build a boto3 S3 client pointed at the B2/R2 bucket."""
@@ -112,7 +123,10 @@ manifest_cache: dict = {}
 @app.cls(
     image=image,
     secrets=[piro_secrets],
-    timeout=3600,  # 1 hr max per run
+    gpu=TRAINING_GPU,
+    cpu=TRAINING_CPU,
+    memory=TRAINING_MEMORY_MB,
+    timeout=TRAINING_TIMEOUT_SECONDS,
 )
 class Trainer:
     @modal.enter()
@@ -192,12 +206,28 @@ class Trainer:
         import os
         import random
         import uuid as _uuid
-        from datetime import datetime, timezone
+        from datetime import datetime, timedelta, timezone
 
         import psycopg2
         from model.weight_serialization import round_nested_numbers
 
         torch = self._torch
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if device.type != "cuda":
+            raise RuntimeError("Modal training requires CUDA; no GPU was attached")
+        print(f"[piro] run {run_id} using device={device} gpu={TRAINING_GPU}")
+
+        def _estimate_cost_usd(runtime_ms: int) -> float:
+            seconds = max(0, runtime_ms) / 1000.0
+            return round(
+                seconds
+                * (
+                    GPU_RATE_USD_PER_SECOND
+                    + CPU_RATE_USD_PER_CORE_SECOND * TRAINING_CPU
+                    + MEMORY_RATE_USD_PER_GIB_SECOND * (TRAINING_MEMORY_MB / 1024)
+                ),
+                6,
+            )
 
         def _build_dataset(n: int, split: str) -> list:
             if data_source == "sorting-sequences" and dataset_r2_prefix.rstrip("/").endswith("/sorting-sequences"):
@@ -207,7 +237,7 @@ class Trainer:
                 samples = []
                 for seq in seqs:
                     numbers = list(seq.sequence)
-                    emb = torch.zeros(self._ctm_cfg.n_neurons, self._ctm_cfg.embed_dim)
+                    emb = torch.zeros(self._ctm_cfg.n_neurons, self._ctm_cfg.embed_dim, device=device)
                     for i, val in enumerate(numbers):
                         idx = min(val, self._ctm_cfg.embed_dim - 1)
                         emb[i, idx] = 1.0
@@ -263,9 +293,20 @@ class Trainer:
 
         # Record startedAt — this is AFTER cold start, so queuedAt→startedAt = cold start latency
         started_at = datetime.now(timezone.utc)
+        timeout_at = started_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
         cur.execute(
-            'UPDATE training_run SET status = %s, "startedAt" = %s WHERE id = %s',
-            ("running", started_at, run_id),
+            'UPDATE training_run SET status = %s, "startedAt" = %s, "heartbeatAt" = %s, "timeoutAt" = %s, "resourceType" = %s, "gpuType" = %s, "cpuCores" = %s, "memoryMb" = %s WHERE id = %s',
+            (
+                "running",
+                started_at,
+                started_at,
+                timeout_at,
+                "gpu",
+                TRAINING_GPU,
+                TRAINING_CPU,
+                TRAINING_MEMORY_MB,
+                run_id,
+            ),
         )
         conn.commit()
 
@@ -273,6 +314,7 @@ class Trainer:
             # ── Build model ───────────────────────────────────────────────────
             random.seed(seed)
             torch.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
 
             if data_source == "associative-recall" and model_template not in {"ctm", "ctm-10x"}:
                 raise ValueError(
@@ -284,7 +326,10 @@ class Trainer:
                     cfg = self._memory_ctm_10x_cfg if model_template == "ctm-10x" else self._memory_ctm_cfg
                 else:
                     cfg = self._ctm_cfg
-                model = self._ContinuousThoughtModel(cfg)
+                model = self._ContinuousThoughtModel(cfg).to(device)
+                # CTM working state is intentionally not registered as PyTorch
+                # buffers, so rebuild it after moving parameters to CUDA.
+                model.reset()
                 persisted_template = model_template
                 config_dict = {
                     "template": persisted_template,
@@ -297,7 +342,7 @@ class Trainer:
                 }
             elif model_template == "baseline-transformer":
                 cfg = self._transformer_cfg
-                model = self._BaselineTransformer(cfg)
+                model = self._BaselineTransformer(cfg).to(device)
                 config_dict = {
                     "template": "baseline-transformer",
                     "embed_dim": cfg.embed_dim,
@@ -384,6 +429,10 @@ class Trainer:
 
             for epoch in range(1, epochs + 1):
                 epoch_start = datetime.now(timezone.utc)
+                if epoch_start >= timeout_at:
+                    raise TimeoutError(
+                        f"training exceeded application deadline before epoch {epoch}"
+                    )
 
                 if data_source == "associative-recall":
                     train_loss, _ = _memory_epoch(train_data, train_mode=True)
@@ -393,6 +442,8 @@ class Trainer:
                     train_loss = trainer._train_epoch(train_data_copy)
                     val_loss, val_acc = trainer._eval_epoch(val_data)
 
+                if device.type == "cuda":
+                    torch.cuda.synchronize(device)
                 epoch_end = datetime.now(timezone.utc)
                 duration_ms = int((epoch_end - epoch_start).total_seconds() * 1000)
 
@@ -423,17 +474,17 @@ class Trainer:
                 cur.execute(
                     """
                     UPDATE training_run
-                    SET "currentEpoch" = %s, "epochHistoryJson" = %s
+                    SET "currentEpoch" = %s, "epochHistoryJson" = %s, "heartbeatAt" = %s
                     WHERE id = %s
                     """,
-                    (epoch, partial_history_json, run_id),
+                    (epoch, partial_history_json, epoch_end, run_id),
                 )
                 conn.commit()
 
             # ── Serialize + upload model weights to R2 ───────────────────────
             # Allocate the model ID before deriving its R2 prefix.
             model_id = str(_uuid.uuid4())
-            state = model.state_dict()
+            state = {key: value.detach().cpu() for key, value in model.state_dict().items()}
 
             # Binary .pt file for inference
             pt_buf = io.BytesIO()
@@ -463,6 +514,8 @@ class Trainer:
 
             # ── Final training_run update ─────────────────────────────────────
             last = history[-1]
+            completed_at = datetime.now(timezone.utc)
+            runtime_ms = int((completed_at - started_at).total_seconds() * 1000)
             cur.execute(
                 """
                 UPDATE training_run
@@ -471,7 +524,11 @@ class Trainer:
                     "finalTrainLoss"   = %s,
                     "finalValLoss"     = %s,
                     "finalValAccuracy" = %s,
-                    "completedAt"      = %s
+                    "completedAt"      = %s,
+                    "heartbeatAt"      = %s,
+                    "runtimeMs"        = %s,
+                    "costUsd"          = %s,
+                    "costBasis"        = %s
                 WHERE id = %s
                 """,
                 (
@@ -479,7 +536,11 @@ class Trainer:
                     float(last.train_loss),
                     float(last.val_loss),
                     float(last.val_accuracy),
-                    datetime.now(timezone.utc),
+                    completed_at,
+                    completed_at,
+                    runtime_ms,
+                    _estimate_cost_usd(runtime_ms),
+                    "modal_standard_estimate",
                     run_id,
                 ),
             )
@@ -515,13 +576,26 @@ class Trainer:
             )
 
         except BaseException as exc:
+            completed_at = datetime.now(timezone.utc)
+            runtime_ms = int((completed_at - started_at).total_seconds() * 1000)
             cur.execute(
                 """
                 UPDATE training_run
-                SET status = %s, error = %s, "completedAt" = %s
+                SET status = %s, error = %s, "completedAt" = %s,
+                    "heartbeatAt" = %s, "runtimeMs" = %s, "costUsd" = %s,
+                    "costBasis" = %s
                 WHERE id = %s
                 """,
-                ("error", str(exc), datetime.now(timezone.utc), run_id),
+                (
+                    "error",
+                    str(exc),
+                    completed_at,
+                    completed_at,
+                    runtime_ms,
+                    _estimate_cost_usd(runtime_ms),
+                    "modal_standard_estimate",
+                    run_id,
+                ),
             )
             conn.commit()
             raise

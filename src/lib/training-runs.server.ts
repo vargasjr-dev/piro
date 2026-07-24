@@ -5,6 +5,8 @@ import { extractBearer, validateApiKey } from "~/lib/api-auth";
 import { db } from "../../data/db";
 import { trainingRun } from "../../data/schema";
 
+export { reconcileStaleTrainingRun } from "./training-run-observability.server";
+
 export async function resolveTrainingRunUserId(
   request: Request,
 ): Promise<string | null> {
@@ -33,6 +35,15 @@ export function serializeTrainingRun(run: typeof trainingRun.$inferSelect) {
     epochHistoryJson: run.epochHistoryJson,
     currentEpoch: run.currentEpoch,
     error: run.error,
+    heartbeatAt: run.heartbeatAt?.toISOString() ?? null,
+    timeoutAt: run.timeoutAt?.toISOString() ?? null,
+    runtimeMs: run.runtimeMs,
+    costUsd: run.costUsd,
+    costBasis: run.costBasis,
+    resourceType: run.resourceType,
+    gpuType: run.gpuType,
+    cpuCores: run.cpuCores,
+    memoryMb: run.memoryMb,
     queuedAt: run.queuedAt.toISOString(),
     startedAt: run.startedAt?.toISOString() ?? null,
     completedAt: run.completedAt?.toISOString() ?? null,

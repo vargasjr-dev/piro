@@ -305,6 +305,20 @@ export const trainingRun = pgTable(
     epochHistoryJson: text("epochHistoryJson"),
     currentEpoch: integer("currentEpoch"),
     error: text("error"),
+    /** Last worker heartbeat; used to reconcile platform-level terminations. */
+    heartbeatAt: timestamp("heartbeatAt"),
+    /** Application deadline before Modal's hard execution timeout. */
+    timeoutAt: timestamp("timeoutAt"),
+    /** Wall-clock execution time from worker start, in milliseconds. */
+    runtimeMs: integer("runtimeMs"),
+    /** Estimated Modal compute cost based on declared resources and runtime. */
+    costUsd: real("costUsd"),
+    /** Cost provenance, e.g. "modal_standard_estimate" until provider billing is imported. */
+    costBasis: text("costBasis"),
+    resourceType: text("resourceType"),
+    gpuType: text("gpuType"),
+    cpuCores: real("cpuCores"),
+    memoryMb: integer("memoryMb"),
     queuedAt: timestamp("queuedAt").notNull().defaultNow(),
     startedAt: timestamp("startedAt"),
     completedAt: timestamp("completedAt"),

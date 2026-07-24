@@ -5,6 +5,7 @@ import { repository, dataset, trainingRun } from "../../../../../data/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
 import { parseGitHubRepositoryRef } from "~/lib/github-repository";
+import { reconcileStaleTrainingRun } from "~/lib/training-runs.server";
 
 /**
  * GET /api/repos/[id]
@@ -101,6 +102,8 @@ export async function GET(
       .orderBy(desc(trainingRun.queuedAt)),
   ]);
 
+  const reconciledRuns = await Promise.all(runs.map(reconcileStaleTrainingRun));
+
   return Response.json({
     repo: {
       id: repo.id,
@@ -120,7 +123,7 @@ export async function GET(
       generatedAt: d.generatedAt?.toISOString() ?? null,
       createdAt: d.createdAt.toISOString(),
     })),
-    trainingRuns: runs.map((r) => ({
+    trainingRuns: reconciledRuns.map((r) => ({
       id: r.id,
       modelName: r.modelName,
       architecturePath: r.architecturePath,
@@ -128,6 +131,14 @@ export async function GET(
       status: r.status,
       epochs: r.epochs,
       finalValAccuracy: r.finalValAccuracy,
+      currentEpoch: r.currentEpoch,
+      heartbeatAt: r.heartbeatAt?.toISOString() ?? null,
+      timeoutAt: r.timeoutAt?.toISOString() ?? null,
+      runtimeMs: r.runtimeMs,
+      costUsd: r.costUsd,
+      costBasis: r.costBasis,
+      resourceType: r.resourceType,
+      gpuType: r.gpuType,
       queuedAt: r.queuedAt.toISOString(),
       completedAt: r.completedAt?.toISOString() ?? null,
     })),

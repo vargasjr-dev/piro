@@ -9,6 +9,7 @@ import {
 } from "../../../../data/schema";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
 import {
+  reconcileStaleTrainingRun,
   resolveTrainingRunUserId,
   serializeTrainingRun,
 } from "~/lib/training-runs.server";
@@ -34,7 +35,8 @@ export async function GET(request: Request) {
     .orderBy(desc(trainingRun.queuedAt))
     .limit(50);
 
-  return Response.json({ runs: runs.map(serializeTrainingRun) });
+  const reconciled = await Promise.all(runs.map(reconcileStaleTrainingRun));
+  return Response.json({ runs: reconciled.map(serializeTrainingRun) });
 }
 
 // ── POST /api/training-runs ───────────────────────────────────────────────────
