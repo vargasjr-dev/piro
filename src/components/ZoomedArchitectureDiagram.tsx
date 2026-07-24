@@ -332,7 +332,7 @@ function WeightsDiagram() {
 const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights">, { input: string; output: string; relation: string; tone: "green" | "blue" | "orange" }> = {
   initialize: { input: "x + weights", output: "h₀", relation: "starts or retrieves the state for this input", tone: "blue" },
   attention: { input: "hₖ + historyₖ + x + k + weights", output: "contextₖ", relation: "retrieves relevant memory and gates it into the recurrent context", tone: "green" },
-  buildMemorySlots: { input: "historyₖ + x + k + weights", output: "memoryₖ", relation: "turns timestamped history entries into retrievable slots", tone: "green" },
+  buildMemorySlots: { input: "historyₖ + k", output: "memoryₖ", relation: "turns timestamped history entries into retrievable slots", tone: "green" },
   summarizeSynchronization: { input: "hₖ + historyₖ + weights", output: "syncFeaturesₖ", relation: "compresses CTM synchronization into query-side features", tone: "green" },
   getAttentionShape: { input: "weights", output: "modelWidth + headCount + d_head", relation: "derives the score-scaling dimension from attention configuration", tone: "blue" },
   queryProjection: { input: "hₖ + x + syncFeaturesₖ + weights", output: "queryₖ", relation: "maps the current situation into retrieval-query space", tone: "green" },
@@ -429,9 +429,7 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
       {line(<>):</>)}
       {line(<>    {variable("memoryₖ")} = {call("BuildMemorySlots", "buildMemorySlots")}</>)}
       {line(<>        historyₖ,</>)}
-      {line(<>        x,</>)}
-      {line(<>        k,</>)}
-      {line(<>        weights</>)}
+      {line(<>        k</>)}
       {line(<>    )</>)}
       {line(<>    {variable("syncFeaturesₖ")} = {call("SummarizeSynchronization", "summarizeSynchronization")}</>)}
       {line(<>        hₖ,</>)}
@@ -479,14 +477,16 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
     buildMemorySlots: <>
       {line(<>{call("BuildMemorySlots", "buildMemorySlots")}</>)}
       {line(<>    historyₖ,</>)}
-      {line(<>    x,</>)}
-      {line(<>    k,</>)}
-      {line(<>    weights</>)}
+      {line(<>    k</>)}
       {line(<>):</>)}
+      {line(<>    memoryₖ = []</>)}
       {line(<>    for each entryₜ in historyₖ:</>)}
-      {line(<>        slotₜ.content = Concatenate(entryₜ.state, entryₜ.input)</>)}
-      {line(<>        slotₜ.createdAt = entryₜ.tick</>)}
-      {line(<>        slotₜ.age = k - slotₜ.createdAt</>)}
+      {line(<>        slotₜ = {"{"}</>)}
+      {line(<>            content: Concatenate(entryₜ.state, entryₜ.input),</>)}
+      {line(<>            createdAt: entryₜ.tick,</>)}
+      {line(<>            age: k - entryₜ.tick</>)}
+      {line(<>        {"}"}</>)}
+      {line(<>        memoryₖ.append(slotₜ)</>)}
       {line(<>    return memoryₖ</>)}
     </>,
     summarizeSynchronization: <>

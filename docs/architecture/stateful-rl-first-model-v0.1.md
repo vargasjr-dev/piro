@@ -230,7 +230,7 @@ experiments will determine the exact module boundaries and update rules.
 ```text
 Attention(hₖ, historyₖ, x, k, weights):
 
-    memoryₖ = BuildMemorySlots(historyₖ, x, k, weights)
+    memoryₖ = BuildMemorySlots(historyₖ, k)
 
     syncFeaturesₖ = SummarizeSynchronization(hₖ, historyₖ, weights)
 
@@ -254,10 +254,17 @@ Attention(hₖ, historyₖ, x, k, weights):
 
     return readGateₖ ⊙ contextₖ
 
-BuildMemorySlots(historyₖ, x, k, weights):
+BuildMemorySlots(historyₖ, k):
+
+    memoryₖ = []
 
     for each entryₜ in historyₖ:
-        slotₜ.content = Concatenate(entryₜ.state, entryₜ.input)
-        slotₜ.createdAt = entryₜ.tick
-        slotₜ.age = k - slotₜ.createdAt
+        slotₜ = {
+            content: Concatenate(entryₜ.state, entryₜ.input),
+            createdAt: entryₜ.tick,
+            age: k - entryₜ.tick
+        }
+        memoryₖ.append(slotₜ)
+
+    return memoryₖ
 ```
