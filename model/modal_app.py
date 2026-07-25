@@ -60,6 +60,7 @@ TRAINING_TIMEOUT_SECONDS = 3300
 TRAINING_DEADLINE_SECONDS = 3000
 CHECKPOINT_INTERVAL_STEPS = 250
 CHECKPOINT_SAFETY_SECONDS = 120
+HEARTBEAT_INTERVAL_SECONDS = 30
 GPU_RATE_USD_PER_SECOND = 0.000164
 CPU_RATE_USD_PER_CORE_SECOND = 0.0000131
 MEMORY_RATE_USD_PER_GIB_SECOND = 0.00000222
@@ -207,6 +208,7 @@ class Trainer:
         import json
         import os
         import random
+        import threading
         import uuid as _uuid
         from datetime import datetime, timedelta, timezone
 
@@ -328,6 +330,33 @@ class Trainer:
             print(f"[piro] run {run_id} was not claimable; skipping worker")
             return
         conn.commit()
+
+        from model.training_heartbeat import heartbeat_loop
+
+        heartbeat_stop = threading.Event()
+        lease_lost = threading.Event()
+        heartbeat_thread = threading.Thread(
+            target=heartbeat_loop,
+            kwargs={
+                "stop_event": heartbeat_stop,
+                "lease_lost_event": lease_lost,
+                "connect": psycopg2.connect,
+                "database_url": os.environ["DATABASE_URL"],
+                "run_id": run_id,
+                "interval_seconds": HEARTBEAT_INTERVAL_SECONDS,
+            },
+            name=f"piro-heartbeat-{run_id[:8]}",
+            daemon=True,
+        )
+        heartbeat_thread.start()
+
+        def _stop_heartbeat() -> None:
+            heartbeat_stop.set()
+            heartbeat_thread.join(timeout=5)
+
+        def _ensure_lease() -> None:
+            if lease_lost.is_set():
+                raise RuntimeError("training run lease was lost while the worker was running")
 
         try:
             # ── Build model ───────────────────────────────────────────────────
@@ -614,6 +643,7 @@ class Trainer:
                     train_loss = _memory_step(batch)
                 else:
                     train_loss = trainer._train_step(batch)
+                _ensure_lease()
 
                 if step % CHECKPOINT_INTERVAL_STEPS != 0 and step != max_steps:
                     continue
@@ -767,6 +797,7 @@ class Trainer:
             raise
 
         finally:
+            _stop_heartbeat()
             cur.close()
             conn.close()
 
