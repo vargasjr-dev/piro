@@ -36,13 +36,6 @@
       "when": 1785004540344,
       "tag": "0004_training_progress_observability",
       "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1785010826023,
-      "tag": "0005_pale_patch",
-      "breakpoints": true
     }
   ]
 }
