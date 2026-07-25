@@ -35,12 +35,22 @@ type DocsShellProps = {
   active?: DocsHref;
   title: string;
   description?: string;
+  compact?: boolean;
   children: React.ReactNode;
 };
 
-function DocsNavigation({ active, mobile = false }: { active?: DocsHref; mobile?: boolean }) {
+function DocsNavigation({
+  active,
+  mobile = false,
+}: {
+  active?: DocsHref;
+  mobile?: boolean;
+}) {
   return (
-    <nav aria-label="Documentation sections" className={mobile ? "space-y-5" : "space-y-7"}>
+    <nav
+      aria-label="Documentation sections"
+      className={mobile ? "space-y-5" : "space-y-7"}
+    >
       {DOCS_NAV.map((section) => (
         <div key={section.label}>
           <p className="mb-2 px-3 text-[0.68rem] font-bold uppercase tracking-[0.2em] text-amber-400/45">
@@ -75,13 +85,17 @@ export default async function DocsShell({
   active,
   title,
   description,
+  compact = false,
   children,
 }: DocsShellProps) {
   const isLoggedIn = await getPublicSessionState();
-  const activeItem = DOCS_NAV.reduce<DocsNavItem | undefined>((found, section) => {
-    if (found) return found;
-    return section.items.find((item) => item.href === active);
-  }, undefined);
+  const activeItem = DOCS_NAV.reduce<DocsNavItem | undefined>(
+    (found, section) => {
+      if (found) return found;
+      return section.items.find((item) => item.href === active);
+    },
+    undefined,
+  );
 
   return (
     <main className="min-h-screen bg-[#0d0a08] text-amber-100">
@@ -99,17 +113,25 @@ export default async function DocsShell({
             <details className="border-b border-amber-900/20 py-4 lg:hidden">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-amber-50 [&::-webkit-details-marker]:hidden">
                 <span>
-                  <span className="block text-[0.68rem] font-bold uppercase tracking-[0.2em] text-amber-400/45">Documentation</span>
-                  <span className="mt-1 block">{activeItem?.label ?? "Sections"}</span>
+                  <span className="block text-[0.68rem] font-bold uppercase tracking-[0.2em] text-amber-400/45">
+                    Documentation
+                  </span>
+                  <span className="mt-1 block">
+                    {activeItem?.label ?? "Sections"}
+                  </span>
                 </span>
-                <span aria-hidden="true" className="text-lg text-orange-300">+</span>
+                <span aria-hidden="true" className="text-lg text-orange-300">
+                  +
+                </span>
               </summary>
               <div className="pt-5 pb-2">
                 <DocsNavigation active={active} mobile />
               </div>
             </details>
 
-            <header className="border-b border-amber-900/20 py-10 lg:py-14">
+            <header
+              className={`${compact ? "py-6 lg:py-7" : "border-b border-amber-900/20 py-10 lg:py-14"}`}
+            >
               <div className="max-w-4xl">
                 <h1 className="text-4xl font-black tracking-[-0.04em] text-amber-50 sm:text-5xl">
                   {title}
@@ -122,7 +144,9 @@ export default async function DocsShell({
               </div>
             </header>
 
-            <div className="py-10 lg:py-12">{children}</div>
+            <div className={compact ? "pb-8 lg:pb-10" : "py-10 lg:py-12"}>
+              {children}
+            </div>
           </div>
         </div>
       </div>
