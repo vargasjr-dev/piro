@@ -228,6 +228,20 @@ Modal A100/H100 (on-demand)
 - Hardware trigger: buy H100 (~$25K all-in) when $50K cumulative revenue hit
 - Post-hardware: Modal inference → self-hosted inference; training stays Modal or moves home
 
+### Initial Dedicated-Model Capacity Target (July 2026)
+
+Piro's initial serving economics assume that every customer receives a **fully independent parameter set**. We are not sharing a base model or relying on LoRA/adapters for the first deployment architecture. Each model may share the same architecture and execution code, but its weights are independently owned, mutable, persisted, and loaded.
+
+The initial capacity target is:
+
+- **96 fully independent models resident on one H100 80GB**
+- **256M BF16 parameters per model** as the planning target
+- **~24.6B total resident parameters per H100** across the 96 models
+- BF16 is the canonical weight format for continual updates; FP8 execution and lower-precision serving are future optimizations, not assumptions in the base economics
+- The 96-model target is a memory-and-cost planning constraint, not a throughput guarantee; concurrent serving, update synchronization, activations, and runtime overhead still require benchmarking
+
+This deliberately favors a smaller number of high-fidelity, fully mutable parameters over a larger INT4 model whose quantized representation would complicate continual learning. The first economics model treats all 96 models as loaded simultaneously rather than relying on cold-model eviction or on-demand swapping.
+
 ### Hardware Roadmap
 | Milestone | Trigger | Move |
 |---|---|---|
