@@ -107,15 +107,15 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   weights: {
     title: "Weights",
-    subtitle: "A proposed 200M-parameter runtime layout split across INT4 base tensors, FP8 fast overlays, and BF16 dynamic state.",
+    subtitle: "A proposed 256M-parameter runtime layout split across INT4 base tensors, FP8 fast overlays, and BF16 dynamic state.",
   },
   loadWeights: {
     title: "LoadWeights",
-    subtitle: "Reads the model manifest and shards from R2, reconstructs mixed-precision tensors, and prepares the runtime weights for inference.",
+    subtitle: "Reads the model manifest and logical component objects from R2, reconstructs mixed-precision tensors, and prepares runtime weights for inference.",
   },
   saveWeights: {
     title: "SaveWeights",
-    subtitle: "Writes changed overlays and updated snapshots to versioned R2 objects without rewriting frozen base shards unnecessarily.",
+    subtitle: "Writes changed overlays and updated snapshots to versioned R2 objects without rewriting unchanged base components.",
   },
   plasticity: {
     title: "PlasticityController",
@@ -292,26 +292,26 @@ function OutputDiagram() {
 
 function LoadWeightsDiagram() {
   return (
-    <svg viewBox="0 0 1280 760" className="mx-auto block h-auto w-full min-w-[900px]" role="img" aria-label="Piro LoadWeights R2 manifest and mixed precision shard loading flow">
+    <svg viewBox="0 0 1280 760" className="mx-auto block h-auto w-full min-w-[900px]" role="img" aria-label="Piro LoadWeights R2 manifest and mixed precision component loading flow">
       <defs>
         <marker id="load-weights-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.72)" /></marker>
       </defs>
-      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">LOADWEIGHTS · R2 MANIFEST + SHARDS → RUNTIME OBJECT</text>
-      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">The manifest identifies immutable base shards, trainable overlays, formats, shapes, and byte ranges.</text>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">LOADWEIGHTS · R2 MANIFEST + LOGICAL COMPONENTS → RUNTIME OBJECT</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">At 256M parameters, the manifest can point to a few component objects; physical sharding remains optional.</text>
       <Box x={28} y={190} width={236} height={150} title="R2 bucket" detail="piro-kb / models/{modelId}/weights/" tone="orange" />
       <path d="M264 265H306" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
-      <Box x={306} y={190} width={236} height={150} title="manifest.json" detail="revision · 200M params · shard index" tone="blue" />
+      <Box x={306} y={190} width={236} height={150} title="manifest.json" detail="revision · 256M params · object index" tone="blue" />
       <path d="M542 265H584" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
-      <Box x={584} y={138} width={260} height={108} title="base-*.safetensors" detail="INT4 frozen tensors + scales" tone="blue" />
-      <Box x={584} y={278} width={260} height={108} title="overlay-*.safetensors" detail="FP8 fast plastic tensors" tone="violet" />
-      <Box x={584} y={418} width={260} height={108} title="state-*.safetensors" detail="BF16 dynamic state + traces" tone="orange" />
+      <Box x={584} y={138} width={260} height={108} title="base.safetensors" detail="~230M INT4 values + BF16 scales" tone="blue" />
+      <Box x={584} y={278} width={260} height={108} title="overlay.safetensors" detail="~20M FP8 fast plastic tensors" tone="violet" />
+      <Box x={584} y={418} width={260} height={108} title="state.safetensors" detail="~6M BF16 dynamic state + traces" tone="orange" />
       <path d="M844 192H900V265H936" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
       <path d="M844 332H900V265H936" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
       <path d="M844 472H900V265H936" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
       <Box x={936} y={190} width={300} height={150} title="Decode + dequantize" detail="INT4 → BF16 compute tensors; attach FP8 overlays" tone="blue" />
       <path d="M1086 340V420" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
       <Box x={936} y={420} width={300} height={150} title="runtime weights" detail="base + overlay + BF16 state" tone="green" />
-      <text x="28" y="660" fill="rgb(253 230 138 / 0.62)" fontSize="13">LoadWeights reads R2 objects through the existing S3-compatible bucket layer; a bad manifest or shard returns an explicit LoadError before inference.</text>
+      <text x="28" y="660" fill="rgb(253 230 138 / 0.62)" fontSize="13">R2 guidance: use one PUT below roughly 100 MB; use multipart above that or when resumability and parallel transfer matter. Multipart parts are not model shards.</text>
     </svg>
   );
 }
@@ -323,7 +323,7 @@ function SaveWeightsDiagram() {
         <marker id="save-weights-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
       </defs>
       <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">SAVEWEIGHTS · CHANGED GROUPS → VERSIONED R2 OBJECTS</text>
-      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Plasticity updates overlays frequently; durable INT4 base shards change only during explicit consolidation or retraining.</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Plasticity updates overlays frequently; durable INT4 base components change only during explicit consolidation or retraining.</text>
       <Box x={28} y={166} width={230} height={150} title="changed groups" detail="FP8 fast overlay + BF16 traces" tone="green" />
       <path d="M258 241H304" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
       <Box x={304} y={166} width={230} height={150} title="delta / overlay encode" detail="sparse changed tensors + scales" tone="violet" />
@@ -337,31 +337,31 @@ function SaveWeightsDiagram() {
       <Box x={304} y={454} width={230} height={150} title="durable consolidation" detail="merge overlay into base later" tone="orange" />
       <path d="M534 529H650V365H650" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
       <Box x={650} y={454} width={260} height={150} title="LoadWeights()" detail="next inference follows current pointer" tone="blue" />
-      <text x="28" y="700" fill="rgb(253 230 138 / 0.62)" fontSize="13">If only the overlay changed, SaveWeights writes the overlay and manifest, not 200M base parameters.</text>
+      <text x="28" y="700" fill="rgb(253 230 138 / 0.62)" fontSize="13">If only the overlay changed, SaveWeights writes the overlay object and manifest, not the ~230M-parameter base object.</text>
     </svg>
   );
 }
 
 function WeightsDiagram() {
   return (
-    <svg viewBox="0 0 1280 860" className="mx-auto block h-auto w-full min-w-[900px]" role="img" aria-label="Piro 200 million parameter mixed precision weight layout">
+    <svg viewBox="0 0 1280 860" className="mx-auto block h-auto w-full min-w-[900px]" role="img" aria-label="Piro 256 million parameter mixed precision weight layout">
       <defs>
         <marker id="weights-schema-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
       </defs>
-      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">WEIGHTS · PROPOSED 200M PARAMETER LAYOUT</text>
-      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">The exact split is a design target, but the storage contract makes ownership and precision visible.</text>
-      <Box x={36} y={170} width={260} height={166} title="~200M parameters" detail="manifest tracks group counts, dtype, shape, and shard offsets" tone="green" />
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">WEIGHTS · PROPOSED 256M PARAMETER LAYOUT</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">At this size, use a manifest plus a few logical component objects; do not require one physical shard per tensor group.</text>
+      <Box x={36} y={170} width={260} height={166} title="~256M parameters" detail="manifest tracks counts, dtype, shape, object key, and ownership" tone="green" />
       <path d="M296 253H350" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
-      <Box x={350} y={120} width={360} height={150} title="INT4 base · ~180M" detail="frozen after pretraining; 4-bit values + per-group BF16 scales" tone="blue" />
-      <Box x={350} y={320} width={360} height={150} title="FP8 fast overlay · ~15M" detail="plastic low-rank / sparse deltas updated online" tone="violet" />
-      <Box x={350} y={520} width={360} height={150} title="BF16 state + heads · ~5M" detail="dynamic recurrent, normalization, output, and optimizer-facing tensors" tone="orange" />
+      <Box x={350} y={120} width={360} height={150} title="INT4 base · ~230M" detail="frozen after pretraining; 4-bit values + per-group BF16 scales" tone="blue" />
+      <Box x={350} y={320} width={360} height={150} title="FP8 fast overlay · ~20M" detail="plastic low-rank / sparse deltas updated online" tone="violet" />
+      <Box x={350} y={520} width={360} height={150} title="BF16 state + heads · ~6M" detail="dynamic recurrent, normalization, output, and eligibility tensors" tone="orange" />
       <path d="M710 195H770V253H824" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
       <path d="M710 395H770V253H824" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
       <path d="M710 595H770V253H824" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
       <Box x={824} y={170} width={410} height={166} title="method ownership" detail="attention projections · state update · embedding · output · plasticity" tone="orange" />
-      <Box x={824} y={390} width={410} height={166} title="storage representation" detail="INT4 base shards · FP8 overlay shards · BF16 state shards" tone="blue" />
-      <Box x={824} y={610} width={410} height={166} title="runtime representation" detail="dequantized BF16 compute + FP8 overlay application" tone="green" />
-      <text x="36" y="800" fill="rgb(253 230 138 / 0.62)" fontSize="13">Rough storage: 180M × 0.5 bytes + 15M × 1 byte + 5M × 2 bytes ≈ 110 MB before scales, metadata, and optimizer state.</text>
+      <Box x={824} y={390} width={410} height={166} title="logical objects" detail="base.safetensors · overlay.safetensors · state.safetensors" tone="orange" />
+      <Box x={824} y={610} width={410} height={166} title="optional physical sharding" detail="multipart upload or extra shards for larger / resumable transfers" tone="blue" />
+      <text x="36" y="800" fill="rgb(253 230 138 / 0.62)" fontSize="13">Rough storage: 230M × 0.5 bytes + 20M × 1 byte + 6M × 2 bytes ≈ 141 MB before scales, metadata, and optimizer state.</text>
     </svg>
   );
 }
@@ -383,7 +383,7 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   residual: { input: "hₖ + deltaₖ + weights", output: "hₖ₊₁", relation: "computes hₖ + gateₖ · deltaₖ", tone: "green" },
   history: { input: "historyₖ + hₖ₊₁ + x + k", output: "historyₖ₊₁", relation: "records state, input, and tick metadata", tone: "blue" },
   shouldHalt: { input: "hₖ₊₁ + k + budget", output: "continue / exit", relation: "controls the recurrent loop or returns outputₖ", tone: "orange" },
-  loadWeights: { input: "R2 manifest + INT4/FP8/BF16 shards", output: "runtime weights", relation: "reads, decodes, combines, and returns the mixed-precision parameter object", tone: "blue" },
+  loadWeights: { input: "R2 manifest + INT4/FP8/BF16 components", output: "runtime weights", relation: "reads, decodes, combines, and returns the mixed-precision parameter object", tone: "blue" },
   saveWeights: { input: "changed overlays + revision", output: "versioned R2 snapshot", relation: "writes only the changed representation and publishes a new manifest pointer", tone: "blue" },
   plasticity: { input: "state + history + current input", output: "fast overlay + durable update", relation: "uses future-input prediction error and eligibility to update selected parameter groups", tone: "orange" },
 };
@@ -602,35 +602,30 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
     shouldHalt: line(<>{keyword("if")} {call("ShouldHalt", "shouldHalt")}hₖ₊₁, k):</>),
     weights: <>
       {line(<>{variable("weights")} = {"{"}</>)}
-      {line(<>    formatVersion: 1,</>)}
       {line(<>    revision: integer,</>)}
-      {line(<>    parameterCount: 200_000_000,</>)}
+      {line(<>    parameterCount: 256_000_000,</>)}
       {line(<>    architecture: {"{"} modelWidth, headCount, stateWidth, inputWidth, contextWidth {"}"},</>)}
       {line(<>    storage: {"{"}</>)}
       {line(<>        provider: R2, bucket: "piro-kb", prefix: "models/&#123;modelId&#125;/weights/"</>)}
       {line(<>    {"}"},</>)}
-      {line(<>    base: {"{"} format: INT4, parameters: 180_000_000, shards: [...], scales: BF16 {"}"},</>)}
-      {line(<>    fastOverlay: {"{"} format: FP8, parameters: 15_000_000, sparseOrLowRank: true {"}"},</>)}
-      {line(<>    dynamicState: {"{"} format: BF16, parameters: 5_000_000, eligibility, normalization, heads {"}"}</>)}
+      {line(<>    base: {"{"} format: INT4, parameters: 230_000_000, object: "base.safetensors", scales: BF16 {"}"},</>)}
+      {line(<>    fastOverlay: {"{"} format: FP8, parameters: 20_000_000, object: "overlay.safetensors", sparseOrLowRank: true {"}"},</>)}
+      {line(<>    dynamicState: {"{"} format: BF16, parameters: 6_000_000, object: "state.safetensors", eligibility, normalization, heads {"}"}</>)}
       {line(<>{"}"}</>)}
       {line(<>Linear tensor convention: W = [outDim, inDim], b = [outDim]</>)}
-      {line(<>The manifest also stores dtype, shape, shard, byte range, scale, and owner method</>)}
+      {line(<>The manifest also stores dtype, shape, object key, optional byte range, scale, and owner method</>)}
     </>,
     loadWeights: <>
       {line(<>{call("LoadWeights", "loadWeights")}():</>)}
       {line(<>    manifest = R2Get("models/&#123;modelId&#125;/weights/current/manifest.json")</>)}
-      {line(<>    if manifest is missing:</>)}
-      {line(<>        return Error("weights manifest not found")</>)}
-      {line(<>    if manifest.formatVersion != 1:</>)}
-      {line(<>        return Error("unsupported weight manifest version")</>)}
-      {line(<>    for each shard in manifest.shards:</>)}
-      {line(<>        bytes = R2Get(shard.key, shard.byteRange)</>)}
-      {line(<>        if Hash(bytes) != shard.checksum:</>)}
-      {line(<>            return Error("weight shard checksum mismatch")</>)}
-      {line(<>        tensor = Decode(bytes, shard.format, shard.shape, shard.scales)</>)}
+      {line(<>    for each component in manifest.components:</>)}
+      {line(<>        bytes = R2Get(component.key, component.byteRange)</>)}
+      {line(<>        if Hash(bytes) != component.checksum:</>)}
+      {line(<>            return Error("weight object checksum mismatch")</>)}
+      {line(<>        tensor = Decode(bytes, component.format, component.shape, component.scales)</>)}
       {line(<>        if tensor is missing or shape is incompatible:</>)}
-      {line(<>            return Error("weight shard cannot reconstruct declared tensor")</>)}
-      {line(<>        runtime[shard.owner][shard.name] = ToBF16ComputeTensor(tensor)</>)}
+      {line(<>            return Error("weight object cannot reconstruct declared tensor")</>)}
+      {line(<>        runtime[component.owner][component.name] = ToBF16ComputeTensor(tensor)</>)}
       {line(<>    return AttachFastOverlay(runtime)</>)}
     </>,
     saveWeights: <>
@@ -641,12 +636,12 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
       {line(<>    revision = ReadCurrentRevision() + 1</>)}
       {line(<>    for each group in changed:</>)}
       {line(<>        if group.owner == "plasticity.fastOverlay":</>)}
-      {line(<>            shard = Encode(group, format = FP8, scales = BF16)</>)}
+      {line(<>            component = Encode(group, format = FP8, scales = BF16)</>)}
       {line(<>        else if group.owner == "durable.base":</>)}
-      {line(<>            shard = Quantize(group, format = INT4, scales = BF16)</>)}
+      {line(<>            component = Quantize(group, format = INT4, scales = BF16)</>)}
       {line(<>        else:</>)}
-      {line(<>            shard = Encode(group, format = BF16)</>)}
-      {line(<>        R2Put("models/&#123;modelId&#125;/weights/revisions/&#123;revision&#125;/" + shard.name, shard.bytes)</>)}
+      {line(<>            component = Encode(group, format = BF16)</>)}
+      {line(<>        R2Put("models/&#123;modelId&#125;/weights/revisions/&#123;revision&#125;/" + component.name, component.bytes)</>)}
       {line(<>    manifest = BuildManifest(revision, changed, parentRevision)</>)}
       {line(<>    R2Put("models/&#123;modelId&#125;/weights/revisions/&#123;revision&#125;/manifest.json", manifest)</>)}
       {line(<>    R2Put("models/&#123;modelId&#125;/weights/current/manifest.json", manifest)</>)}
@@ -700,9 +695,9 @@ const explanations: Partial<Record<DiagramKind, { doing: string; why: string }>>
   history: { doing: "Appends the new state together with x and tick k so future retrieval can recover content and age.", why: "History is both the state trajectory and the source of Attention’s timestamped memory slots." },
   output: { doing: "Reads the final recurrent state into the externally returned output.", why: "The outside world needs a stable output boundary after the internal loop halts." },
   shouldHalt: { doing: "Evaluates the current state and tick against the continuation budget and decides whether the loop exits.", why: "Adaptive computation lets Piro spend more recurrent steps when the state has not converged." },
-  weights: { doing: "Defines a proposed 200M-parameter runtime object: about 180M INT4 base parameters, 15M FP8 fast-overlay parameters, and 5M BF16 dynamic state, with every tensor assigned to an owning method.", why: "The model needs a concrete mixed-precision storage contract so compression, online adaptation, and runtime reconstruction are reviewable rather than hidden inside one blob." },
-  loadWeights: { doing: "Reads models/{modelId}/weights/current/manifest.json from the piro-kb R2 bucket, fetches the listed INT4, FP8, and BF16 shards, checks checksums and shapes, dequantizes base tensors for BF16 compute, and attaches fast overlays.", why: "Inference must never start from a missing, incompatible, corrupt, or partially reconstructable parameter set; the failure path returns before the recurrent loop." },
-  saveWeights: { doing: "Diffs the active runtime object against the loaded manifest, encodes changed fast overlays as FP8, encodes dynamic state as BF16, re-quantizes durable base changes as INT4 only during consolidation, and publishes a versioned R2 manifest.", why: "Plasticity should not rewrite 200M frozen base parameters on every interaction; the next inference sees a complete new revision only after its changed objects and manifest are published." },
+  weights: { doing: "Defines a proposed 256M-parameter runtime object: about 230M INT4 base parameters, 20M FP8 fast-overlay parameters, and 6M BF16 dynamic state, with every tensor assigned to an owning method and logical object.", why: "The model needs a concrete mixed-precision storage contract so compression, online adaptation, and runtime reconstruction are reviewable rather than hidden inside one blob." },
+  loadWeights: { doing: "Reads models/{modelId}/weights/current/manifest.json from the piro-kb R2 bucket, follows its logical base, overlay, and state objects, checks checksums and shapes, dequantizes base tensors for BF16 compute, and attaches fast overlays.", why: "A 256M mixed-precision model fits comfortably below R2's single-upload and per-object limits; the manifest still gives us revision and ownership semantics without forcing physical sharding." },
+  saveWeights: { doing: "Diffs the active runtime object against the loaded manifest, encodes changed fast overlays as FP8, encodes dynamic state as BF16, re-quantizes durable base changes as INT4 only during consolidation, and publishes a versioned R2 manifest. Multipart upload is available for large or resumable component transfers.", why: "Plasticity should not rewrite the ~230M-parameter base object on every interaction; R2's storage capacity is not the constraint here, while write volume and operation cost are." },
   plasticity: { doing: "Compares later input against unresolved earlier predictions, multiplies prediction error by novelty and eligibility, updates selected FP8 overlay groups, and periodically moves stable evidence into durable base weights.", why: "Human-like learning can assign credit from future consequences and local surprise without requiring one global reward function for every interaction." },
 };
 function MethodExplanation({ kind }: { kind: DiagramKind }) {

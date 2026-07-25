@@ -29,12 +29,34 @@ persists the changed weight groups before each completed inference returns.
 
 The current storage target is the existing S3-compatible object layer used by Piro:
 R2 bucket `piro-kb`, under `models/{modelId}/weights/`. A committed revision has a
-manifest plus mixed-precision shards: approximately 180M frozen INT4 base
-parameters, 15M FP8 fast-overlay parameters, and 5M BF16 dynamic state and heads.
-The manifest records dtype, shape, shard key, byte range, scale, checksum, and the
-method that owns each tensor. This is an architecture target; the existing
-repository storage boundary is real, while the model-specific shard serializer is
-still to be implemented.
+manifest plus three logical component objects: approximately 230M frozen INT4 base
+parameters, 20M FP8 fast-overlay parameters, and 6M BF16 dynamic state and heads.
+That is roughly 141 MB before scales, metadata, and optimizer state. At this size,
+physical sharding is optional: one object per logical component is enough, while
+multipart upload remains useful for resumability or parallel transfer. The manifest
+records dtype, shape, object key, byte range, scale, checksum, and the method that
+owns each tensor. This is an architecture target; the existing repository storage
+boundary is real, while the model-specific serializer is still to be implemented.
+
+R2 reports unlimited data storage per bucket, unlimited objects per bucket, and a
+5 TiB maximum object size. A single-part upload is capped at 4.995 GiB;
+multipart upload supports uploads up to 4.995 TiB with up to 10,000 parts. R2
+recommends simple PUTs for objects below roughly 100 MB and multipart uploads for
+larger objects or when resumability and parallel transfer matter. Therefore a
+256M Piro model is not being sharded because R2 cannot hold it. Its ~115 MB INT4
+base component may use multipart transfer, but those multipart parts are not
+model-level shards. We use logical components for selective updates, and add
+physical shards only when transfer behavior or future model size makes them
+worthwhile.
+
+This is not an infinite free disk. Standard R2 storage is billed per GB-month,
+Class A writes and Class B reads are billed per million operations, and egress is
+free. At roughly 141 MB per current model revision, 1,000 retained revisions are
+about 141 GB of storage, before request costs and older revisions. The practical
+model count in one bucket is therefore governed by retained revisions, write/read
+volume, and the storage budget—not by a bucket object-count limit. The account can
+create up to 1,000,000 buckets, but Piro should keep one bucket and namespace
+models by prefix until isolation or operational policy requires otherwise.
 
 ## Pseudocode method contracts
 
