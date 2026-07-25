@@ -8,6 +8,7 @@ import {
   trainingRun,
 } from "../../../../../data/schema";
 import { eq, and } from "drizzle-orm";
+import { deriveLiveTrainingMetrics } from "~/lib/training-run-metrics";
 
 export async function PATCH(
   _request: Request,
@@ -100,6 +101,7 @@ export async function GET(
           queuedAt: run.queuedAt.toISOString(),
           startedAt: run.startedAt?.toISOString() ?? null,
           completedAt: run.completedAt?.toISOString() ?? null,
+          ...deriveLiveTrainingMetrics(run),
         }
       : null,
     hostedApi: hostedApi

@@ -36,7 +36,9 @@ export async function GET(request: Request) {
     .limit(50);
 
   const reconciled = await Promise.all(runs.map(reconcileStaleTrainingRun));
-  return Response.json({ runs: reconciled.map(serializeTrainingRun) });
+  return Response.json({
+    runs: reconciled.map((run) => serializeTrainingRun(run)),
+  });
 }
 
 // ── POST /api/training-runs ───────────────────────────────────────────────────

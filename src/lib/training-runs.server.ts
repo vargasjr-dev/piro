@@ -4,6 +4,7 @@ import { auth } from "~/lib/auth.server";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
 import { db } from "../../data/db";
 import { trainingRun } from "../../data/schema";
+import { deriveLiveTrainingMetrics } from "./training-run-metrics";
 
 export { reconcileStaleTrainingRun } from "./training-run-observability.server";
 
@@ -20,7 +21,11 @@ export async function resolveTrainingRunUserId(
   return session?.user.id ?? null;
 }
 
-export function serializeTrainingRun(run: typeof trainingRun.$inferSelect) {
+export function serializeTrainingRun(
+  run: typeof trainingRun.$inferSelect,
+  now = new Date(),
+) {
+  const liveMetrics = deriveLiveTrainingMetrics(run, now);
   return {
     id: run.id,
     modelName: run.modelName,
@@ -35,6 +40,7 @@ export function serializeTrainingRun(run: typeof trainingRun.$inferSelect) {
     stepHistoryJson: run.stepHistoryJson,
     currentStep: run.currentStep,
     progressJson: run.progressJson,
+    ...liveMetrics,
     error: run.error,
     heartbeatAt: run.heartbeatAt?.toISOString() ?? null,
     timeoutAt: run.timeoutAt?.toISOString() ?? null,
