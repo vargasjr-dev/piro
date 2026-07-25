@@ -104,6 +104,10 @@ write, distractor, and query boundaries when the dataset is
 
 ### Deploy to the platform
 
+Create a stateful deployment record for one of your models. Runtime placement
+(for example, assigning an H100) is intentionally not part of this command yet.
+Admins can pass `--admin` to publish an admin/global deployment.
+
 ```bash
 # Save your API key
 piro login
@@ -116,6 +120,12 @@ piro classes push <class-id> --file model.py
 
 # Train an architecture through the platform CLI.
 piro architecture train ctm --dataset <dataset-id> --max-steps 5000
+
+# Create a private deployment for a model owned by the current API key.
+piro models deploy <model-id>
+
+# Admins can create a shared/global deployment.
+piro models deploy <model-id> --admin
 
 # Run the dedicated stateful persistent-memory benchmark
 python model/run_persistent_memory.py --episodes 200 --delay 8 --writes 3

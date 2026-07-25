@@ -6,6 +6,7 @@
  *   piro classes serialize <id> [--bust]
  *   piro classes pull <id> [--out <file>]
  *   piro classes push <id> [--file <file>]
+ *   piro models deploy <model-id> [--admin]
  *
  * Auth:
  *   PIRO_API_KEY=<key>  (required)
@@ -37,6 +38,7 @@ import {
   trainingGet,
   trainingList,
 } from "./commands/training.js";
+import { modelsDeploy } from "./commands/models.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -79,6 +81,7 @@ function usage(msg?: string): never {
   console.error("  piro benchmarks eval <name>");
   console.error("  piro evals list");
   console.error("  piro evals get <id>");
+  console.error("  piro models deploy <model-id> [--admin]");
   console.error("  piro training list");
   console.error("  piro training get <id>");
   console.error(
@@ -192,6 +195,19 @@ switch (subject) {
       }
       default:
         usage(`unknown evals verb: ${verb}`);
+    }
+    break;
+
+  case "models":
+    switch (verb) {
+      case "deploy": {
+        const modelId = arg(rest, 0);
+        if (!modelId) usage("model id is required");
+        await modelsDeploy(modelId, { admin: flag(rest, "admin") });
+        break;
+      }
+      default:
+        usage(`unknown models verb: ${verb}`);
     }
     break;
 
