@@ -5,7 +5,7 @@ export const metadata = {
   description: "Run a pretrained Piro model through the inference API.",
 };
 
-const requestExample = `curl https://api.trainpiro.app/models/your-model/invoke \\
+const requestExample = `curl https://trainpiro.app/api/models/your-model/invoke \\
   -H "Authorization: Bearer $PIRO_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
