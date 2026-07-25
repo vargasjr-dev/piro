@@ -10,9 +10,7 @@ export default function DocsPage() {
   return (
     <DocsShell
       active="/docs"
-      eyebrow="Piro platform documentation"
       title="Build models that keep becoming."
-      description="Piro is infrastructure for training and serving small, stateful models. Start with a quick experiment, then follow the model from training to API."
     >
       <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
         <section className="rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-500/10 via-[#17100b] to-[#100b08] p-7 shadow-[0_0_80px_rgba(249,115,22,0.08)] sm:p-10">

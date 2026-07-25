@@ -33,9 +33,8 @@ export async function getPublicSessionState() {
 
 type DocsShellProps = {
   active?: DocsHref;
-  eyebrow?: string;
   title: string;
-  description: string;
+  description?: string;
   children: React.ReactNode;
 };
 
@@ -74,7 +73,6 @@ function DocsNavigation({ active, mobile = false }: { active?: DocsHref; mobile?
 
 export default async function DocsShell({
   active,
-  eyebrow,
   title,
   description,
   children,
@@ -113,17 +111,14 @@ export default async function DocsShell({
 
             <header className="border-b border-amber-900/20 py-10 lg:py-14">
               <div className="max-w-4xl">
-                {eyebrow && (
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-400">
-                    {eyebrow}
-                  </p>
-                )}
-                <h1 className="mt-3 text-4xl font-black tracking-[-0.04em] text-amber-50 sm:text-5xl">
+                <h1 className="text-4xl font-black tracking-[-0.04em] text-amber-50 sm:text-5xl">
                   {title}
                 </h1>
-                <p className="mt-4 max-w-3xl text-base leading-relaxed text-amber-200/60 sm:text-lg">
-                  {description}
-                </p>
+                {description && (
+                  <p className="mt-4 max-w-3xl text-base leading-relaxed text-amber-200/60 sm:text-lg">
+                    {description}
+                  </p>
+                )}
               </div>
             </header>
 
