@@ -369,6 +369,24 @@ export const model = pgTable(
 );
 
 /**
+ * A physical inference worker. Nodes are registered by the future runtime
+ * control plane and considered online while their heartbeat is fresh.
+ */
+export const inferenceNode = pgTable(
+  "inference_node",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    gpuType: text("gpuType").notNull(),
+    lastHeartbeatAt: timestamp("lastHeartbeatAt"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [
+    index("inference_node_gpu_heartbeat").on(t.gpuType, t.lastHeartbeatAt),
+  ],
+);
+
+/**
  * A hosted model deployment. Deployments are the user-visible stateful
  * inference targets; the model row holds the underlying model metadata.
  *
@@ -387,12 +405,16 @@ export const deployment = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     isAdmin: boolean("isAdmin").notNull().default(false),
     enabled: boolean("enabled").notNull().default(true),
+    nodeId: text("nodeId").references(() => inferenceNode.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
   (t) => [
     index("deployment_creator_enabled").on(t.createdByUserId, t.enabled),
     index("deployment_admin_enabled").on(t.isAdmin, t.enabled),
+    index("deployment_node").on(t.nodeId),
   ],
 );
 

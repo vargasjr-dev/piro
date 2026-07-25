@@ -6,7 +6,7 @@
  *   piro classes serialize <id> [--bust]
  *   piro classes pull <id> [--out <file>]
  *   piro classes push <id> [--file <file>]
- *   piro models deploy <model-id> [--admin]
+ *   piro models deploy <model-id>
  *
  * Auth:
  *   PIRO_API_KEY=<key>  (required)
@@ -81,7 +81,7 @@ function usage(msg?: string): never {
   console.error("  piro benchmarks eval <name>");
   console.error("  piro evals list");
   console.error("  piro evals get <id>");
-  console.error("  piro models deploy <model-id> [--admin]");
+  console.error("  piro models deploy <model-id>");
   console.error("  piro training list");
   console.error("  piro training get <id>");
   console.error(
@@ -203,7 +203,7 @@ switch (subject) {
       case "deploy": {
         const modelId = arg(rest, 0);
         if (!modelId) usage("model id is required");
-        await modelsDeploy(modelId, { admin: flag(rest, "admin") });
+        await modelsDeploy(modelId);
         break;
       }
       default:

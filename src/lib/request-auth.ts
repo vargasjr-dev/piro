@@ -1,11 +1,12 @@
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
+import { isAdmin } from "~/lib/admin";
 import { auth } from "~/lib/auth.server";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
 import { db } from "../../data/db";
 import { user } from "../../data/schema";
 
-export async function resolveDeploymentAuth(
+export async function resolveRequestAuth(
   request: Request,
 ): Promise<{ userId: string; isAdmin: boolean } | null> {
   const bearer = extractBearer(request);
@@ -26,6 +27,6 @@ export async function resolveDeploymentAuth(
   if (!session) return null;
   return {
     userId: session.user.id,
-    isAdmin: (session.user as { role?: string }).role === "admin",
+    isAdmin: isAdmin(session),
   };
 }

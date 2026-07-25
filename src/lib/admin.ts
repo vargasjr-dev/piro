@@ -9,17 +9,21 @@
  * can exercise the full payment flow without touching live billing.
  */
 
+import { z } from "zod";
 import type { auth } from "./auth.server";
 
 type Session = Awaited<ReturnType<typeof auth.api.getSession>>;
-type User = NonNullable<Session>["user"];
-
 export function isAdmin(session: Session): boolean {
   if (!session?.user) return false;
-  return (session.user as User & { role?: string }).role === "admin";
+  const parsed = z
+    .object({ role: z.string().optional() })
+    .safeParse(session.user);
+  return parsed.success && parsed.data.role === "admin";
 }
 
-export function requireAdmin(session: Session): asserts session is NonNullable<Session> {
+export function requireAdmin(
+  session: Session,
+): asserts session is NonNullable<Session> {
   if (!isAdmin(session)) {
     throw new Error("Forbidden: admin access required");
   }

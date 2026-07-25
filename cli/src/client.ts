@@ -42,7 +42,9 @@ export async function piroFetch(
   let body: unknown;
   const ct = res.headers.get("content-type") ?? "";
   try {
-    body = ct.includes("application/json") ? await res.json() : await res.text();
+    body = ct.includes("application/json")
+      ? await res.json()
+      : await res.text();
   } catch {
     body = null;
   }

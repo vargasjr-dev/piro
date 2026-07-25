@@ -1,8 +1,13 @@
 import { piroFetch, resolveConfig } from "../client.js";
+import { errorMessage, evaluationSchema } from "../response-schemas.js";
+import { z } from "zod";
+
+const evalListResponseSchema = z.object({
+  evals: z.array(evaluationSchema),
+});
 
 function fail(status: number, body: unknown, fallback: string): never {
-  const error = body as Record<string, unknown> | null;
-  console.error(`Error ${status}: ${error?.error ?? fallback}`);
+  console.error(`Error ${status}: ${errorMessage(body, fallback)}`);
   process.exit(1);
 }
 
@@ -11,8 +16,10 @@ export async function evalsList(): Promise<void> {
   const response = await piroFetch(config, "/api/evals");
   if (!response.ok)
     fail(response.status, response.body, "evaluation listing failed");
-  const evals = (response.body as { evals: Array<Record<string, unknown>> })
-    .evals;
+  const parsed = evalListResponseSchema.safeParse(response.body);
+  if (!parsed.success)
+    fail(502, response.body, "evaluation listing response was invalid");
+  const evals = parsed.data.evals;
   if (evals.length === 0) {
     console.log("No evaluations found.");
     return;
@@ -21,26 +28,24 @@ export async function evalsList(): Promise<void> {
     "ID  STATUS  BENCHMARK  QUEUED_AT  COMPLETED_AT  COST_USD  RUNTIME_MS  TOKENS_IN/OUT",
   );
   for (const evaluation of evals) {
-    const benchmarks = Array.isArray(evaluation.benchmarks)
-      ? evaluation.benchmarks.join(",")
-      : "-";
+    const benchmarks = evaluation.benchmarks?.join(",") ?? "-";
+    const tokens =
+      evaluation.results
+        ?.map(
+          (result) =>
+            `${result.target ?? "?"}:${result.inputTokens ?? "—"}/${result.outputTokens ?? "—"}`,
+        )
+        .join(",") ?? "—";
     console.log(
       [
-        evaluation.id,
-        evaluation.status,
+        evaluation.id ?? "?",
+        evaluation.status ?? "?",
         benchmarks,
-        evaluation.queuedAt,
+        evaluation.queuedAt ?? "-",
         evaluation.completedAt ?? "-",
         Number(evaluation.totalCostUsd ?? 0).toFixed(6),
         evaluation.totalDurationMs ?? 0,
-        Array.isArray(evaluation.results)
-          ? evaluation.results
-              .map((result) => {
-                const item = result as Record<string, unknown>;
-                return `${item.target ?? "?"}:${item.inputTokens ?? "—"}/${item.outputTokens ?? "—"}`;
-              })
-              .join(",")
-          : "—",
+        tokens,
       ].join("  "),
     );
   }
@@ -54,16 +59,15 @@ export async function evalsGet(id: string): Promise<void> {
   );
   if (!response.ok)
     fail(response.status, response.body, "evaluation lookup failed");
-  const evaluation = response.body as {
-    results?: Array<Record<string, unknown>>;
-    summary?: { totalCostUsd?: number; totalDurationMs?: number };
-  };
+  const parsed = evaluationSchema.safeParse(response.body);
+  if (!parsed.success)
+    fail(502, response.body, "evaluation response was invalid");
   console.log(
     JSON.stringify(
       {
         id,
-        results: evaluation.results ?? [],
-        summary: evaluation.summary ?? {},
+        results: parsed.data.results ?? [],
+        summary: parsed.data.summary ?? {},
       },
       null,
       2,

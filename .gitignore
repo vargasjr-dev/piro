@@ -34,3 +34,7 @@ tsconfig.tsbuildinfo
 *.tfplan
 .terraformrc
 terraform.rc
+
+# Drizzle migrations are generated and applied by GitHub Actions.
+drizzle/*.sql
+drizzle/meta/

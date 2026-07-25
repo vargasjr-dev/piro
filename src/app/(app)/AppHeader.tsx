@@ -68,19 +68,6 @@ function TopRightLinks({
 
   return (
     <div className="flex items-center gap-1 shrink-0">
-      {isAdmin && (
-        <Link
-          href="/admin"
-          aria-label="Admin"
-          className={`p-2 rounded-lg transition-colors ${
-            adminActive
-              ? "bg-orange-500/15 text-orange-400"
-              : "text-amber-400/50 hover:text-amber-200 hover:bg-amber-900/20"
-          }`}
-        >
-          {ADMIN_ICON}
-        </Link>
-      )}
       <Link
         href="/models"
         aria-label="Models"
@@ -103,6 +90,19 @@ function TopRightLinks({
       >
         {PROFILE_ICON}
       </Link>
+      {isAdmin && (
+        <Link
+          href="/admin"
+          aria-label="Admin"
+          className={`p-2 rounded-lg transition-colors ${
+            adminActive
+              ? "bg-orange-500/15 text-orange-400"
+              : "text-amber-400/50 hover:text-amber-200 hover:bg-amber-900/20"
+          }`}
+        >
+          {ADMIN_ICON}
+        </Link>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { piroFetch, resolveConfig } from "../client.js";
+import { errorMessage } from "../response-schemas.js";
 
 const TRAINING_DEADLINE_SECONDS = 3000;
 const GPU_RATE_USD_PER_SECOND: Record<string, number> = {
@@ -19,8 +20,7 @@ type EstimateOptions = {
 };
 
 function fail(status: number, body: unknown, fallback: string): never {
-  const error = body as Record<string, unknown> | null;
-  console.error(`Error ${status}: ${error?.error ?? fallback}`);
+  console.error(`Error ${status}: ${errorMessage(body, fallback)}`);
   process.exit(1);
 }
 

@@ -31,6 +31,6 @@ export async function setDeploymentEnabled(formData: FormData) {
     })
     .where(and(eq(deployment.id, deploymentId), eq(deployment.isAdmin, true)));
 
-  revalidatePath("/admin");
+  revalidatePath("/admin/deployments");
   revalidatePath("/models");
 }
