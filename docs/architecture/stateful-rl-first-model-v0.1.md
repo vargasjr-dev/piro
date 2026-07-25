@@ -31,7 +31,7 @@ The current storage target is the existing S3-compatible object layer used by Pi
 R2 bucket `piro-kb`, under `models/{modelId}/weights/`. A committed revision has a
 manifest plus three logical component objects: approximately 230M frozen INT4 base
 parameters, 20M FP8 fast-overlay parameters, and 6M BF16 dynamic state and heads.
-That is roughly 141 MB before scales, metadata, and optimizer state. At this size,
+That is roughly 147 MB before scales, metadata, and optimizer state. At this size,
 physical sharding is optional: one object per logical component is enough, while
 multipart upload remains useful for resumability or parallel transfer. The manifest
 records dtype, shape, object key, byte range, scale, checksum, and the method that
@@ -51,8 +51,8 @@ worthwhile.
 
 This is not an infinite free disk. Standard R2 storage is billed per GB-month,
 Class A writes and Class B reads are billed per million operations, and egress is
-free. At roughly 141 MB per current model revision, 1,000 retained revisions are
-about 141 GB of storage, before request costs and older revisions. The practical
+free. At roughly 147 MB per current model revision, 1,000 retained revisions are
+about 147 GB of storage, before request costs and older revisions. The practical
 model count in one bucket is therefore governed by retained revisions, write/read
 volume, and the storage budget—not by a bucket object-count limit. The account can
 create up to 1,000,000 buckets, but Piro should keep one bucket and namespace

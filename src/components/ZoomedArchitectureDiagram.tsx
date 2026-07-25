@@ -361,7 +361,7 @@ function WeightsDiagram() {
       <Box x={824} y={170} width={410} height={166} title="method ownership" detail="attention projections · state update · embedding · output · plasticity" tone="orange" />
       <Box x={824} y={390} width={410} height={166} title="logical objects" detail="base.safetensors · overlay.safetensors · state.safetensors" tone="orange" />
       <Box x={824} y={610} width={410} height={166} title="optional physical sharding" detail="multipart upload or extra shards for larger / resumable transfers" tone="blue" />
-      <text x="36" y="800" fill="rgb(253 230 138 / 0.62)" fontSize="13">Rough storage: 230M × 0.5 bytes + 20M × 1 byte + 6M × 2 bytes ≈ 141 MB before scales, metadata, and optimizer state.</text>
+      <text x="36" y="800" fill="rgb(253 230 138 / 0.62)" fontSize="13">Rough storage: 230M × 0.5 bytes + 20M × 1 byte + 6M × 2 bytes ≈ 147 MB before scales, metadata, and optimizer state.</text>
     </svg>
   );
 }
