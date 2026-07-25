@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "../../../../data/db";
-import { model, user } from "../../../../data/schema";
+import { deployment, model } from "../../../../data/schema";
 
 type ModelRow = {
   id: string;
@@ -41,7 +41,13 @@ function ModelIcon({ global = false }: { global?: boolean }) {
   );
 }
 
-function ModelCard({ model: item, global = false }: { model: ModelRow; global?: boolean }) {
+function ModelCard({
+  model: item,
+  global = false,
+}: {
+  model: ModelRow;
+  global?: boolean;
+}) {
   const ready = Boolean(item.inferenceEndpoint && item.weightsR2Key);
 
   return (
@@ -50,7 +56,9 @@ function ModelCard({ model: item, global = false }: { model: ModelRow; global?: 
         <ModelIcon global={global} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-sm font-semibold text-amber-50">{item.name}</h3>
+            <h3 className="truncate text-sm font-semibold text-amber-50">
+              {item.name}
+            </h3>
             {global && (
               <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-orange-300">
                 Global
@@ -110,21 +118,35 @@ export default async function ModelsPage() {
     parameterCount: model.parameterCount,
     inferenceEndpoint: model.inferenceEndpoint,
     weightsR2Key: model.weightsR2Key,
-    createdAt: model.createdAt,
+    createdAt: deployment.createdAt,
   };
 
   const [privateModels, globalModels] = await Promise.all([
     db
       .select(selectFields)
-      .from(model)
-      .where(and(eq(model.userId, session.user.id), isNull(model.archivedAt)))
-      .orderBy(desc(model.createdAt)),
+      .from(deployment)
+      .innerJoin(model, eq(deployment.modelId, model.id))
+      .where(
+        and(
+          eq(deployment.createdByUserId, session.user.id),
+          eq(deployment.isAdmin, false),
+          eq(deployment.enabled, true),
+          isNull(model.archivedAt),
+        ),
+      )
+      .orderBy(desc(deployment.createdAt)),
     db
       .select(selectFields)
-      .from(model)
-      .innerJoin(user, eq(model.userId, user.id))
-      .where(and(eq(user.role, "admin"), isNull(model.archivedAt)))
-      .orderBy(desc(model.createdAt)),
+      .from(deployment)
+      .innerJoin(model, eq(deployment.modelId, model.id))
+      .where(
+        and(
+          eq(deployment.isAdmin, true),
+          eq(deployment.enabled, true),
+          isNull(model.archivedAt),
+        ),
+      )
+      .orderBy(desc(deployment.createdAt)),
   ]);
 
   const toRows = (rows: typeof privateModels): ModelRow[] =>
@@ -160,7 +182,8 @@ export default async function ModelsPage() {
               </p>
             </div>
             <span className="text-xs text-amber-600/40">
-              {privateModels.length} {privateModels.length === 1 ? "model" : "models"}
+              {privateModels.length}{" "}
+              {privateModels.length === 1 ? "model" : "models"}
             </span>
           </div>
           {privateModels.length === 0 ? (
@@ -185,7 +208,8 @@ export default async function ModelsPage() {
               </p>
             </div>
             <span className="text-xs text-amber-600/40">
-              {globalModels.length} {globalModels.length === 1 ? "model" : "models"}
+              {globalModels.length}{" "}
+              {globalModels.length === 1 ? "model" : "models"}
             </span>
           </div>
           {globalModels.length === 0 ? (

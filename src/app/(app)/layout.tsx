@@ -31,7 +31,9 @@ export default async function AppLayout({
   const sub = await getSubscription(session.user.id);
   const pathname = headersList.get("x-pathname") ?? "";
 
-  const isFree = FREE_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  const isFree = FREE_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
   const isAdminPath = pathname.startsWith(ADMIN_PATH_PREFIX);
 
   // Admins bypass the subscription gate entirely — they can use all app
@@ -42,7 +44,7 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-[#0d0a08]">
-      <AppHeader />
+      <AppHeader isAdmin={isAdmin(session)} />
       <main className="min-w-0">{children}</main>
     </div>
   );
