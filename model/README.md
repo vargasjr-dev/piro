@@ -10,6 +10,8 @@ training, and experiments belong here.
 
 ## Canonical modules
 
+- `borealis.py` — functional text-first fast/slow self-updating model with
+  causal next-token prediction, explicit fast-state snapshots, and deliberate consolidation.
 - `ctm.py` — deferred Continuous Thought Model experiment with neuron MLPs,
   rolling history, synchrony, burst state, optional oscillators, and Oja plasticity.
 - `baseline_transformer.py` — matched fixed-depth transformer baseline.
@@ -21,13 +23,22 @@ training, and experiments belong here.
 
 See `docs/research-persistent-memory.md` for the falsifiable WRITE / DISTRACT / QUERY protocol and required controls.
 
+## Borealis fast/slow model contract
+
+`Borealis` follows `docs/architecture/stateful-rl-first-model-v0.1.md`. Durable
+PyTorch parameters produce causal next-token logits, while `BorealisFastState`
+contains a run-local output-bias update. `run()` returns predictions, the causal
+loss, and the next fast state. `snapshot_fast_state()` and `load_fast_state()`
+keep storage outside the model. `consolidate_weights()` is explicit and only
+consumes fast state when `weight_persistence_policy()` says evidence is stable.
+
 ## Stateful model contract
 
 `ContinuousThoughtModel` keeps working state on the model instance. Ordinary
 parameters are updated by backpropagation during training. When plasticity is
 enabled, the fast recurrent matrix updates during inference and persists until
 `reset()` or until the process is replaced. Use `snapshot_state()` and
-`load_state()` to make this state durable outside the process.
+`load_state()` to make that state durable outside the process.
 
 ```python
 model = ContinuousThoughtModel()
