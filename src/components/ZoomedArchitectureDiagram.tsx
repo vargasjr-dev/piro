@@ -47,87 +47,87 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   initialize: {
     title: "InitializeOrRetrieveState",
-    subtitle: "The method that produces h₀ from the embedded input and internal weights.",
+    subtitle: "Deferred CTM experiment: initializes recurrent thought state; not required by the fast/slow baseline.",
   },
   attention: {
     title: "Attention",
-    subtitle: "The method that retrieves relevant history using content similarity, relative time, and CTM synchronization before gating the result into contextₖ.",
+    subtitle: "Deferred CTM experiment: retrieves working history with synchronization-aware attention; not part of the baseline contract.",
   },
   buildMemorySlots: {
     title: "BuildMemorySlots",
-    subtitle: "Builds timestamped memory records from historical states and inputs so Attention has explicit retrieval candidates.",
+    subtitle: "Deferred CTM experiment: builds timestamped working-memory slots for specialized attention.",
   },
   summarizeSynchronization: {
     title: "SummarizeSynchronization",
-    subtitle: "Compresses CTM synchronization signals into features that help form the current retrieval query.",
+    subtitle: "Deferred CTM experiment: compresses synchronization signals for a recurrent retrieval query.",
   },
   getAttentionShape: {
     title: "GetAttentionShape",
-    subtitle: "Reads the configured attention width and head count, then derives d_head for scaled dot-product scores.",
+    subtitle: "Deferred CTM experiment: derives attention head dimensions for a specialized retrieval stack.",
   },
   queryProjection: {
     title: "QueryProjection",
-    subtitle: "Projects the current state, input, and synchronization features into retrieval-query space.",
+    subtitle: "Deferred CTM experiment: projects recurrent state and synchronization features into query space.",
   },
   keyProjection: {
     title: "KeyProjection",
-    subtitle: "Projects each memory slot into the key space used for content similarity matching.",
+    subtitle: "Deferred CTM experiment: projects working-memory slots into key space.",
   },
   valueProjection: {
     title: "ValueProjection",
-    subtitle: "Projects each memory slot into the value space returned by retrieval.",
+    subtitle: "Deferred CTM experiment: projects working-memory slots into value space.",
   },
   relativeTimeBias: {
     title: "RelativeTimeBias",
-    subtitle: "Turns each memory slot’s explicit age into an additive retrieval-score adjustment.",
+    subtitle: "Deferred CTM experiment: adds explicit age bias to specialized memory retrieval.",
   },
   synchronizationBias: {
     title: "SynchronizationBias",
-    subtitle: "Turns compatibility between the current state and each memory slot into an auxiliary retrieval score.",
+    subtitle: "Deferred CTM experiment: scores compatibility between recurrent state and working-memory slots.",
   },
   outputProjection: {
     title: "OutputProjection",
-    subtitle: "Normalizes retrieval scores, combines the selected values, and maps the memory read into recurrent context space.",
+    subtitle: "Deferred CTM experiment: combines specialized retrieval values into recurrent context.",
   },
   readGate: {
     title: "ReadGate",
-    subtitle: "Controls how strongly retrieved context is allowed to influence the next recurrent state update.",
+    subtitle: "Deferred CTM experiment: gates retrieved context into a recurrent state update.",
   },
   delta: {
     title: "ComputeStateDelta",
-    subtitle: "The method that computes the candidate state change deltaₖ from the current tick inputs.",
+    subtitle: "Deferred CTM experiment: computes a candidate recurrent state change.",
   },
   residual: {
     title: "ApplyGatedStateUpdate",
-    subtitle: "The method that computes hₖ + gateₖ · deltaₖ and produces hₖ₊₁.",
+    subtitle: "Deferred CTM experiment: applies a gated recurrent state update.",
   },
   history: {
     title: "UpdateHistory",
-    subtitle: "The method that records the new state as the next temporal context.",
+    subtitle: "Deferred CTM experiment: records recurrent state in a bounded working history.",
   },
   output: {
     title: "OutputHead",
-    subtitle: "The readout method that runs after the recurrent loop exits and produces outputₖ from hₖ₊₁.",
+    subtitle: "The baseline output head reads runtime weights; a CTM variant may read recurrent state instead.",
   },
   shouldHalt: {
     title: "ShouldHalt",
-    subtitle: "The control method that chooses whether to continue the recurrent loop or exit.",
+    subtitle: "Deferred CTM experiment: controls adaptive recurrent compute; baseline has no thought loop.",
   },
   weights: {
     title: "Weights",
-    subtitle: "A proposed 256M-parameter runtime layout split across INT4 base tensors, BF16 fast overlays, and BF16 dynamic state.",
+    subtitle: "A proposed baseline storage layout split across durable INT4 tensors, BF16 fast state, and runtime metadata.",
   },
   loadWeights: {
     title: "LoadWeights",
-    subtitle: "Reads the model manifest and logical component objects from R2, reconstructs mixed-precision tensors, and prepares runtime weights for inference.",
+    subtitle: "Reads the durable model revision and session components, then prepares runtime weights for inference.",
   },
   saveWeights: {
     title: "SaveWeights",
-    subtitle: "Writes session fast-state checkpoints or consolidated durable snapshots to versioned R2 objects without rewriting unchanged base components.",
+    subtitle: "Writes session fast-state checkpoints or consolidated durable snapshots without rewriting unchanged durable components.",
   },
   plasticity: {
     title: "PlasticityController",
-    subtitle: "Coordinates prediction error and eligibility without treating every fast update as a durable model revision.",
+    subtitle: "Deferred CTM experiment: richer local-credit coordination beyond the baseline FastAdaptation rule.",
   },
   initializeFastState: {
     title: "InitializeFastState",
@@ -775,7 +775,7 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
   return <div className="overflow-x-auto rounded-xl border border-amber-900/20 bg-[#0b0908] px-4 py-5 sm:px-6" role="region" aria-label={`${details[kind].title} pseudocode`}><code className="block min-w-[40ch] font-mono text-sm leading-6 text-amber-100/85 sm:min-w-[42rem] sm:text-[0.95rem]">{snippets[kind]}</code></div>;
 }
 const explanations: Partial<Record<DiagramKind, { doing: string; why: string }>> = {
-  attention: { doing: "Builds a query from the current recurrent situation, scores timestamped memory slots with content similarity plus temporal and synchronization biases, then gates the retrieved context.", why: "Piro needs a real memory read: synchronization describes dynamical compatibility, while content keys and values retrieve what a prior state represented." },
+  attention: { doing: "Deferred CTM experiment: builds a recurrent query and scores timestamped working-memory slots.", why: "The baseline can test self-updating weights without requiring a specialized memory-attention mechanism." },
   buildMemorySlots: { doing: "Converts each history entry into a memory slot containing state/input content, its write tick, and age = current tick − write tick.", why: "Attention needs explicit candidates and explicit temporal provenance; age should not appear as an unexplained property of memory." },
   summarizeSynchronization: { doing: "Summarizes CTM synchronization signals from the current state and historical trajectory into query-side features.", why: "CTM dynamics should influence retrieval without replacing semantic content matching." },
   getAttentionShape: { doing: "Reads modelWidth and headCount from weights.attention, verifies divisibility, and derives d_head = modelWidth / headCount.", why: "Scaled dot-product attention must know each head’s dimensionality, so the source of d_head is explicit and reviewable." },
@@ -789,8 +789,8 @@ const explanations: Partial<Record<DiagramKind, { doing: string; why: string }>>
   delta: { doing: "Combines the current state, input, context, history, and weights into deltaₖ.", why: "Separating the candidate change from the residual update makes the state transition auditable." },
   residual: { doing: "Applies the learned gate to deltaₖ and adds it to hₖ to produce hₖ₊₁.", why: "The recurrent state needs a controlled update rather than an unconditional replacement." },
   history: { doing: "Appends the new state together with x and tick k so future retrieval can recover content and age.", why: "History is both the state trajectory and the source of Attention’s timestamped memory slots." },
-  output: { doing: "Reads the final recurrent state into the externally returned output.", why: "The outside world needs a stable output boundary after the internal loop halts." },
-  shouldHalt: { doing: "Evaluates the current state and tick against the continuation budget and decides whether the loop exits.", why: "Adaptive computation lets Piro spend more recurrent steps when the state has not converged." },
+  output: { doing: "Reads the current runtime weights into the externally returned output.", why: "The baseline needs a stable output boundary after each adapted forward pass." },
+  shouldHalt: { doing: "Deferred CTM experiment: evaluates recurrent state and compute budget to decide whether another thought step is needed.", why: "Adaptive computation is a testable extension, not a requirement of the fast/slow baseline." },
   weights: { doing: "Defines a proposed 256M-parameter runtime object: about 230M INT4 base parameters, 20M BF16 fast-overlay parameters, and 6M BF16 dynamic state, with every tensor assigned to an owning method and logical object.", why: "The model needs a concrete mixed-precision storage contract so compression, online adaptation, and runtime reconstruction are reviewable rather than hidden inside one blob." },
   loadWeights: { doing: "Reads models/{modelId}/weights/current/manifest.json from the piro-kb R2 bucket, follows its logical base, overlay, and state objects, checks checksums and shapes, dequantizes base tensors for BF16 compute, and attaches fast overlays.", why: "A 256M mixed-precision model fits comfortably below R2's single-upload and per-object limits; the manifest still gives us revision and ownership semantics without forcing physical sharding." },
   saveWeights: { doing: "Diffs the active runtime object against the loaded manifest, encodes changed fast overlays as BF16, encodes dynamic state as BF16, re-quantizes durable base changes as INT4 only during consolidation, and publishes a versioned R2 manifest. Multipart upload is available for large or resumable component transfers.", why: "Plasticity should not rewrite the ~230M-parameter base object on every interaction; R2's storage capacity is not the constraint here, while write volume and operation cost are." },

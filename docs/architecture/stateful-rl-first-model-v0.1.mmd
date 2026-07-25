@@ -1,38 +1,28 @@
-%% Piro Stateful RL-First Model v0.1
-%% Pseudocode view: initialization and Attention inputs while recurrent flow is reviewed
+%% Piro Core Self-Updating Model v0.2
+%% Fast/slow weights are core; CTM is a deferred comparison architecture.
 flowchart LR
-    classDef current fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
-    classDef proposed fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
+    classDef core fill:#dcecff,stroke:#28639b,color:#10243a,stroke-width:1.5px
     classDef learning fill:#ffe4c7,stroke:#a85b00,color:#4d2900,stroke-width:1.5px
     classDef external fill:#f2ddff,stroke:#7a3f9b,color:#32153f,stroke-width:1.5px
-    classDef control fill:#fff0d9,stroke:#a85b00,color:#4d2900,stroke-width:1.5px
+    classDef durable fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
+    classDef deferred fill:#eeeeee,stroke:#777777,color:#333333,stroke-width:1.5px,stroke-dasharray: 5 5
 
-    X[External world / user / tools / environment]:::external --> I[Observation]:::external
+    X[User / tools / environment]:::external --> I[Observation]:::external
+    I --> E[Embed]:::core
+    W[Durable weights]:::durable --> B[BindFastState]:::core
+    F[Session fast state]:::learning --> B
+    E --> P[PredictNextToken]:::core
+    B --> P
+    P --> A[FastAdaptation]:::learning
+    I --> A
+    A --> F
+    F --> B
+    B --> O[OutputHead]:::core
+    O --> Y[Output]:::external
+    F --> R[WeightPersistencePolicy]:::learning
+    R -->|session checkpoint| S[SaveWeights · session]:::learning
+    R -->|validated evidence| C[ConsolidateWeights]:::learning
+    C --> W
+    C --> M[SaveWeights · model revision]:::durable
 
-    subgraph PIRO[Piro model]
-        I -->|observation| E[Embed]:::current
-        E -->|x| S[InitializeOrRetrieveState]:::proposed
-        W[Weights]:::proposed -->|weights| S
-
-        subgraph LOOP[Recurrent loop · k]
-            A[Attention]:::current
-            D[ComputeStateDelta]:::current
-            R[ApplyGatedStateUpdate]:::current
-            N[UpdateHistory]:::current
-            Sh[ShouldHalt]:::control
-        end
-
-        S -->|hₖ| A
-        E -->|x| A
-        W -->|weights| A
-        N -->|historyₖ| A
-
-        A -->|contextₖ| D
-        S -->|hₖ| D
-        E -->|x| D
-        W -->|weights| D
-        N -->|historyₖ| D
-
-        O[OutputHead]:::current
-        Pc[PlasticityController]:::learning
-    end
+    T[Deferred CTM experiment]:::deferred -.->|must beat baseline on a named capability| B

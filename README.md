@@ -25,6 +25,9 @@ repository so generated artifacts are tracked by the platform.
 Start a training run against a generated dataset owned by the active API key:
 
 ```bash
+# `ctm` is the current research prototype entrypoint.
+# The fast/slow baseline contract is documented under docs/architecture while
+# its executable training entrypoint is being built.
 piro architecture train ctm \
   --dataset <dataset-id> \
   --max-steps 5000 \

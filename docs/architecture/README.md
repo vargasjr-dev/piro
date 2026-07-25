@@ -2,42 +2,50 @@
 
 This directory is the working architecture notebook for Piro. It is intentionally
 incremental: each document should make one design decision easier to discuss,
-without pretending that research ideas are already implemented. The application’s
-primary top-level architecture view is the linked pseudocode contract; diagrams
-are secondary visual aids for future iterations.
+without pretending that research ideas are already implemented.
 
-## Current starting point
+## Current core direction
 
-Piro currently has a **Continuous Thought Model (CTM)** prototype:
+Piro’s first architecture is deliberately small:
 
 ```text
-input embeddings
-  -> neuron state
-  -> history buffer
-  -> sync-driven attention
-  -> repeated thought ticks
-  -> output
+Observation
+  -> Embed
+  -> Predict next observed token/chunk
+  -> Update fast weights
+  -> Bind fast state with durable weights
+  -> Output
+  -> Checkpoint or consolidate
 ```
 
-The central architectural question for this notebook is what Piro is made of as
-a stateful learner. Piro should combine multimodal input encoding, recurrent
-thought dynamics, internal weight-based memory, and a learned mechanism that
-updates those weights.
+The core hypothesis is that a model with **fast, writable weights** and **slow,
+durable weights** can learn online, personalize, and recover from distribution
+shifts without requiring a specialized recurrent thought architecture.
+
+The public API remains multimodal, but the first optimized training path is
+text-first so next-token prediction provides a free causal learning signal.
+
+## CTM is a later exploration
+
+Piro still contains a Continuous Thought Model (CTM) prototype and related
+attention, synchronization, history, and adaptive-computation experiments. They
+are preserved as research tracks, not treated as requirements of the core model.
+We will revisit CTM only after the fast/slow self-updating baseline demonstrates
+a real signal on online learning, persistent personalization, and distribution
+shift recovery.
 
 ## Documents
 
-- [Stateful RL-first model v0.1](./stateful-rl-first-model-v0.1.md) — the current
+- [Core self-updating model](./stateful-rl-first-model-v0.1.md) — the current
   pseudocode-first contract, with linked method-level detail in the application.
 - [Diagram source](./stateful-rl-first-model-v0.1.mmd) — editable Mermaid source
-  retained for a future secondary diagram view.
+  for the current core flow.
+- [Oscillatory entrainment](../phase-4-oscillatory-entrainment.md) — deferred CTM
+  exploration, not part of the baseline architecture.
 
 ## How to read the architecture
 
-Read the pseudocode as the primary top-level contract. Method names identify
-transformations, and the values passed between them make state, history, inputs,
-and learned weights explicit. The nested application routes provide the deeper
-contract for each method.
-
-The delayed-credit learning loop remains an important behavioral question, but it
-is intentionally documented as a mechanism inside Piro rather than as a separate
-“later consequence” input node.
+Read the pseudocode as the primary top-level contract. Method names identify the
+smallest transformations needed to test the core hypothesis. The nested
+application routes retain deeper CTM methods as exploratory references; their
+presence does not make them part of the baseline.
