@@ -21,6 +21,8 @@ const ENTERPRISE_FEATURES = [
   "Team access and controls",
 ];
 
+const SHOW_ENTERPRISE = false;
+
 type PricingClientProps = {
   latestModelLabel: string;
   isLoggedIn: boolean;
@@ -106,19 +108,19 @@ export default function PricingClient({ latestModelLabel, isLoggedIn }: PricingC
             </span>
           </h1>
           <p className="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-amber-200/65 sm:text-xl">
-            Start free, deploy a dedicated stateful Piro model, or bring Piro into your organization. Every paid deployment follows the latest experiment.
+            Test the globally shared Piro model for free, or deploy a dedicated stateful model when you are ready. Every paid deployment follows the latest experiment.
           </p>
         </div>
       </section>
 
       <section className="relative border-t border-amber-900/20 bg-[#0a0806] px-4 py-16 sm:px-6 sm:py-24">
-        <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-[0.8fr_1.15fr_0.8fr] lg:items-start">
+        <div className={`mx-auto grid max-w-5xl gap-5 lg:items-start ${SHOW_ENTERPRISE ? "lg:grid-cols-[0.8fr_1.15fr_0.8fr]" : "lg:grid-cols-[0.8fr_1.15fr]"}`}>
           <section className="rounded-3xl border border-amber-900/35 bg-[#13100c] p-7 sm:p-8">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-400/60">Explore</p>
             <h2 className="mt-4 text-3xl font-bold text-amber-50">Free</h2>
-            <p className="mt-3 min-h-14 text-sm leading-relaxed text-amber-300/55">See how Piro is structured before you deploy a model.</p>
+            <p className="mt-3 min-h-14 text-sm leading-relaxed text-amber-300/55">Test the globally shared Piro model and see how it learns before you deploy your own.</p>
             <ul className="my-8 space-y-4 text-sm text-amber-200/70">
-              {["Connect your first repository", "Browse experiment structure", "Explore docs and benchmarks", "Upgrade when you are ready"].map((feature) => (
+              {["Test the globally shared Piro model", "Connect your first repository", "Browse experiment structure", "Upgrade when you are ready"].map((feature) => (
                 <li key={feature} className="flex gap-3"><span className="text-orange-400">✓</span><span>{feature}</span></li>
               ))}
             </ul>
@@ -145,7 +147,7 @@ export default function PricingClient({ latestModelLabel, isLoggedIn }: PricingC
             <p className="mt-4 text-center text-xs text-amber-400/35">You’ll create an account before checkout. Cancel anytime.</p>
           </section>
 
-          <section className="rounded-3xl border border-amber-900/35 bg-[#13100c] p-7 sm:p-8">
+          {SHOW_ENTERPRISE && <section className="rounded-3xl border border-amber-900/35 bg-[#13100c] p-7 sm:p-8">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-400/60">For teams</p>
             <h2 className="mt-4 text-3xl font-bold text-amber-50">Enterprise</h2>
             <p className="mt-3 text-sm leading-relaxed text-amber-300/55">Bring your team, data, and deployment requirements.</p>
@@ -164,7 +166,7 @@ export default function PricingClient({ latestModelLabel, isLoggedIn }: PricingC
                 <button type="submit" disabled={enterpriseLoading} className="w-full rounded-xl border border-orange-500/50 px-5 py-3.5 font-semibold text-orange-200 transition-colors hover:bg-orange-500/10 disabled:opacity-60">{enterpriseLoading ? "Sending…" : "Talk to us"}</button>
               </form>
             )}
-          </section>
+          </section>}
         </div>
       </section>
 
