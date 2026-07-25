@@ -1,6 +1,6 @@
 # Piro API boundary
 
-The `api/` directory contains the framework-neutral public API contract and the adapter used by the Next.js route handlers.
+The `src/app/api/` directory contains the public API route handlers, request contracts, and Modal adapter.
 
 ## Deployment boundary
 

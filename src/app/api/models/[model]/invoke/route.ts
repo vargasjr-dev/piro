@@ -6,11 +6,11 @@ import { extractBearer, validateApiKey } from "../../../../../lib/api-auth";
 import {
   modalTextToPiroOutput,
   piroInputSchema,
-} from "../../../../../../api/contracts";
+} from "../../../_lib/contracts";
 import {
   invokeModalInference,
   ModalInferenceError,
-} from "../../../../../../api/modal";
+} from "../../../_lib/modal";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -73,7 +73,10 @@ export async function POST(
     return Response.json({ output: modalTextToPiroOutput(result.text) });
   } catch (error) {
     if (error instanceof ModalInferenceError) {
-      return Response.json({ error: "Model inference failed" }, { status: 502 });
+      return Response.json(
+        { error: "Model inference failed" },
+        { status: 502 },
+      );
     }
 
     return Response.json({ error: "Model inference failed" }, { status: 502 });
