@@ -35,36 +35,28 @@ export const sourceSummarySchema = z.object({
   experiment: z.string().nullable().optional(),
 });
 
-export const classFileResponseSchema = z.object({
-  content: z.string(),
-  truncated: z.boolean(),
-  size: z.number(),
-});
-
-export const classSizeResponseSchema = z.object({ size: z.number() });
-
 export const evaluationResultSchema = z
   .object({
-    target: z.string().optional(),
-    inputTokens: z.number().optional(),
-    outputTokens: z.number().optional(),
+    target: z.string(),
+    inputTokens: z.number().nullable(),
+    outputTokens: z.number().nullable(),
   })
   .passthrough();
 
 export const evaluationSchema = z
   .object({
-    id: z.string().optional(),
-    status: z.string().optional(),
-    benchmarks: z.array(z.string()).optional(),
-    queuedAt: z.string().nullable().optional(),
-    completedAt: z.string().nullable().optional(),
-    totalCostUsd: z.number().nullable().optional(),
-    totalDurationMs: z.number().nullable().optional(),
-    results: z.array(evaluationResultSchema).optional(),
+    id: z.string(),
+    status: z.string(),
+    benchmarks: z.array(z.string()).nullable(),
+    queuedAt: z.string(),
+    completedAt: z.string().nullable(),
+    totalCostUsd: z.number(),
+    totalDurationMs: z.number(),
+    results: z.array(evaluationResultSchema),
     summary: z
       .object({
-        totalCostUsd: z.number().optional(),
-        totalDurationMs: z.number().optional(),
+        totalCostUsd: z.number(),
+        totalDurationMs: z.number(),
       })
       .optional(),
   })

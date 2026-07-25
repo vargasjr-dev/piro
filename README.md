@@ -111,9 +111,6 @@ Create a stateful deployment record for one of your models. Runtime placement
 # Save your API key
 piro login
 
-# Push your model class
-piro classes push <class-id> --file model.py
-
 # Generate the repository-defined source from the Piro source page
 # (the source lives at sources/associative-recall/main.py)
 

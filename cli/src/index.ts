@@ -3,9 +3,6 @@
  * piro — CLI for the Piro personal intelligence platform.
  *
  * Usage:
- *   piro classes serialize <id> [--bust]
- *   piro classes pull <id> [--out <file>]
- *   piro classes push <id> [--file <file>]
  *   piro models deploy <model-id>
  *
  * Auth:
@@ -13,11 +10,6 @@
  *   PIRO_BASE_URL=<url> (optional, defaults to https://trainpiro.app)
  */
 
-import {
-  classesSerialize,
-  classesPull,
-  classesPush,
-} from "./commands/classes.js";
 import {
   reposList,
   reposCreate,
@@ -60,15 +52,6 @@ function opt(args: string[], name: string): string | undefined {
 function usage(msg?: string): never {
   if (msg) console.error(`Error: ${msg}\n`);
   console.error("Usage:");
-  console.error("  piro classes serialize <id> [--bust]");
-  console.error("  piro classes pull <id> [--out <file>]");
-  console.error("  piro classes push <id> [--file <file>]");
-  console.error("  piro repos list");
-  console.error(
-    "  piro repos create <id> --name <name> --github-repository <owner/repo> [--description <desc>]",
-  );
-  console.error("  piro repos link <id> --github-repository <owner/repo>");
-  console.error("  piro repos use <id>");
   console.error("  piro sources list");
   console.error("  piro sources get <name>");
   console.error("  piro sources generate <name>");
@@ -93,31 +76,6 @@ function usage(msg?: string): never {
 if (!subject || !verb) usage();
 
 switch (subject) {
-  case "classes":
-    switch (verb) {
-      case "serialize": {
-        const id = arg(rest, 0);
-        if (!id) usage("class id is required");
-        await classesSerialize(id, { bust: flag(rest, "bust") });
-        break;
-      }
-      case "pull": {
-        const id = arg(rest, 0);
-        if (!id) usage("class id is required");
-        await classesPull(id, { out: opt(rest, "out") });
-        break;
-      }
-      case "push": {
-        const id = arg(rest, 0);
-        if (!id) usage("class id is required");
-        await classesPush(id, { file: opt(rest, "file") });
-        break;
-      }
-      default:
-        usage(`unknown classes verb: ${verb}`);
-    }
-    break;
-
   case "sources":
     switch (verb) {
       case "list":
