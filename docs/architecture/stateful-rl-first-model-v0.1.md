@@ -1,62 +1,83 @@
 # Piro Stateful RL-First Model — v0.1
 
-**Date:** July 20, 2026  
-**Scope:** pseudocode-first architecture contract for discussing state, delayed
-feedback, and inference-time learning
+**Date:** July 25, 2026
+**Scope:** pseudocode-first architecture contract for state, bounded working memory,
+causal fast adaptation, delayed feedback, and deliberate persistence
 
 ## One-sentence thesis
 
-Piro is a multimodal, stateful CTM whose internal weights serve as memory and
-whose architecture includes the mechanism that updates those weights.
+Piro is a multimodal, stateful CTM with transient thought state, bounded working
+memory, session-local fast weights, and durable weights whose updates are
+explicitly separated and validated.
 
 ## Top-level architecture contract
 
 The top-level architecture is intentionally expressed as pseudocode rather than
 as a diagram. This is the primary contract for reasoning about Piro because it
-makes the order of transformations, recurrent state, history, inputs, and output
-behavior explicit in one readable flow. Each method name maps to a nested
-architecture page in the application.
+makes the order of transformations, recurrent state, bounded history, observed
+text, fast adaptation, and persistence boundaries explicit.
 
-`Observation` is the external input boundary, and `PiroInput` is the
-implementation-level object used to represent that boundary. `LoadWeights` sources
-the current model weights; `Embed` produces the shared representation `x`;
-`InitializeOrRetrieveState` establishes the starting state; the recurrent loop
-performs attention, state-delta computation, gated state updates, and history
-updates; `ShouldHalt` controls loop exit; `OutputHead` produces the final output;
-and `PlasticityController` compares the current input with unresolved earlier
-predictions, updates fast overlays from prediction error and eligibility, and
-persists the changed weight groups before each completed inference returns.
+```text
+durableWeights = LoadWeights()
+fastState = InitializeFastState(durableWeights, sessionId)
+attentionWindow = GetAttentionWindow(durableWeights)
+x = Embed(PiroInput)
+runtimeWeights = BindFastState(durableWeights, fastState)
+h = InitializeOrRetrieveState(x, runtimeWeights)
+history = []
 
-The current storage target is the existing S3-compatible object layer used by Piro:
-R2 bucket `piro-kb`, under `models/{modelId}/weights/`. A committed revision has a
-manifest plus three logical component objects: approximately 230M frozen INT4 base
-parameters, 20M FP8 fast-overlay parameters, and 6M BF16 dynamic state and heads.
-That is roughly 147 MB before scales, metadata, and optimizer state. At this size,
-physical sharding is optional: one object per logical component is enough, while
-multipart upload remains useful for resumability or parallel transfer. The manifest
-records dtype, shape, object key, byte range, scale, checksum, and the method that
-owns each tensor. This is an architecture target; the existing repository storage
-boundary is real, while the model-specific serializer is still to be implemented.
+for each observedChunk in ChunkText(x.text):
+    prediction = PredictNextToken(observedChunk, h, runtimeWeights)
+    fastState = FastAdaptation(
+        fastState,
+        observedChunk,
+        prediction,
+        runtimeWeights
+    )
+    runtimeWeights = BindFastState(durableWeights, fastState)
 
-R2 reports unlimited data storage per bucket, unlimited objects per bucket, and a
-5 TiB maximum object size. A single-part upload is capped at 4.995 GiB;
-multipart upload supports uploads up to 4.995 TiB with up to 10,000 parts. R2
-recommends simple PUTs for objects below roughly 100 MB and multipart uploads for
-larger objects or when resumability and parallel transfer matter. Therefore a
-256M Piro model is not being sharded because R2 cannot hold it. Its ~115 MB INT4
-base component may use multipart transfer, but those multipart parts are not
-model-level shards. We use logical components for selective updates, and add
-physical shards only when transfer behavior or future model size makes them
-worthwhile.
+    for k = 0 ... Kmax:
+        contextₖ = Attention(
+            hₖ,
+            historyₖ,
+            x,
+            k,
+            attentionWindow,
+            runtimeWeights
+        )
+        deltaₖ = ComputeStateDelta(
+            hₖ,
+            x,
+            contextₖ,
+            historyₖ,
+            runtimeWeights
+        )
+        hₖ₊₁ = ApplyGatedStateUpdate(hₖ, gateₖ, deltaₖ)
+        historyₖ₊₁ = UpdateHistory(historyₖ, hₖ₊₁, x, k)
+        h = hₖ₊₁
+        history = historyₖ₊₁
 
-This is not an infinite free disk. Standard R2 storage is billed per GB-month,
-Class A writes and Class B reads are billed per million operations, and egress is
-free. At roughly 147 MB per current model revision, 1,000 retained revisions are
-about 147 GB of storage, before request costs and older revisions. The practical
-model count in one bucket is therefore governed by retained revisions, write/read
-volume, and the storage budget—not by a bucket object-count limit. The account can
-create up to 1,000,000 buckets, but Piro should keep one bucket and namespace
-models by prefix until isolation or operational policy requires otherwise.
+        if ShouldHalt(hₖ₊₁, k):
+            break
+
+output = OutputHead(h)
+persistence = WeightPersistencePolicy(fastState, history)
+
+if persistence.mode == "consolidate":
+    durableWeights = ConsolidateWeights(durableWeights, fastState)
+    SaveWeights(durableWeights, scope = "model")
+elif persistence.mode == "session-checkpoint":
+    SaveWeights(fastState, scope = "session")
+
+return output
+```
+
+The model is intentionally text-first during initial training even though the
+public observation API remains multimodal. `ChunkText` and `PredictNextToken`
+make the causal observation stream explicit: the current observed token/chunk is
+free supervision for predicting the next observed token/chunk. Fast adaptation is
+therefore part of processing the stream, not a post-output write that runs only
+after the answer is complete.
 
 ## Pseudocode method contracts
 
@@ -95,14 +116,15 @@ for k = 0 ... Kmax:
 
 `ShouldHalt` receives the current state and tick index inside each loop iteration in this working contract.
 Prediction and halt heads are implementation details of `ShouldHalt`, not separate
-top-level transformations. `PlasticityController` receives the completed state,
-current input, and updated history. It matches later input against unresolved
-predictions, computes prediction error, novelty, and eligibility-weighted local
-credit, updates fast overlays, and persists the changed groups through
-`SaveWeights(weights)`. Repeated stable evidence can be consolidated into the
-INT4 durable base; ordinary interactions do not require a global reward function.
-The next inference sources the persisted parameters again through `LoadWeights()`.
-The learned gate and residual addition are represented by
+top-level transformations. `historyₖ` is bounded short-term working memory for the
+current process; it is not a durable model revision. `FastAdaptation` updates
+selected BF16 fast-state groups from causal next-token prediction loss while the
+observed text stream is being processed. `WeightPersistencePolicy` then chooses
+no write, a session checkpoint, or deliberate durable consolidation.
+`ConsolidateWeights` must be replay-safe and may reject a candidate that regresses
+validated capabilities. The next inference loads durable weights through
+`LoadWeights()` and initializes or restores a separate session fast state. The
+learned gate and residual addition are represented by
 `ApplyGatedStateUpdate` rather than hidden inside a neighboring method.
 
 The application currently defaults to pseudocode on both the top-level and nested
@@ -173,31 +195,38 @@ requiring every input to become a text token sequence.
 
 ### 2. The Stateful CTM is the reasoning substrate
 
-The CTM is represented here as first-class components: neuron state, a history
-buffer, synchronization-driven attention, and repeated thought ticks. These are
-not hidden inside one box because they are the mechanisms through which Piro
-performs inference.
+The CTM is represented here as first-class components: transient neuron state, a
+bounded timestamped history buffer, synchronization-driven local attention, and
+repeated thought ticks. `historyₖ` is short-term working memory for the current
+process; it is not itself a durable model revision.
 
 ### 3. Internal memory is made of weights
 
 Memory is not a required external database or a separate cognitive sidecar. The
-model contains weight substrates with different update timescales:
+model contains state substrates with different lifetimes:
 
-- **Plastic weights** can adapt quickly while Piro is interacting with a task.
-- **Durable weights** change more slowly as useful patterns are consolidated.
+- **Transient thought state (`hₖ`)** supports the current CTM computation.
+- **Bounded history (`historyₖ`)** supports local attention over recent working context.
+- **Fast weights** adapt quickly while Piro is processing an observed stream.
+- **Durable weights** change more slowly as validated evidence is consolidated.
 
 The exact implementation may use different parameterizations, but structurally
 both are part of Piro’s own learned state.
 
 ### 4. Self-update is part of Piro’s design
 
-The learned self-update mechanism receives internal prediction, value,
-eligibility, and credit signals. `PlasticityController` runs before every
-completed inference returns, updating fast plastic weights immediately when the
-available signals justify it. Durable weights can use a slower consolidation path
-inside the same controller. This is different from a conventional deployed
+The learned self-update mechanism receives the observed chunk, its next-token
+prediction, prediction loss, and fast-state eligibility signals. `FastAdaptation`
+runs inside the causal observation stream so the updated fast state influences
+later chunks in the same episode. This is different from a conventional deployed
 frontier model whose optimizer is external and whose weights remain fixed during
 ordinary use.
+
+A later observation can also provide delayed local credit for earlier activity,
+but delayed credit is not the same as automatic durable persistence.
+`PlasticityController` may coordinate that credit; `WeightPersistencePolicy`
+controls the boundary at which state is checkpointed or proposed for
+consolidation.
 
 An incoming `PiroInput` does not intrinsically identify itself as a “later
 consequence.” If the model later finds that an input is relevant to a prior
@@ -238,7 +267,7 @@ be measured:
 2. It predicts the next observation and eventual utility.
 3. The environment returns observations, not an immediate correctness label.
 4. The model maintains an eligibility trace over recent actions.
-5. `PlasticityController` compares future input with unresolved predictions, updates eligible FP8 overlays, persists the changed groups with `SaveWeights()`, and returns no value before each completed inference returns.
+5. `FastAdaptation` uses next-token prediction loss to update selected BF16 fast-state groups during the observed stream. `WeightPersistencePolicy` may keep that state in runtime memory, checkpoint it at session scope, or pass validated evidence to `ConsolidateWeights`; ordinary fast updates do not rewrite durable model weights.
 6. We compare against:
    - no adaptation,
    - immediate reward-only adaptation,

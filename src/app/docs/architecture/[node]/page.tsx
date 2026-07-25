@@ -26,6 +26,14 @@ const supportedNodes = [
   "loadWeights",
   "saveWeights",
   "plasticity",
+  "initializeFastState",
+  "attentionWindow",
+  "fastAdaptation",
+  "bindFastState",
+  "predictNext",
+  "persistencePolicy",
+  "consolidate",
+  "chunkText",
 ] as const;
 type SupportedNode = (typeof supportedNodes)[number];
 
@@ -59,6 +67,14 @@ export async function generateMetadata({ params }: { params: Promise<{ node: str
     loadWeights: "LoadWeights",
     saveWeights: "SaveWeights",
     plasticity: "PlasticityController",
+    initializeFastState: "InitializeFastState",
+    attentionWindow: "GetAttentionWindow",
+    fastAdaptation: "FastAdaptation",
+    bindFastState: "BindFastState",
+    predictNext: "PredictNextToken",
+    persistencePolicy: "WeightPersistencePolicy",
+    consolidate: "ConsolidateWeights",
+    chunkText: "ChunkText",
   };
   const title = titles[node as SupportedNode] ?? "Architecture";
   return {
