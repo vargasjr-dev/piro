@@ -27,7 +27,7 @@ export default function ApiDocsPage() {
       active="/docs/api"
       eyebrow="The model interface"
       title="Invoke a model with continuity."
-      description="The Piro API treats state as a first-class part of inference. Send an observation, address the model state you want to continue, and receive an output plus the next state version."
+      description="The Piro API treats state as a first-class serving concern. Send an observation, address the external fast-state value you want to continue, and receive an output plus the next state version."
     >
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-500/10 to-[#13100c] p-7 sm:p-9">
@@ -39,7 +39,7 @@ export default function ApiDocsPage() {
         <section className="rounded-3xl border border-amber-900/30 bg-[#13100c] p-7 sm:p-9">
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-400/60">Response shape</p>
           <h2 className="mt-4 text-2xl font-bold text-amber-50">Output and state move together.</h2>
-          <p className="mt-4 text-sm leading-relaxed text-amber-300/60">A response is more than generated text. It tells you which model answered, which state version was used, and how far the recurrent loop ran.</p>
+          <p className="mt-4 text-sm leading-relaxed text-amber-300/60">A response is more than generated text. It tells you which model answered, which external state version was used, and how far the model run progressed.</p>
           <pre className="mt-7 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#0b0908] p-5 text-xs leading-relaxed text-amber-200/80"><code>{responseExample}</code></pre>
         </section>
       </div>
@@ -49,7 +49,7 @@ export default function ApiDocsPage() {
         <div className="mt-7 grid gap-4 md:grid-cols-3">
           {[
             ["Model", "A named deployment with its own weights, state, and checkpoint history."],
-            ["Session state", "A durable address for the model’s working context. Resume it from the next request instead of rebuilding it."],
+            ["External state", "A durable address for the caller-owned fast-state value. Resume it from the next request without making the identifier a model input."],
             ["Version", "A checkpoint boundary you can inspect, benchmark, and recover when an update needs to be reversed."],
           ].map(([title, body]) => <article key={title} className="rounded-2xl border border-amber-900/30 bg-[#13100c] p-6"><h3 className="font-semibold text-amber-50">{title}</h3><p className="mt-3 text-sm leading-relaxed text-amber-300/55">{body}</p></article>)}
         </div>

@@ -14,8 +14,8 @@ Observation
   -> Predict next observed token/chunk
   -> Update fast weights
   -> Bind fast state with durable weights
-  -> Output
-  -> Checkpoint or consolidate
+  -> Output + updated fast state
+  -> Consolidate durable weights when warranted
 ```
 
 The core hypothesis is that a model with **fast, writable weights** and **slow,
@@ -24,6 +24,8 @@ shifts without requiring a specialized recurrent thought architecture.
 
 The public API remains multimodal, but the first optimized training path is
 text-first so next-token prediction provides a free causal learning signal.
+Application session IDs and state-store keys belong to a serving adapter around
+this model loop; they are not model inputs.
 
 ## CTM is a later exploration
 

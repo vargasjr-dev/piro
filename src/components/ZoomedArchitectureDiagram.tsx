@@ -119,11 +119,11 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   loadWeights: {
     title: "LoadWeights",
-    subtitle: "Reads the durable model revision and session components, then prepares runtime weights for inference.",
+    subtitle: "Reads the durable model revision and prepares runtime weights for inference; external fast-state loading belongs to the caller.",
   },
   saveWeights: {
     title: "SaveWeights",
-    subtitle: "Writes session fast-state checkpoints or consolidated durable snapshots without rewriting unchanged durable components.",
+    subtitle: "Writes consolidated durable snapshots without rewriting unchanged durable components; external state storage is outside this model method.",
   },
   plasticity: {
     title: "PlasticityController",
@@ -131,7 +131,7 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   initializeFastState: {
     title: "InitializeFastState",
-    subtitle: "Creates the session’s mutable BF16 fast-weight state from durable weights without loading short-term history into the model revision.",
+    subtitle: "Creates the mutable BF16 fast-weight state from durable weights; restoring or storing that value belongs to the caller.",
   },
   attentionWindow: {
     title: "GetAttentionWindow",
@@ -143,7 +143,7 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   bindFastState: {
     title: "BindFastState",
-    subtitle: "Combines durable weights with the current session fast state to produce the runtime parameter view used by inference.",
+    subtitle: "Combines durable weights with the current fast-state value to produce the runtime parameter view used by inference.",
   },
   predictNext: {
     title: "PredictNextToken",
@@ -151,7 +151,7 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   persistencePolicy: {
     title: "WeightPersistencePolicy",
-    subtitle: "Chooses whether fast state stays in runtime memory, receives a session checkpoint, or is consolidated into durable model weights.",
+    subtitle: "Chooses whether the updated fast-state value is returned or proposed for durable consolidation.",
   },
   consolidate: {
     title: "ConsolidateWeights",
@@ -231,7 +231,7 @@ function ObservationDiagram() {
       </defs>
 
       <text x="36" y="38" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">STATEFUL OBSERVATION REQUEST</text>
-      <text x="36" y="72" fill="rgb(253 230 138 / 0.72)" fontSize="15">A session selects Piro’s persistent runtime; this request describes the current turn.</text>
+      <text x="36" y="72" fill="rgb(253 230 138 / 0.72)" fontSize="15">A serving adapter selects an external state value; this request describes the current turn.</text>
 
       <rect x="36" y="116" width="1128" height="492" rx="28" fill="rgb(16 12 10 / 0.55)" stroke="rgb(251 191 36 / 0.2)" strokeWidth="2" strokeDasharray="8 8" />
       <text x="64" y="152" fill="rgb(251 191 36 / 0.64)" fontSize="12" letterSpacing="2">REQUEST BODY · JSON-LIKE API SHAPE</text>
@@ -426,12 +426,12 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   loadWeights: { input: "R2 manifest + INT4/BF16/BF16 components", output: "runtime weights", relation: "reads, decodes, combines, and returns the mixed-precision parameter object", tone: "blue" },
   saveWeights: { input: "changed overlays + revision", output: "versioned R2 snapshot", relation: "writes only the changed representation and publishes a new manifest pointer", tone: "blue" },
   plasticity: { input: "state + history + current input", output: "fast-state update signals", relation: "coordinates local prediction credit and identifies evidence for persistence", tone: "orange" },
-  initializeFastState: { input: "durableWeights + sessionId", output: "fastState", relation: "starts or restores mutable session-local weight state", tone: "violet" },
+  initializeFastState: { input: "durableWeights", output: "fastState", relation: "creates the initial fast-state value for a model run", tone: "violet" },
   attentionWindow: { input: "durableWeights.attention", output: "attentionWindow", relation: "returns the bounded number of recent history slots local attention may inspect", tone: "blue" },
   fastAdaptation: { input: "fastState + observedChunk + prediction + runtimeWeights", output: "updated fastState", relation: "applies the inner-loop next-token learning update before later chunks run", tone: "orange" },
-  bindFastState: { input: "durableWeights + fastState", output: "runtimeWeights", relation: "binds mutable session state to the stable parameter substrate", tone: "violet" },
+  bindFastState: { input: "durableWeights + fastState", output: "runtimeWeights", relation: "binds the current fast-state value to the stable parameter substrate", tone: "violet" },
   predictNext: { input: "observedChunk + state + runtimeWeights", output: "prediction", relation: "produces the causal target used by fast adaptation", tone: "green" },
-  persistencePolicy: { input: "fastState + session evidence", output: "none / session-checkpoint / consolidate", relation: "selects a persistence boundary instead of writing every update", tone: "orange" },
+  persistencePolicy: { input: "fastState + run evidence", output: "return / consolidate", relation: "selects whether to return fast state or propose durable consolidation", tone: "orange" },
   consolidate: { input: "durableWeights + fastState + validated evidence", output: "updated durableWeights", relation: "merges stable evidence into the slow substrate while leaving transient state separate", tone: "blue" },
   chunkText: { input: "text", output: "ordered chunks", relation: "creates causal mini-batches for text adaptation", tone: "green" },
 };
@@ -463,7 +463,7 @@ function ObservationApiReference() {
       <section className="rounded-2xl border border-orange-300/25 bg-orange-300/[0.05] p-5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-orange-200/70">Proposed request contract</p>
         <p className="mt-2 text-sm leading-6 text-amber-200/65">
-          The session identifies which persistent state to continue. The body is only the new observation for this turn.
+          The serving adapter identifies which external state value to continue. The model itself receives the value, not the key used to store it.
         </p>
         <pre className="mt-4 overflow-x-auto rounded-xl border border-amber-900/30 bg-[#0b0908] p-4 text-[11px] leading-6 text-amber-100/80"><code>{`POST /v1/sessions/{session_id}/observe
 
@@ -709,10 +709,7 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
     initializeFastState: <>
       {line(<>{call("InitializeFastState", "initializeFastState")}</>)}
       {line(<>    durableWeights,</>)}
-      {line(<>    sessionId</>)}
       {line(<>):</>)}
-      {line(<>    if session checkpoint exists:</>)}
-      {line(<>        return DecodeSessionFastState(sessionId)</>)}
       {line(<>    return ZeroLike(durableWeights.plasticGroups, format = BF16)</>)}
     </>,
     attentionWindow: <>
@@ -749,13 +746,11 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
     persistencePolicy: <>
       {line(<>{call("WeightPersistencePolicy", "persistencePolicy")}</>)}
       {line(<>    fastState,</>)}
-      {line(<>    sessionEvidence</>)}
+      {line(<>    runEvidence</>)}
       {line(<>):</>)}
-      {line(<>    if DurableEvidenceReady(sessionEvidence, fastState):</>)}
+      {line(<>    if DurableEvidenceReady(runEvidence, fastState):</>)}
       {line(<>        return {"{"} mode: "consolidate" {"}"}</>)}
-      {line(<>    if SessionCheckpointDue(sessionEvidence):</>)}
-      {line(<>        return {"{"} mode: "session-checkpoint" {"}"}</>)}
-      {line(<>    return {"{"} mode: "none" {"}"}</>)}
+      {line(<>    return {"{"} mode: "return" {"}"}</>)}
     </>,
     consolidate: <>
       {line(<>{call("ConsolidateWeights", "consolidate")}</>)}

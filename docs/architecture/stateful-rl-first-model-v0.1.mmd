@@ -7,10 +7,12 @@ flowchart LR
     classDef durable fill:#d9f2d9,stroke:#287a3d,color:#102515,stroke-width:1.5px
     classDef deferred fill:#eeeeee,stroke:#777777,color:#333333,stroke-width:1.5px,stroke-dasharray: 5 5
 
-    X[User / tools / environment]:::external --> I[Observation]:::external
+    X[User / tools / environment]:::external --> A[Serving adapter]:::external
+    A -->|new observation| I[Observation]:::external
+    A <-->|external state key| K[State store]:::external
     I --> E[Embed]:::core
     W[Durable weights]:::durable --> B[BindFastState]:::core
-    F[Session fast state]:::learning --> B
+    F[Fast state value]:::learning --> B
     E --> P[PredictNextToken]:::core
     B --> P
     P --> A[FastAdaptation]:::learning
@@ -20,7 +22,7 @@ flowchart LR
     B --> O[OutputHead]:::core
     O --> Y[Output]:::external
     F --> R[WeightPersistencePolicy]:::learning
-    R -->|session checkpoint| S[SaveWeights · session]:::learning
+    R -->|return fast state value| A
     R -->|validated evidence| C[ConsolidateWeights]:::learning
     C --> W
     C --> M[SaveWeights · model revision]:::durable
