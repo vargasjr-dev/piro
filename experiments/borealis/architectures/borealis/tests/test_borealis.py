@@ -1,7 +1,11 @@
 import torch
 import torch.nn.functional as F
 
-from model.borealis import Borealis, BorealisConfig, BorealisFastState
+from experiments.borealis.architectures.borealis.borealis import (
+    Borealis,
+    BorealisConfig,
+    BorealisFastState,
+)
 
 
 def small_model(**overrides) -> Borealis:
