@@ -5,7 +5,7 @@
 
 ## One-sentence thesis
 
-Piro is a model that learns from its observed stream by updating a session-local
+Piro is a model that learns from its observed stream by updating a run-local
 fast-weight state while preserving a slower durable weight substrate.
 
 ## What is core
@@ -18,11 +18,12 @@ The baseline architecture contains only these responsibilities:
 - **FastAdaptation** — updates selected fast weights from causal prediction loss.
 - **BindFastState** — combines durable weights with the active fast state.
 - **OutputHead** — produces the response using the current runtime weights.
-- **WeightPersistencePolicy** — decides whether to keep, checkpoint, or consolidate
-  the fast state.
+- **WeightPersistencePolicy** — decides whether to keep the fast state in the
+  runtime result or consolidate it into durable weights.
 - **ConsolidateWeights** — proposes durable changes only when evidence is stable
   and replay checks do not regress validated capabilities.
-- **SaveWeights** — writes a model-scope durable revision or a session checkpoint.
+- **SaveWeights** — writes a model-scope durable revision. It does not know how
+  an application names or stores a stream.
 
 There is no required recurrent thought loop, synchronization mechanism, learned
 halting policy, timestamped history buffer, or specialized memory-attention stack
@@ -33,7 +34,7 @@ to prove the central self-updating-weights idea.
 
 ```text
 durableWeights = LoadWeights()
-fastState = InitializeFastState(durableWeights, sessionId)
+fastState = InitializeFastState(durableWeights)
 x = Embed(PiroInput)
 runtimeWeights = BindFastState(durableWeights, fastState)
 output = []
@@ -53,10 +54,8 @@ persistence = WeightPersistencePolicy(fastState)
 if persistence.mode == "consolidate":
     durableWeights = ConsolidateWeights(durableWeights, fastState)
     SaveWeights(durableWeights, scope = "model")
-elif persistence.mode == "session-checkpoint":
-    SaveWeights(fastState, scope = "session")
 
-return output
+return output, fastState
 ```
 
 The observed token or chunk is the free causal target for the next prediction.
@@ -65,19 +64,48 @@ what was learned earlier in the same episode. The baseline does not claim that
 fast weights are an exact record store; exact personal facts need an explicit
 addressable retrieval path when that capability is tested.
 
+## Serving-layer state boundary
+
+The model contract is independent of API identity. A serving adapter may associate
+an external state key with the returned fast state:
+
+```text
+stateKey = ResolveStateKey(authenticatedPrincipal, requestedStateId)
+durableWeights = LoadWeights(modelRevision)
+fastState = StateStore.Load(stateKey)
+
+if fastState is absent:
+    fastState = InitializeFastState(durableWeights)
+
+output, nextFastState = PiroModel.Run(
+    durableWeights,
+    fastState,
+    PiroInput
+)
+
+StateStore.Save(stateKey, nextFastState)
+return output
+```
+
+`stateKey` can be a session, stream, task, or another application-level handle.
+It is metadata owned by the adapter and state store, not an input to
+`FastAdaptation` or `InitializeFastState`. TTT-style evaluation can run the same
+model directly with an in-memory fast-state value and no API layer at all.
+
 ## State and lifetime boundaries
 
 | State             | Lifetime             | Purpose                                        |
 | ----------------- | -------------------- | ---------------------------------------------- |
 | `PiroInput` / `x` | current request      | normalized observation and representation      |
-| `fastState`       | process or session   | mutable contextual learning state              |
+| `fastState`       | model run            | mutable contextual learning state              |
 | `runtimeWeights`  | current forward pass | durable weights plus fast state                |
 | `durableWeights`  | model revision       | stable knowledge and validated personalization |
 
-A fast update is not automatically a durable model revision. Runtime fast state
-may remain in memory. A session checkpoint is optional and scoped to one session.
-Durable consolidation is deliberate, replay-protected, and infrequent relative
-to online adaptation.
+A fast update is not automatically a durable model revision. The model returns its
+updated fast state as a value. A serving or training adapter may keep that value in
+memory or persist it in an external state store, but the model does not receive the
+store key. Durable consolidation is deliberate, replay-protected, and infrequent
+relative to online adaptation.
 
 ## Training plan
 
