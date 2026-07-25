@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminStripePage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
-  if (!isAdmin(session)) redirect("/dashboard");
+  if (!isAdmin(session)) redirect("/models");
 
   return (
     <div className="px-6 py-10 max-w-3xl mx-auto">

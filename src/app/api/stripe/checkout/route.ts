@@ -31,7 +31,7 @@ export async function POST() {
     // Already subscribed — send to customer portal to manage/cancel
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: existing.stripeCustomerId,
-      return_url: `${origin}/dashboard`,
+      return_url: `${origin}/models`,
     });
     return Response.json({ url: portalSession.url });
   }
@@ -46,7 +46,7 @@ export async function POST() {
     line_items: [{ price: priceId, quantity: 1 }],
     customer_email: user.email,
     metadata: { userId: user.id, testMode: useTestMode ? "1" : "0" },
-    success_url: `${origin}/dashboard?upgraded=1`,
+    success_url: `${origin}/models?upgraded=1`,
     cancel_url: `${origin}/upgrade`,
     subscription_data: {
       metadata: { userId: user.id, testMode: useTestMode ? "1" : "0" },
