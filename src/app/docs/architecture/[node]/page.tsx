@@ -134,7 +134,6 @@ export default async function ArchitectureNodePage({ params }: { params: Promise
   return (
     <DocsShell
       active="/docs/architecture"
-      eyebrow="Architecture detail"
       title={titles[node as SupportedNode] ?? "Architecture node"}
       description="A zoomed-in view of one operation in Piro’s stateful inference loop."
     >

@@ -2,64 +2,87 @@ import DocsShell from "~/components/DocsShell";
 
 export const metadata = {
   title: "API — Piro Docs",
-  description: "Invoke a stateful Piro model through the model API.",
+  description: "Run a pretrained Piro model through the inference API.",
 };
 
-const requestExample = `curl https://api.trainpiro.app/v1/models/your-model/invoke \\
+const requestExample = `curl https://api.trainpiro.app/models/your-model/invoke \\
   -H "Authorization: Bearer $PIRO_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "input": {"type": "message", "content": "What did I learn yesterday?"},
-    "state": {"session_id": "obi-wan-workspace"}
+    "parts": [
+      { "type": "text", "text": "What did I learn yesterday?" }
+    ]
   }'`;
 
+const requestBody = `{
+  "parts": [
+    { "type": "text", "text": "What did I learn yesterday?" }
+  ]
+}`;
+
 const responseExample = `{
-  "id": "inv_01J...",
-  "model": "your-model",
-  "output": {"type": "message", "content": "..."},
-  "state": {"session_id": "obi-wan-workspace", "version": 42},
-  "usage": {"steps": 6}
+  "output": {
+    "parts": [
+      { "type": "text", "text": "..." }
+    ]
+  }
 }`;
 
 export default function ApiDocsPage() {
   return (
-    <DocsShell
-      active="/docs/api"
-      eyebrow="The model interface"
-      title="Invoke a model with continuity."
-      description="The Piro API treats state as a first-class serving concern. Send an observation, address the external fast-state value you want to continue, and receive an output plus the next state version."
-    >
-      <div className="grid gap-5 lg:grid-cols-2">
-        <section className="rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-500/10 to-[#13100c] p-7 sm:p-9">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-orange-300">Invoke</p>
-          <h2 className="mt-4 text-2xl font-bold text-amber-50">One endpoint. Persistent context.</h2>
-          <p className="mt-4 text-sm leading-relaxed text-amber-300/60">The endpoint shown here is the contract we are building toward. It is intentionally simple: the complexity belongs inside the model loop, not in every client integration.</p>
-          <pre className="mt-7 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#0b0908] p-5 text-xs leading-relaxed text-amber-200/80"><code>{requestExample}</code></pre>
-        </section>
-        <section className="rounded-3xl border border-amber-900/30 bg-[#13100c] p-7 sm:p-9">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-400/60">Response shape</p>
-          <h2 className="mt-4 text-2xl font-bold text-amber-50">Output and state move together.</h2>
-          <p className="mt-4 text-sm leading-relaxed text-amber-300/60">A response is more than generated text. It tells you which model answered, which external state version was used, and how far the model run progressed.</p>
-          <pre className="mt-7 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#0b0908] p-5 text-xs leading-relaxed text-amber-200/80"><code>{responseExample}</code></pre>
-        </section>
+    <DocsShell active="/docs/api" title="API">
+      <div className="overflow-hidden rounded-3xl border border-amber-900/30 bg-[#13100c]">
+        <div className="border-b border-amber-900/25 px-6 py-6 sm:px-8">
+          <div className="flex flex-wrap items-center gap-3 font-mono text-sm">
+            <span className="rounded-md bg-emerald-400/15 px-2.5 py-1 font-bold text-emerald-300">POST</span>
+            <code className="text-amber-100/80">/models/&#123;model&#125;/invoke</code>
+          </div>
+          <p className="mt-5 max-w-3xl text-sm leading-relaxed text-amber-300/65 sm:text-base">
+            Run a pretrained Piro model on one observation. The model carries its learned state in its weights, so requests send a PiroInput packet and do not include a separate state parameter.
+          </p>
+        </div>
+
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)]">
+          <section className="border-b border-amber-900/25 p-6 sm:p-8 lg:border-b-0 lg:border-r">
+            <h2 className="text-xl font-bold text-amber-50">Request</h2>
+            <p className="mt-3 text-sm leading-relaxed text-amber-300/60">
+              The request body is a PiroInput observation. PiroInput is an ordered packet of typed parts; text observations use a single <code className="text-amber-100">text</code> part.
+            </p>
+
+            <div className="mt-8">
+              <h3 className="text-sm font-semibold text-amber-100">Body parameters</h3>
+              <dl className="mt-4 divide-y divide-amber-900/25 rounded-2xl border border-amber-900/25">
+                <div className="grid gap-1 p-4 sm:grid-cols-[8rem_1fr] sm:gap-5">
+                  <dt className="font-mono text-sm text-sky-200">parts</dt>
+                  <dd className="text-sm text-amber-300/65"><span className="font-mono text-amber-100/80">array</span> · required — the ordered parts of the observation.</dd>
+                </div>
+                <div className="grid gap-1 border-t border-amber-900/25 p-4 sm:grid-cols-[8rem_1fr] sm:gap-5">
+                  <dt className="font-mono text-sm text-sky-200">parts[].type</dt>
+                  <dd className="text-sm text-amber-300/65"><span className="font-mono text-amber-100/80">&quot;text&quot;</span> — identifies a text observation part.</dd>
+                </div>
+                <div className="grid gap-1 border-t border-amber-900/25 p-4 sm:grid-cols-[8rem_1fr] sm:gap-5">
+                  <dt className="font-mono text-sm text-sky-200">parts[].text</dt>
+                  <dd className="text-sm text-amber-300/65"><span className="font-mono text-amber-100/80">string</span> · required — the text presented to the model.</dd>
+                </div>
+              </dl>
+            </div>
+
+            <pre className="mt-8 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#0b0908] p-5 text-xs leading-relaxed text-amber-200/80"><code>{requestBody}</code></pre>
+          </section>
+
+          <section className="p-6 sm:p-8">
+            <h2 className="text-xl font-bold text-amber-50">Response</h2>
+            <p className="mt-3 text-sm leading-relaxed text-amber-300/60">
+              The response returns the model output in the same packet shape, so clients can handle model observations and outputs consistently.
+            </p>
+            <pre className="mt-8 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#0b0908] p-5 text-xs leading-relaxed text-amber-200/80"><code>{responseExample}</code></pre>
+          </section>
+        </div>
       </div>
 
-      <section className="mt-12">
-        <div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-400">Core concepts</p><h2 className="mt-4 text-3xl font-bold tracking-tight text-amber-50">Designed for model-native applications.</h2></div>
-        <div className="mt-7 grid gap-4 md:grid-cols-3">
-          {[
-            ["Model", "A named deployment with its own weights, state, and checkpoint history."],
-            ["External state", "A durable address for the caller-owned fast-state value. Resume it from the next request without making the identifier a model input."],
-            ["Version", "A checkpoint boundary you can inspect, benchmark, and recover when an update needs to be reversed."],
-          ].map(([title, body]) => <article key={title} className="rounded-2xl border border-amber-900/30 bg-[#13100c] p-6"><h3 className="font-semibold text-amber-50">{title}</h3><p className="mt-3 text-sm leading-relaxed text-amber-300/55">{body}</p></article>)}
-        </div>
-      </section>
-
-      <section className="mt-12 rounded-2xl border border-amber-900/30 bg-[#0f0c09] p-6 sm:p-8">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400/60">Planned surface area</p>
-        <div className="mt-5 flex flex-wrap gap-3 text-sm">
-          {["POST /v1/models/:model/invoke", "GET /v1/models/:model", "GET /v1/models/:model/state", "POST /v1/models/:model/checkpoints"].map((route) => <code key={route} className="rounded-lg border border-amber-800/30 bg-amber-950/20 px-3 py-2 text-amber-200/75">{route}</code>)}
-        </div>
+      <section className="mt-10">
+        <h2 className="text-xl font-bold text-amber-50">Example request</h2>
+        <pre className="mt-4 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#0b0908] p-5 text-xs leading-relaxed text-amber-200/80 sm:p-6"><code>{requestExample}</code></pre>
       </section>
     </DocsShell>
   );

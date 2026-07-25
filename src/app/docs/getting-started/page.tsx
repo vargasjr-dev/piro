@@ -21,7 +21,6 @@ export default function GettingStartedPage() {
   return (
     <DocsShell
       active="/docs/getting-started"
-      eyebrow="First model, first loop"
       title="Start with an experiment."
       description="A Piro project is a small, inspectable repo: generate the experiences, define the architecture, run the training loop, and measure whether the model is actually becoming more capable."
     >
