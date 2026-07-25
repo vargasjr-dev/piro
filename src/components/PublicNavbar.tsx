@@ -37,7 +37,7 @@ export default function PublicNavbar({ isLoggedIn, active }: PublicNavbarProps) 
           </Link>
           {isLoggedIn ? (
             <Link
-              href="/repos"
+              href="/models"
               className="ml-2 rounded-full border border-amber-700/50 px-4 py-2 text-amber-100 transition-colors hover:border-orange-400/70 hover:bg-orange-500/10"
             >
               Open Piro →

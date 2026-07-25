@@ -32,7 +32,7 @@ export default async function HomePage() {
             Piro is a stateful model that carries context across invocations — not a stateless chat window that forgets you between requests. Deploy your own dedicated instance, then let it grow with your work.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Link href={isLoggedIn ? "/repos" : "/signup"} className="ember-glow rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-8 py-4 text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500">
+            <Link href={isLoggedIn ? "/models" : "/signup"} className="ember-glow rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-8 py-4 text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500">
               {isLoggedIn ? "Open your model →" : "Deploy your model →"}
             </Link>
             <Link href="#how-it-works" className="rounded-xl border border-amber-800/50 px-8 py-4 text-base font-semibold text-amber-200 transition-colors hover:border-amber-500/70 hover:bg-amber-500/5">
@@ -130,7 +130,7 @@ export default async function HomePage() {
       </section>
 
       <section className="border-t border-amber-900/20 px-4 py-24 text-center sm:px-6 sm:py-32">
-        <div className="mx-auto max-w-2xl"><h2 className="text-3xl font-bold leading-tight text-amber-50 sm:text-5xl">Give your intelligence<br /><span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">somewhere to grow.</span></h2><p className="mt-6 text-lg leading-relaxed text-amber-200/65">Deploy a stateful Piro model built on the latest experiment — and stop starting from zero.</p><Link href={isLoggedIn ? "/repos" : "/signup"} className="ember-glow mt-10 inline-block rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-10 py-4 text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500">{isLoggedIn ? "Open your model →" : "Deploy your model →"}</Link><div className="mt-12 flex justify-center"><FlameLogo size={40} /></div></div>
+        <div className="mx-auto max-w-2xl"><h2 className="text-3xl font-bold leading-tight text-amber-50 sm:text-5xl">Give your intelligence<br /><span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">somewhere to grow.</span></h2><p className="mt-6 text-lg leading-relaxed text-amber-200/65">Deploy a stateful Piro model built on the latest experiment — and stop starting from zero.</p><Link href={isLoggedIn ? "/models" : "/signup"} className="ember-glow mt-10 inline-block rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-10 py-4 text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500">{isLoggedIn ? "Open your model →" : "Deploy your model →"}</Link><div className="mt-12 flex justify-center"><FlameLogo size={40} /></div></div>
       </section>
 
       <footer className="border-t border-amber-900/20 px-4 py-10 text-center text-xs text-amber-400/40"><p>Piro — stateful intelligence, deployed for you. © 2026.</p><p className="mt-1">© 2026 VargasJR LLC. All rights reserved.</p></footer>
