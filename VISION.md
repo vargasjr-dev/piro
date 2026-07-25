@@ -1,281 +1,260 @@
 # Piro — Vision
 
-> A platform where anyone can train their own tiny, RL-first model — built to grow, not decay — eventually running as the kernel of a personal OS.
+> **The model becomes yours.**
+>
+> Piro is a small, stateful model that learns an owner's way of thinking through interaction, stores that learning in its own independently owned parameters, and becomes more useful without requiring the owner to carry the entire past conversation into every prompt.
 
 ---
 
 ## The Thesis
 
-Every frontier model today is built the same way:
-1. Pretrain on the entire internet (next-token prediction, no reward)
-2. SFT to make it chat-friendly
-3. Bolt on RL as a post-training afterthought
+The first useful personal model does not need to know everything. It needs to understand **one person well**.
 
-RL is an afterthought. It's applied to a model that already has baked-in behaviors and biases from a data corpus no one person chose.
+Piro is not trying to build a smaller generic frontier assistant. It is trying to build a model that learns and retains an owner's:
 
-**We flip that.** RL is not phase 3 — it is the organizing principle from the beginning. A model that learns through interaction and reward from day one. Not trained on the internet. Trained on *you.*
+- hard constraints;
+- preferences and priorities;
+- tradeoffs;
+- exceptions;
+- workflows;
+- communication patterns;
+- ways of deciding under changing circumstances.
 
-The bet: a smaller, purpose-built, RL-first model that knows you deeply is more valuable than a general model that shallowly knows everyone.
+The central product promise is stronger than retrieval and stronger than a long system prompt:
 
----
+> Two identical initial models can become two different owners' models through different interaction streams, and the learned difference survives history removal, process restart, and future learning.
 
-## The Innovation Stack
-
-### 1. PKM-Backed Opus Judge as Reward Function
-
-Instead of human raters or abstract principles, the reward signal is:
-
-```
-Student generates response
-    ↓
-Opus (with user's PKM context injected) scores the response (0.0 → 1.0)
-    ↓
-Score becomes the RL reward
-```
-
-The judge isn't generic. It's Opus with *your* data injected — journal entries, conversation history, project context, preferences, decision patterns. The student is learning to satisfy *your* evaluator.
-
-This is **personalized knowledge distillation via RL**: using a context-augmented judge model to transfer individual preference structure into a small student model. At inference time, Opus is no longer needed — the personalization is baked into the student's weights.
-
-### 2. RL-First Architecture
-
-- GRPO (Group Relative Policy Optimization) — the student generates N responses per prompt, Opus scores all N, the model learns which behaviors scored higher relative to the group
-- No separate reward model needed
-- No labeled human preference dataset needed
-- The reward function is the judge + PKM context, and it gets richer over time as the PKM grows
-
-### 3. Tiny and Fast
-
-Starting at ~10M parameters (sub-GPT-2). The model is not trying to be a general assistant. It is a **preference-pattern recognizer** — a fast system that has deeply internalized how the owner thinks and what they want, capable of running in milliseconds on a laptop.
-
-This is the right constraint. Speed and locality are features, not limitations.
-
-### 4. Continual Learning That Builds, Not Decays
-
-**Learning moment detection** — not every interaction is worth training on. The system detects three high-signal categories:
-
-- **Correction moments**: Student was confident, judge scored low. Highest information density.
-- **Discovery moments**: Student was uncertain, judge scored high. Something good found by accident.
-- **Drift moments**: Judge scoring shifts on previously-stable prompt types. Owner preferences evolved.
-
-Everything else is discarded — the noisy middle band is not a learning signal.
-
-**Build-not-decay mechanisms:**
-1. Never update on single events — every update pass includes new learning moments *plus* replay from the historical "gold" interaction core set
-2. Asymmetric learning rates — build fast (discoveries), correct slow (corrections). Single correction events nudge, they don't nuke.
-3. The consolidation pass (the "sleep cycle") — buffer online, never apply raw. Once daily/weekly: run regression → apply buffer → re-run regression → roll back if anything decayed. Learning only merges into weights when it's proven not to destroy prior capability.
-
-**The capability map** — the model doesn't just get better at one thing. It accumulates layers:
-- Early: communication preferences, tone
-- Mid: project context, domain vocabulary, decision patterns
-- Later: anticipation, situation-type recognition
-- Mature: cross-domain reasoning — applying patterns from one project to another because it understands *how* the owner thinks, not just *what* they've said
+The model is not merely carrying a profile. **The model itself becomes personalized.**
 
 ---
 
-## The Recursive Edge
+## What Piro Is
 
-The judge uses Opus to score responses. But the scoring rubric can also encode *what Opus gets wrong*. Logged moments where Opus's responses frustrated, missed the mark, or felt off become *negative* reward signal.
+Piro is:
 
-The student is trained to replicate Opus's successes AND avoid its failure modes. Over time, the student doesn't converge toward Opus-in-general — it converges toward **Opus-knowing-this-one-person**, with corrections applied for Opus's blind spots.
+- a stateful research model built from scratch around the CTM architecture;
+- a model with explicit working state and persistent weights;
+- a fully independently mutable parameter set for each owner;
+- a system that learns relational policies, not merely isolated facts;
+- a small model optimized first for bounded personal intelligence, not universal knowledge;
+- a path toward affordable dedicated intelligence for ordinary consumers.
 
-This is the version that genuinely innovates past the frontier model rather than just distilling it.
+Piro is not initially:
 
----
+- a smaller ChatGPT competitor on broad world knowledge;
+- a retrieval system that claims retrieved facts are learned intelligence;
+- a random key/value memory benchmark presented as personal intelligence;
+- a shared base model with a thin per-user adapter;
+- a model whose behavior depends on replaying the entire owner transcript at inference time.
 
-## The Flywheel
-
-As the student improves → it generates higher-quality responses → judge gives more nuanced feedback → scoring rubric self-elevates → student is always stretched just past its current capability.
-
-As the PKM grows → judge becomes more context-rich → reward signal becomes more precise → student internalizes deeper preference structures.
-
-Student and judge co-evolve. That's the compounding mechanism.
-
----
-
-## The Web App (Phase 1)
-
-Scoped out of personal OS — standalone web app first. Core primitives:
-
-| Primitive | Purpose |
-|---|---|
-| Student model | Tiny, local, fast (~10M params) |
-| Interaction log | Every prompt + response stored |
-| Learning moment detector | Confidence estimator + surprise scoring |
-| Prioritized buffer | Tagged, ranked learning moments queued for update |
-| PKM sync layer | Pull relevant context from notes/journal for Opus judge calls |
-| Consolidation runner | Scheduled update + regression loop |
-| Capability ledger | Tracks what the model can do, alerts on regression |
+Training algorithms may evolve. The non-negotiable product property is independent, persistent personalization.
 
 ---
 
-## Long-Term Trajectory
+## North Star: Persistent Relational Personalization
 
-- **Phase 1 (Web App)**: Prove the loop. PKM-backed judge + GRPO + tiny student. Automated learning moment detection. Consolidation pass. Capability ledger.
-- **Phase 2 (Depth)**: Richer PKM integration. Drift detection. Cross-domain pattern generalization. Model doubles or triples in size as capability justifies it.
-- **Phase 3 (Personal OS Kernel)**: Student runs locally. PKM is live context, not just training data. Learns continuously from every interaction. Not an app — the thing that knows the operator of the machine.
-- **Phase 4 (Own Hardware)**: Mounted on custom hardware. No cloud dependency. Full sovereignty.
+The benchmark that matters most is not generic chatbot quality. It is whether a small model can become **someone's model** through interaction and apply that learned policy to new situations.
 
----
+### Why random associative recall is insufficient
 
-## Benchmarks
+The current associative-recall task—write random keys and values, add distractors, then query a key—is a useful low-level state diagnostic. It can show that information survives a boundary, reset, or serialization cycle.
 
-Eight benchmarks that validate the CTM-style architectural thesis and tell a coherent story about personal intelligence. Built to prove that a small, architecturally honest model beats a large, brute-force one.
+It is not yet personal intelligence. The values have no relationship to one another, and the task can be solved as a hash map. Success does not show that the model learned an owner's priorities, constraints, tradeoffs, exceptions, or way of deciding.
 
-| # | Name | Question | Why It Matters for Piro |
-|---|---|---|---|
-| 1 | **Adaptive Compute Efficiency** | Does the model think as hard as the problem requires — no more, no less? | Personal devices can't waste compute. Adaptive ticks = economic advantage. |
-| 2 | **OOD Generalization to Scale** | Trained on size N, tested on 4–10× N — did the model learn the rule or memorize examples? | Personal data is sparse by definition. Generalization from few examples is everything. |
-| 3 | **Calibration Accuracy** | When the model says 70% confident, is it right 70% of the time? | A personal AI that hallucinates with full confidence is dangerous. Trustworthiness requires calibration. |
-| 4 | **Constraint Satisfaction Under Backtracking** | Jones's Sudoku Bench — handcrafted variant Sudokus from Cracking the Cryptic. Current LLMs: ~15%. Humans: routine. | Tests genuine iterative reasoning. Transformers fail because one forward pass = no backtracking. CTMs iterate. |
-| 5 | **Personalization Flywheel** | How fast does the model get useful on YOUR data? Accuracy at 10/50/500 personal facts vs. a frozen pretrained baseline. | This is the core Piro thesis operationalized. |
-| 6 | **Sequential Procedure Following** | Multi-step instructions present in context — can the model execute the right step at the right time without losing the thread? | Real personal intelligence is "help me do this." Working memory and internal state maintenance across time. |
-| 7 | **Catastrophic Forgetting Resistance** | Teach Corpus A, then Corpus B — how much of A survives? | If Piro learns your new job and forgets your wife's food allergies, it's broken. |
-| 8 | **LLM Head-to-Head** | ARC-Challenge slice: can a 10M-param CTM get within 10–15 points of a 7B transformer at 1/700th the parameter count? | The press release benchmark. The headline: *"Piro matches GPT-4o performance-per-parameter by 5×."* |
+Associative recall remains a **diagnostic**, not the North Star.
 
-### North Star: Persistent Personalization
+### North Star protocol
 
-The benchmark that matters most is not whether Piro becomes a smaller generic chatbot. It is whether a small model can become **someone's model** through interaction, retain that personalization in its own parameters, and preserve it after restart.
+1. Start two identical 20,047-parameter Piro checkpoints with identical initialization.
+2. Give each model a different owner's interaction stream containing choices, corrections, preferences, priorities, and exceptions.
+3. Train each model only on its own stream. Do not share owner profiles, adapters, or evaluation context.
+4. Evaluate on held-out situations that require applying learned relations to new combinations of entities and circumstances.
+5. Remove the interaction history and owner profile from the evaluation prompt.
+6. Compare each personalized model with the untouched checkpoint and a history-only baseline.
+7. Save each personalized parameter set, terminate the process, reload the weights in a fresh runtime, and repeat the evaluation.
+8. Teach a second policy set and measure whether the model learns it without destroying previously validated behavior.
 
-**Protocol:**
+### A North Star pass requires
 
-1. Start two identical Piro checkpoints with identical architecture and initialization.
-2. Give each instance a different owner's interactions, corrections, preferences, and workflow examples.
-3. Train each instance only on its own interaction stream; do not share a base model, adapter, or owner profile at evaluation time.
-4. Evaluate on held-out owner-specific prompts with the interaction history and profile removed from the prompt.
-5. Compare each personalized model against the untouched checkpoint and a history-only/retrieval baseline.
-6. Save both personalized parameter sets, terminate the processes, reload them in a fresh runtime, and repeat the evaluation.
-7. Measure personalization gain, data efficiency, persistence after restart, and catastrophic forgetting while learning a second preference set.
+- personalization improves held-out owner-specific policy accuracy;
+- two identical initial models produce measurably different, owner-consistent decisions;
+- learned behavior transfers to novel combinations rather than exact training examples;
+- the behavior survives prompt-history removal and a full save/load/restart cycle;
+- the result comes from a bounded number of high-signal interactions, not a massive transcript;
+- new learning does not erase old learning beyond an explicit regression budget.
 
-**Success criteria:**
-
-- The personalized model beats the untouched checkpoint on held-out owner-specific preference and workflow tasks.
-- Two models that started identically produce measurably different, owner-consistent behavior after different interaction streams.
-- The learned behavior survives prompt-history removal and a full save/load/restart cycle.
-- The result is achieved with a bounded number of high-signal interactions, not merely memorization of a massive transcript.
-- Learning a new preference set does not erase previously validated preferences beyond an explicit regression budget.
-
-This is Piro's North Star because it directly tests the product promise: **the model becomes yours**. Parameter count, benchmark breadth, and serving efficiency are subordinate to proving this loop honestly.
+This is the core claim: **the model becomes yours.** Parameter count, general benchmark breadth, and serving throughput are subordinate to proving this loop honestly.
 
 ---
 
-## Architecture Research Roadmap
+## The 20K Benchmark: Owner Policy Worlds
 
-The Piro model is not a transformer fine-tune. It is a ground-up architecture built on what neuroscience actually tells us neurons do — implemented incrementally as each translation from biology to code becomes scientifically feasible.
+The first real personalization dataset is a set of small synthetic worlds with relational policies. It is designed for the current **Ashfall CTM-10x model: exactly 20,047 trainable parameters**.
 
-**The thesis:** Biological intelligence doesn't correlate with raw neuron count (research shows r ≈ 0). AI intelligence shouldn't require raw parameter count either. What matters is *how* units are organized and *how* they communicate. That's the architecture bet.
+### Dataset structure
 
-### The Seven Behaviors — Research Phases
+Each owner has a compact policy graph containing:
 
-| Phase | Neuron Behavior | What We Build | Status |
-|---|---|---|---|---|
-| 0 | **Firing rate + Spike timing** | CTM from scratch: per-neuron history + synchronization matrix as representation + adaptive ticks | ✅ Complete (45 tests) |
-| 1 | **Burst patterns** | Variable output sequence per neuron per step — neuron emits a short sequence shape, not just one float | ✅ Complete (burst-state.ts, burst-weighted sync matrix) |
-| 2 | **Hebbian plasticity** | Local weight update rules alongside backprop — prevents catastrophic forgetting, enables the personalization flywheel | ✅ Complete (PlasticSynapse, Oja's rule, consolidation API) |
-| 3 | **Dendritic spikes** | Multi-compartment neurons: internal branches vote before the neuron produces output — one neuron = small network | ✅ Complete (dendrite.ts, 23 tests) |
-| 4 | **Oscillatory entrainment** | Global rhythm vectors that gate neuron participation — dynamic network reorganization by task type | 🎯 Next |
-| 5 | **Neuromodulation** | Dynamic meta-parameters controlling plasticity — the model learns to control its own learning rate | Hard |
+- entities: foods, activities, tools, destinations, tasks, people, and resources;
+- attributes: ingredients, cost, time, effort, risk, urgency, category, and availability;
+- relations: contains, substitutes-for, requires, conflicts-with, enables, precedes, and preferred-over;
+- policy rules: choose, avoid, rank, defer, ask-first, or perform-next;
+- ordered priorities and weighted tradeoffs;
+- exceptions and corrections that refine the policy.
 
-### Build Principles
-- **From scratch, not a fork.** We borrow from Sakana's CTM paper conceptually. We write every line ourselves. This is how we learn the architecture deeply enough to evolve it beyond what Sakana published.
-- **Benchmarks are the only proof.** The only valid evidence of progress beyond the transformer is benchmark results. Every phase ships with before/after scores. No benchmark score = no phase complete.
-- **Phases complete on evidence, not time.** Each phase closes when benchmarks prove the feature works. No artificial deadlines.
+Different owners share the same semantic vocabulary but have conflicting policies. The model must infer the policy from interactions rather than receive a serialized owner profile.
 
-### The Efficiency Bet
+### Teaching interactions
 
-The human brain runs at 20W and performs ~10¹⁵–10¹⁷ FLOP-equivalents/second. An H100 GPU runs at 700W at ~2×10¹⁵ FLOPS. The brain is roughly 1,000–2,000× more compute-efficient per watt. That gap is the prize.
+Each owner receives a deterministic stream of approximately 32–64 interactions. Each interaction contains:
 
-Closing it requires two things:
-1. **Right architecture** (what we're building in Phases 0–5) → estimated 10–100× gain on existing hardware through sparsity and adaptive compute
-2. **Right hardware** (neuromorphic chips, long-term) → the remaining 10–100× multiplier
+1. a situation;
+2. two to four candidate actions;
+3. the owner's selected action;
+4. an optional correction or explanation;
+5. a consequence or follow-up that makes the rule relational.
 
-Phases 0–5 target the software gains. Hardware is the Phase 4 product milestone (Own Hardware).
+Example:
 
----
-
-## What We're Not Doing
-
-- Not trying to out-data the big labs on pretraining corpora
-- Not fine-tuning an existing model and calling it innovation
-- Not building a general assistant for anyone
-- Not treating RL as a post-training polish step
-
----
-
-## The One-Sentence Version
-
-> A tiny model built from scratch on a new architecture — biologically honest, not transformer-derived — trained via RL on the owner's own knowledge, that builds compounding personal intelligence at a fraction of the compute cost of any frontier model.
-
----
-
-## Compute Infrastructure (June 2026)
-
-### Philosophy
-Build the full thesis pipeline cheaply before owning hardware. Rent until $50K cumulative revenue, then buy a self-hosted H100. Long-term: H100 + home solar as the physical embodiment of the sun → intelligence pipeline.
-
-### Architecture (pre-hardware)
-
-**Inference — Modal Serverless**
-- Platform: [Modal](https://modal.com) — serverless GPU, scales to zero when idle
-- GPU: A10G (24GB) — sufficient for a 10M param model at any realistic concurrency
-- Cost: ~$0.30-0.50/hr, billed per GPU-second (near-zero cost when no users active)
-- Deployment: custom Modal function wrapping the student model weights
-- Cold start: ~2-4 seconds (acceptable for chat UI)
-- Capacity: one A10G can serve 500+ concurrent users at 10M params
-
-**Training — Modal On-Demand**
-- Platform: Modal (same account, different function)
-- GPU: A100 80GB or H100 (rented only during training runs)
-- Trigger: on-demand (weekly or when learning moment buffer exceeds threshold)
-- Cost per run: ~$1.25-6 in GPU time (10M param GRPO runs are fast)
-- Reward model: **Kimi K2 API** ($0.60/M input tokens) — no GPU needed for scoring
-- Weights persisted to Modal Volumes or S3 between runs
-
-**Training loop:**
-```
-Modal A100/H100 (on-demand)
-  → generates N rollouts per prompt (policy model, 10M params)
-  → calls Kimi K2 API for reward scores (PKM context injected)
-  → GRPO update applied to policy weights
-  → weights saved to persistent storage
-  → GPU shuts down
+```text
+Situation: lunch before a meeting in 20 minutes.
+Options: cheese sandwich | hummus wrap.
+Owner choice: hummus wrap.
+Correction: dairy proteins are not safe, even when the food looks vegetarian.
 ```
 
-**Storage**
-- Model weights: Modal Volumes (versioned checkpoints)
-- Interaction logs + learning moment buffer: persistent DB (Postgres/SQLite)
-- PKM context: synced from workspace at training time
+The stream must include positive examples, negative examples, corrections, and explicit exceptions. The answer to an evaluation prompt must not simply be copied from the teaching stream.
 
-### Revenue Model
-- User-facing product: personalized private AI at $20-30/month per user
-- Target: 500 users = $10-15K/month on one A10G serving 10M params
-- Hardware trigger: buy H100 (~$25K all-in) when $50K cumulative revenue hit
-- Post-hardware: Modal inference → self-hosted inference; training stays Modal or moves home
+### Evaluation probes
 
-### Initial Dedicated-Model Capacity Target (July 2026)
+The held-out set must be split by composition, not just random rows:
 
-Piro's initial serving economics assume that every customer receives a **fully independent parameter set**. We are not sharing a base model or relying on LoRA/adapters for the first deployment architecture. Each model may share the same architecture and execution code, but its weights are independently owned, mutable, persisted, and loaded.
+- **Novel combination:** known entities and relations recombined into a new situation;
+- **Surface variation:** the same policy expressed through new templates and orderings;
+- **Conflicting-owner pair:** the same situation given to owners with different priorities;
+- **Multi-hop policy reasoning:** at least two relations must be composed to select the answer.
 
-The initial capacity target is:
+At 20K, controlled structured packets are preferable to pretending the model has broad natural-language fluency. Readable text can remain in the dataset for inspection, but the model input must preserve reusable semantic factors. Hashing each complete sentence independently would destroy the relational structure we are trying to measure.
 
-- **96 fully independent models resident on one H100 80GB**
-- **256M BF16 parameters per model** as the planning target
-- **~24.6B total resident parameters per H100** across the 96 models
-- BF16 is the canonical weight format for continual updates; FP8 execution and lower-precision serving are future optimizations, not assumptions in the base economics
-- The 96-model target is a memory-and-cost planning constraint, not a throughput guarantee; concurrent serving, update synchronization, activations, and runtime overhead still require benchmarking
+### Evaluation conditions
 
-This deliberately favors a smaller number of high-fidelity, fully mutable parameters over a larger INT4 model whose quantized representation would complicate continual learning. The first economics model treats all 96 models as loaded simultaneously rather than relying on cold-model eviction or on-demand swapping.
+Every owner is evaluated under six conditions:
 
-### Hardware Roadmap
-| Milestone | Trigger | Move |
-|---|---|---|
-| Phase 0 | Now | Modal serverless inference + on-demand training |
-| Phase 1 | $50K revenue | Buy H100 PCIe 80GB + server (~$25K), self-host inference |
-| Phase 2 | $200K revenue | Home solar installed, eliminate all power costs |
-| Phase 3 | Scale | Multiple H100s, expand to full home data center |
+1. **Untouched:** initial checkpoint, no owner interactions;
+2. **History-only:** initial checkpoint with the owner stream supplied as runtime context;
+3. **Personalized:** owner updates applied, history removed;
+4. **Restarted personalized:** weights saved, process terminated, weights reloaded, history removed;
+5. **Reset control:** runtime state cleared and owner updates absent;
+6. **After new learning:** a second policy set is learned, then both old and new policies are tested.
+
+The history-only condition prevents a false claim that behavior lives in weights when it actually lives in the prompt. The reset control separates durable parameters from transient working state.
+
+### Initial 20K greenlight targets
+
+These are research gates, not permanent product claims:
+
+- at least **70%** accuracy on four-choice relational probes, versus a 25% random baseline;
+- at least **20 percentage points** of personalization gain over the untouched checkpoint;
+- at least **80%** accuracy on conflicting-owner paired probes;
+- at least **90%** restart retention;
+- no more than **10%** relative regression on previously validated policies after new learning.
+
+A result does not count if it only improves exact phrase matching, direct recall, or prompts that reveal the owner's answer.
+
+The detailed dataset and benchmark design lives in [`docs/research-persistent-personalization-20k.md`](docs/research-persistent-personalization-20k.md).
 
 ---
 
-*Started: May 30, 2026*
-*Architecture thesis locked: June 14, 2026 — CTM-inspired, built from scratch, 7-phase neuroscience roadmap.*
-*Status: Phase 3 complete (Dendritic Spikes) — 117 tests passing. Phase 4 (Oscillatory Entrainment) next.*
+## Current State
+
+- **Current architecture:** Ashfall CTM-10x.
+- **Current size:** 20,047 trainable parameters.
+- **Baseline size:** 2,005 parameters.
+- **Current experiment:** associative recall with variable-length observation histories.
+- **What the current experiment proves:** low-level state, delayed recall, reset, and serialization behavior.
+- **What it does not yet prove:** persistent owner-specific relational personalization.
+- **Immediate next research task:** build the Owner Policy Worlds dataset and run the North Star protocol at 20K.
+
+The 20K model is a mechanism laboratory. We should use it to answer whether the personalization loop works, not spend months optimizing a toy recall score.
+
+---
+
+## Model Scale Roadmap
+
+| Scale | Role | Gate to move forward |
+|---:|---|---|
+| **20K** | Mechanism lab and first North Star test | Persistent relational personalization survives history removal and restart |
+| **100K–250K** | Capacity and compositionality check | The North Star signal survives beyond a lookup-like regime |
+| **~2M** | Serious personalization research model | Richer policies, more varied interactions, stronger transfer |
+| **~10M** | First bounded chat-style demonstration | Personalization becomes visible in useful conversational workflows |
+| **256M** | Product-scale dedicated model | The learned mechanism is worth scaling and the economics remain attractive |
+
+We do not need to reach 10M before testing the core idea. We also do not scale to 2M merely because a larger model might hide an unresolved learning problem.
+
+### What transfers from 20K
+
+The 20K model can validate:
+
+- state boundaries and reset semantics;
+- weight/state persistence;
+- save/load and process-restart behavior;
+- owner divergence methodology;
+- plasticity and consolidation rules;
+- replay and forgetting controls;
+- evaluation design and regression budgets.
+
+These mechanisms transfer to larger models. Language breadth, fluency, and the best hyperparameters will require retuning at each scale.
+
+---
+
+## Dedicated-Model Economics
+
+Piro's initial serving assumption is **full parameter independence**. Every customer receives a complete parameter set that is independently owned, mutable, persisted, and loaded. We are not sharing a base model or relying on LoRA/adapters for the initial architecture.
+
+The initial hardware target is:
+
+- **96 fully independent models resident on one H100 80GB**;
+- **256M BF16 parameters per model**;
+- approximately **24.6B total resident parameters per H100**;
+- BF16 as the canonical format for continually mutable weights;
+- FP8 and INT4 as future serving optimizations, not assumptions in the base economics;
+- all 96 models loaded simultaneously for the first economics model, rather than relying on cold-model eviction.
+
+This is a memory-and-cost target, not a throughput guarantee. Concurrent serving, activation memory, update synchronization, and runtime overhead still require measurement.
+
+The economics favor a smaller number of fully mutable, high-fidelity parameters over a larger quantized model whose representation complicates continual learning. One user per model is acceptable. One permanently dedicated GPU per user is not.
+
+---
+
+## Design Commitments
+
+1. **Personalization over generic benchmark theater.** The first headline is that the model becomes yours.
+2. **Relational learning over lookup tests.** Evaluation must require reusable policies, tradeoffs, and exceptions.
+3. **Weights over transcript dependence.** Learned behavior must survive history removal and restart.
+4. **Full ownership first.** Each user gets an independent parameter set; shared-base approaches are deferred.
+5. **BF16 canonical weights first.** Optimize serving precision later without making quantization the learning substrate.
+6. **Small experiments before expensive scale.** Prove the mechanism at 20K, then earn 2M, 10M, and 256M.
+7. **Regression is a failure.** New learning must not silently destroy validated personal capabilities.
+8. **Diagnostics are not product claims.** Associative recall can validate memory plumbing, but it cannot stand in for personal intelligence.
+
+---
+
+## What We Are Not Doing Now
+
+- We are not building a general-purpose frontier model.
+- We are not using the old Opus-judge/PKM framing as the current product thesis.
+- We are not treating GRPO, a reward API, or a particular trainer as the definition of Piro.
+- We are not claiming random key/value recall demonstrates personal intelligence.
+- We are not starting with LoRA or a shared frozen base.
+- We are not scaling model size before the 20K personalization mechanism produces a real signal.
+
+---
+
+## One-Sentence Version
+
+> **Piro is a small model that learns an owner's relational policies through interaction, stores them in independently owned weights, survives restart without the original history, and grows into an affordable personal intelligence.**
+
+---
+
+*Vision reset: July 25, 2026.*
+*Current North Star: persistent relational personalization at 20,047 parameters.*
