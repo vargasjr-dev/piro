@@ -32,7 +32,11 @@ import { datasetHead, datasetsList, datasetsGet } from "./commands/datasets.js";
 import { architectureTrain } from "./commands/architectures.js";
 import { benchmarksEval } from "./commands/benchmarks.js";
 import { evalsGet, evalsList } from "./commands/evals.js";
-import { trainingGet, trainingList } from "./commands/training.js";
+import {
+  trainingEstimate,
+  trainingGet,
+  trainingList,
+} from "./commands/training.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -77,6 +81,9 @@ function usage(msg?: string): never {
   console.error("  piro evals get <id>");
   console.error("  piro training list");
   console.error("  piro training get <id>");
+  console.error(
+    "  piro training estimate [--max-steps <n>] [--seconds-per-step <n>] [--gpu <type>]",
+  );
   process.exit(msg ? 1 : 0);
 }
 
@@ -199,6 +206,13 @@ switch (subject) {
         await trainingGet(id);
         break;
       }
+      case "estimate":
+        await trainingEstimate({
+          maxSteps: opt(rest, "max-steps"),
+          secondsPerStep: opt(rest, "seconds-per-step"),
+          gpu: opt(rest, "gpu"),
+        });
+        break;
       default:
         usage(`unknown training verb: ${verb}`);
     }

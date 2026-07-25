@@ -65,16 +65,19 @@ export async function reconcileStaleTrainingRun(
   const error = pastDeadline
     ? "Training worker exceeded its execution deadline and was reconciled by the API."
     : "Training worker stopped heartbeating and was reconciled by the API.";
-  const runtimeMs = Math.max(0, now.getTime() - run.startedAt.getTime());
+  // Reconciliation can happen long after the worker was killed. Cap the
+  // recorded runtime and cost at the declared deadline so stale API reads do
+  // not bill the run for hours of non-observed execution.
+  const end = pastDeadline ? deadline : now;
+  const runtimeMs = Math.max(0, end.getTime() - run.startedAt.getTime());
   const [updated] = await db
     .update(trainingRun)
     .set({
       status: "error",
       error,
       completedAt: now,
-      heartbeatAt: now,
       runtimeMs,
-      costUsd: estimateCostUsd(run, now),
+      costUsd: estimateCostUsd(run, end),
       costBasis: "modal_standard_estimate",
     })
     .where(and(eq(trainingRun.id, run.id), eq(trainingRun.status, "running")))

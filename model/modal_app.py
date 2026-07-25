@@ -298,15 +298,20 @@ class Trainer:
         checkpoint_key: str | None = row[1] if row else None
         checkpoint_step: int = int(row[2] or 0) if row else 0
         persisted_started_at = row[4] if row else None
-        # The first invocation claims queued→running. Resumed invocations
-        # retain the run lease and refresh the attempt deadline.
+        # The first invocation claims queued→running. Resumed invocations keep
+        # the same absolute deadline for the logical run; checkpointing must not
+        # silently buy another application window.
         now = datetime.now(timezone.utc)
         started_at = persisted_started_at or now
-        timeout_at = now + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
+        timeout_at = (
+            row[5]
+            if resume and row and row[5]
+            else started_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
+        )
         if resume:
             cur.execute(
-                'UPDATE training_run SET "heartbeatAt" = %s, "timeoutAt" = %s WHERE id = %s AND status = %s',
-                (now, timeout_at, run_id, "running"),
+                'UPDATE training_run SET "heartbeatAt" = %s WHERE id = %s AND status = %s',
+                (now, run_id, "running"),
             )
         else:
             cur.execute(
@@ -513,8 +518,7 @@ class Trainer:
                         "checkpointR2Key" = %s,
                         "checkpointStep" = %s,
                         "checkpointAt" = %s,
-                        "heartbeatAt" = %s,
-                        "timeoutAt" = %s
+                        "heartbeatAt" = %s
                     WHERE id = %s AND status = 'running'
                     """,
                     (
@@ -524,7 +528,6 @@ class Trainer:
                         step,
                         checkpointed_at,
                         checkpointed_at,
-                        checkpointed_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS),
                         run_id,
                     ),
                 )
@@ -570,25 +573,40 @@ class Trainer:
                 count = max(1, len(data))
                 return total_loss / count, correct / count
 
-            def _spawn_resume() -> None:
-                Trainer().run.spawn(
-                    run_id=run_id,
-                    model_name=model_name,
-                    model_template=model_template,
-                    data_source=data_source,
-                    dataset_r2_prefix=dataset_r2_prefix,
-                    max_steps=max_steps,
-                    seed=seed,
-                    resume=True,
-                )
-
             _load_checkpoint()
+            if not checkpoint_key and start_step == 0:
+                _save_checkpoint(0)
+                print(f"[piro] run {run_id} initialized checkpoint at step 0")
+
             for step in range(start_step + 1, max_steps + 1):
                 now = datetime.now(timezone.utc)
                 if now + timedelta(seconds=CHECKPOINT_SAFETY_SECONDS) >= timeout_at:
                     _save_checkpoint(step - 1)
-                    _spawn_resume()
-                    print(f"[piro] run {run_id} checkpointed at step {step - 1}; spawned resume")
+                    completed_at = datetime.now(timezone.utc)
+                    runtime_ms = max(
+                        0,
+                        int((min(completed_at, timeout_at) - started_at).total_seconds() * 1000),
+                    )
+                    cur.execute(
+                        """
+                        UPDATE training_run
+                        SET status = %s, error = %s, "completedAt" = %s,
+                            "runtimeMs" = %s, "costUsd" = %s,
+                            "costBasis" = %s
+                        WHERE id = %s AND status = 'running'
+                        """,
+                        (
+                            "error",
+                            f"Training deadline reached; checkpoint saved at step {step - 1}.",
+                            completed_at,
+                            runtime_ms,
+                            _estimate_cost_usd(runtime_ms),
+                            "modal_standard_estimate",
+                            run_id,
+                        ),
+                    )
+                    conn.commit()
+                    print(f"[piro] run {run_id} checkpointed at step {step - 1}; deadline reached")
                     return
 
                 batch = _next_batch()
@@ -722,7 +740,10 @@ class Trainer:
 
         except BaseException as exc:
             completed_at = datetime.now(timezone.utc)
-            runtime_ms = int((completed_at - started_at).total_seconds() * 1000)
+            runtime_ms = max(
+                0,
+                int((min(completed_at, timeout_at) - started_at).total_seconds() * 1000),
+            )
             cur.execute(
                 """
                 UPDATE training_run
