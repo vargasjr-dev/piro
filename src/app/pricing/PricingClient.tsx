@@ -7,7 +7,7 @@ import PublicNavbar from "~/components/PublicNavbar";
 
 const PRO_FEATURES = [
   ["🧠", "Dedicated stateful model", "Continuity between invocations"],
-  ["⚡", "Latest-model inference", "Your deployment follows the newest experiment"],
+  ["⚡", "Current-architecture inference", "Your deployment follows the newest validated architecture"],
   ["♾️", "Unlimited inference", "No per-token meter"],
   ["📦", "Versioned state", "Inspect and recover deployment checkpoints"],
   ["🔑", "API access", "Use your model in your own apps"],
@@ -108,7 +108,7 @@ export default function PricingClient({ latestModelLabel, isLoggedIn }: PricingC
             </span>
           </h1>
           <p className="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-amber-200/65 sm:text-xl">
-            Test the globally shared Piro model for free, or deploy a dedicated stateful model when you are ready. Every paid deployment follows the latest experiment.
+            Test the globally shared Piro model for free, or deploy a dedicated stateful model when you are ready. Every paid deployment follows the current architecture.
           </p>
         </div>
       </section>
@@ -120,7 +120,7 @@ export default function PricingClient({ latestModelLabel, isLoggedIn }: PricingC
             <h2 className="mt-4 text-3xl font-bold text-amber-50">Free</h2>
             <p className="mt-3 min-h-14 text-sm leading-relaxed text-amber-300/55">Test the globally shared Piro model and see how it learns before you deploy your own.</p>
             <ul className="my-8 space-y-4 text-sm text-amber-200/70">
-              {["Test the globally shared Piro model", "Connect your first repository", "Browse experiment structure", "Upgrade when you are ready"].map((feature) => (
+              {["Test the globally shared Piro model", "Connect your first repository", "Browse architecture structure", "Upgrade when you are ready"].map((feature) => (
                 <li key={feature} className="flex gap-3"><span className="text-orange-400">✓</span><span>{feature}</span></li>
               ))}
             </ul>
@@ -174,7 +174,7 @@ export default function PricingClient({ latestModelLabel, isLoggedIn }: PricingC
         <div className="mx-auto max-w-4xl text-center">
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-orange-400">The promise</p>
           <h2 className="mt-5 text-3xl font-bold leading-tight text-amber-50 sm:text-5xl">No disposable chat window.<br /><span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">A model with continuity.</span></h2>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-amber-200/65">Your Piro deployment starts from the latest experiment and keeps its state as it works. The research moves forward; your model track moves with it.</p>
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-amber-200/65">Your Piro deployment starts from the current architecture and keeps its state as it works. The research moves forward; your model stays continuous.</p>
           <Link href="/" className="mt-9 inline-block rounded-xl border border-amber-700/50 px-7 py-3.5 font-semibold text-amber-100 transition-colors hover:border-orange-400/70 hover:bg-orange-500/5">Back to Piro →</Link>
           <div className="mt-12 flex justify-center"><FlameLogo size={40} /></div>
         </div>

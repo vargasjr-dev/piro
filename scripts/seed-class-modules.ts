@@ -57,7 +57,7 @@ const MODULES: Array<{
 }> = [
   {
     slug: "ctm",
-    sourcePath: join(import.meta.dir, "../model/ctm.py"),
+    sourcePath: join(import.meta.dir, "../architectures/ctm/model.py"),
     manifest: {
       name: "Continuous Thought Model",
       slug: "ctm",
@@ -80,13 +80,13 @@ const MODULES: Array<{
         confidence_threshold: 0.9,
       },
       parameterCount: 1674,
-      module: "model.ctm",
+      module: "architectures.ctm.model",
       modelClass: "ContinuousThoughtModel",
     },
   },
   {
     slug: "baseline-transformer",
-    sourcePath: join(import.meta.dir, "../model/baseline_transformer.py"),
+    sourcePath: join(import.meta.dir, "../architectures/baseline_transformer/model.py"),
     manifest: {
       name: "Baseline Transformer",
       slug: "baseline-transformer",
@@ -102,7 +102,7 @@ const MODULES: Array<{
         n_classes: 5,
       },
       parameterCount: 857,
-      module: "model.baseline_transformer",
+      module: "architectures.baseline_transformer.model",
       modelClass: "BaselineTransformer",
     },
   },

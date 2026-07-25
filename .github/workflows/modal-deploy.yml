@@ -4,9 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-        - "model/**"
-        - "piro/**"
-        - ".github/workflows/modal-deploy.yml"
+      - "architectures/**"
+      - "benchmarks/**"
+      - "sources/**"
+      - "platform/**"
+      - "pyproject.toml"
+      - ".github/workflows/modal-deploy.yml"
   workflow_dispatch:
 
 jobs:
@@ -24,7 +27,7 @@ jobs:
         run: uv tool install modal
 
       - name: Deploy
-        run: modal deploy model/modal_app.py
+        run: modal deploy platform/modal_app.py
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
