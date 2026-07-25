@@ -1,13 +1,17 @@
 # Piro model research
 
-This directory is the canonical Python research implementation. The web app
+This directory is the canonical Python research implementation. The current
+`ContinuousThoughtModel` is a retained research prototype, not a commitment that
+CTM belongs in Piro’s first production architecture. The baseline architecture
+question is simpler: can fast, writable weights plus slow durable weights produce
+useful online learning and personalization? The web app
 and platform are supporting infrastructure; model hypotheses, state behavior,
 training, and experiments belong here.
 
 ## Canonical modules
 
-- `ctm.py` — Continuous Thought Model with neuron MLPs, rolling history,
-  synchrony, burst state, optional oscillators, and Oja plasticity.
+- `ctm.py` — deferred Continuous Thought Model experiment with neuron MLPs,
+  rolling history, synchrony, burst state, optional oscillators, and Oja plasticity.
 - `baseline_transformer.py` — matched fixed-depth transformer baseline.
 - `data/associative_recall.py` — deterministic WRITE / DISTRACT / QUERY episodes.
 - `benchmarks/persistent_memory.py` — retained, reset, and serialized-state recall evaluation.
