@@ -1,0 +1,1 @@
+ALTER TABLE "training_run" ADD COLUMN "progressJson" text;

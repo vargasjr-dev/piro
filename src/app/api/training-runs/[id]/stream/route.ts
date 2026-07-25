@@ -26,7 +26,7 @@ export async function GET(
 
   const stream = new ReadableStream({
     async start(controller) {
-      let lastStep = -1;
+      let lastProgressSignature = "";
 
       while (true) {
         const [run] = await db
@@ -48,30 +48,40 @@ export async function GET(
 
         const reconciled = await reconcileStaleTrainingRun(run);
 
-        // Push step progress when a new checkpoint has arrived
-        if (
-          reconciled.currentStep !== null &&
-          reconciled.currentStep > lastStep
-        ) {
-          let history: unknown[] = [];
-          if (reconciled.stepHistoryJson) {
-            try {
-              history = JSON.parse(reconciled.stepHistoryJson);
-            } catch {
-              /* ignore */
-            }
+        // Push every new live-progress snapshot, including work inside a
+        // checkpoint interval. Checkpoint metadata remains separate so the
+        // client can distinguish observable progress from resumable state.
+        let history: unknown[] = [];
+        if (reconciled.stepHistoryJson) {
+          try {
+            history = JSON.parse(reconciled.stepHistoryJson);
+          } catch {
+            /* ignore */
           }
-          controller.enqueue(
-            event("progress", {
-              currentStep: reconciled.currentStep,
-              maxSteps: reconciled.maxSteps,
-              checkpointStep: reconciled.checkpointStep,
-              checkpointAt: reconciled.checkpointAt?.toISOString() ?? null,
-              history,
-              status: reconciled.status,
-            }),
-          );
-          lastStep = reconciled.currentStep;
+        }
+        let progress: Record<string, unknown> = {};
+        if (reconciled.progressJson) {
+          try {
+            const parsed = JSON.parse(reconciled.progressJson);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+              progress = parsed as Record<string, unknown>;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+        const progressPayload = JSON.stringify({
+          currentStep: reconciled.currentStep,
+          maxSteps: reconciled.maxSteps,
+          checkpointStep: reconciled.checkpointStep,
+          checkpointAt: reconciled.checkpointAt?.toISOString() ?? null,
+          history,
+          progress,
+          status: reconciled.status,
+        });
+        if (progressPayload !== lastProgressSignature) {
+          controller.enqueue(event("progress", JSON.parse(progressPayload)));
+          lastProgressSignature = progressPayload;
         }
 
         // Terminal states — send final event and close
