@@ -133,6 +133,30 @@ Eight benchmarks that validate the CTM-style architectural thesis and tell a coh
 | 7 | **Catastrophic Forgetting Resistance** | Teach Corpus A, then Corpus B — how much of A survives? | If Piro learns your new job and forgets your wife's food allergies, it's broken. |
 | 8 | **LLM Head-to-Head** | ARC-Challenge slice: can a 10M-param CTM get within 10–15 points of a 7B transformer at 1/700th the parameter count? | The press release benchmark. The headline: *"Piro matches GPT-4o performance-per-parameter by 5×."* |
 
+### North Star: Persistent Personalization
+
+The benchmark that matters most is not whether Piro becomes a smaller generic chatbot. It is whether a small model can become **someone's model** through interaction, retain that personalization in its own parameters, and preserve it after restart.
+
+**Protocol:**
+
+1. Start two identical Piro checkpoints with identical architecture and initialization.
+2. Give each instance a different owner's interactions, corrections, preferences, and workflow examples.
+3. Train each instance only on its own interaction stream; do not share a base model, adapter, or owner profile at evaluation time.
+4. Evaluate on held-out owner-specific prompts with the interaction history and profile removed from the prompt.
+5. Compare each personalized model against the untouched checkpoint and a history-only/retrieval baseline.
+6. Save both personalized parameter sets, terminate the processes, reload them in a fresh runtime, and repeat the evaluation.
+7. Measure personalization gain, data efficiency, persistence after restart, and catastrophic forgetting while learning a second preference set.
+
+**Success criteria:**
+
+- The personalized model beats the untouched checkpoint on held-out owner-specific preference and workflow tasks.
+- Two models that started identically produce measurably different, owner-consistent behavior after different interaction streams.
+- The learned behavior survives prompt-history removal and a full save/load/restart cycle.
+- The result is achieved with a bounded number of high-signal interactions, not merely memorization of a massive transcript.
+- Learning a new preference set does not erase previously validated preferences beyond an explicit regression budget.
+
+This is Piro's North Star because it directly tests the product promise: **the model becomes yours**. Parameter count, benchmark breadth, and serving efficiency are subordinate to proving this loop honestly.
+
 ---
 
 ## Architecture Research Roadmap
