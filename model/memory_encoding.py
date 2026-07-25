@@ -11,6 +11,15 @@ def _hash_values(label: str, count: int) -> list[float]:
     return [((digest[index % len(digest)] / 255.0) * 2.0) - 1.0 for index in range(count)]
 
 
+def _tensor(values: list[float], dimension: int, *, torch_module: Any, dtype: Any, device: Any):
+    kwargs = {}
+    if dtype is not None:
+        kwargs["dtype"] = dtype
+    if device is not None:
+        kwargs["device"] = device
+    return torch_module.tensor(values[:dimension], **kwargs)
+
+
 def memory_embedding(
     observation: str,
     dimension: int,
@@ -19,13 +28,7 @@ def memory_embedding(
     dtype: Any = None,
     device: Any = None,
 ):
-    """Encode a memory observation with shared key/value coordinates.
-
-    Write observations place a deterministic key vector in the first half and
-    value vector in the second half. Query observations reuse the key half and
-    leave the value half empty, giving a stateful model a learnable retrieval
-    boundary while keeping the public dataset role-free.
-    """
+    """Encode an associative-memory observation with shared key/value coordinates."""
     if dimension < 2:
         raise ValueError("memory embeddings require at least two dimensions")
 
@@ -44,9 +47,42 @@ def memory_embedding(
     else:
         values = _hash_values(f"key:{observation}", key_width) + [0.0] * value_width
 
-    kwargs = {}
-    if dtype is not None:
-        kwargs["dtype"] = dtype
-    if device is not None:
-        kwargs["device"] = device
-    return torch_module.tensor(values[:dimension], **kwargs)
+    return _tensor(values, dimension, torch_module=torch_module, dtype=dtype, device=device)
+
+
+def policy_embedding(
+    observation: str,
+    dimension: int,
+    *,
+    torch_module: Any,
+    dtype: Any = None,
+    device: Any = None,
+):
+    """Encode structured policy packets while preserving reusable semantic factors.
+
+    Each ``|`` field and ``=``/``,`` value is hashed independently and summed into
+    a fixed-width vector. This intentionally shares coordinates for repeated
+    relations such as ``deadline=urgent`` and ``attribute=quality`` rather than
+    hashing an entire observation string as one opaque symbol.
+    """
+    if dimension < 2:
+        raise ValueError("policy embeddings require at least two dimensions")
+
+    tokens: list[str] = []
+    for field in observation.replace("\n", "|").split("|"):
+        field = field.strip()
+        if not field:
+            continue
+        tokens.append(field)
+        if "=" in field:
+            key, value = (part.strip() for part in field.split("=", maxsplit=1))
+            tokens.extend((key, value, f"{key}={value}"))
+        if "," in field:
+            tokens.extend(part.strip() for part in field.split(",") if part.strip())
+
+    values = [0.0] * dimension
+    for token in tokens:
+        token_values = _hash_values(f"policy:{token}", dimension)
+        for index, value in enumerate(token_values):
+            values[index] += value / max(1, len(tokens))
+    return _tensor(values, dimension, torch_module=torch_module, dtype=dtype, device=device)
