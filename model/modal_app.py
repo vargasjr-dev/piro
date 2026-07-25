@@ -1039,22 +1039,38 @@ class Infer:
         parameter = next(model.parameters())
         policy_mode = cfg.get("dataSource") == "owner-policy-worlds"
         answer = "ACK"
-        observations = [line.strip() for line in input_text.splitlines() if line.strip()]
-        query_start = next(
-            (index for index, line in enumerate(observations) if line.startswith("SITUATION|")),
-            len(observations),
-        )
-        for index, observation in enumerate(observations):
-            if policy_mode:
-                is_query = index >= query_start
+        if policy_mode:
+            is_query = "CHOICE|" not in input_text
+            if is_query:
                 encoded = self._policy_embedding(
-                    observation,
+                    input_text,
                     cfg["embed_dim"],
                     torch_module=torch,
                     dtype=parameter.dtype,
                     device=parameter.device,
                 )
+                output = model(encoded)
+                logits = output.logits if hasattr(output, "logits") else output
+                answer = str(int(logits.argmax().item()))
             else:
+                for observation in input_text.splitlines():
+                    observation = observation.strip()
+                    if not observation:
+                        continue
+                    model(
+                        self._policy_embedding(
+                            observation,
+                            cfg["embed_dim"],
+                            torch_module=torch,
+                            dtype=parameter.dtype,
+                            device=parameter.device,
+                        )
+                    )
+        else:
+            for observation in input_text.splitlines():
+                observation = observation.strip()
+                if not observation:
+                    continue
                 is_query = "=" not in observation and not observation.startswith("token_")
                 encoded = self._memory_embedding(
                     f"QUERY:{observation}" if is_query else observation,
@@ -1063,10 +1079,10 @@ class Infer:
                     dtype=parameter.dtype,
                     device=parameter.device,
                 )
-            output = model(encoded)
-            if is_query:
-                logits = output.logits if hasattr(output, "logits") else output
-                answer = str(int(logits.argmax().item())) if policy_mode else f"value_{int(logits.argmax().item()):03d}"
+                output = model(encoded)
+                if is_query:
+                    logits = output.logits if hasattr(output, "logits") else output
+                    answer = f"value_{int(logits.argmax().item()):03d}"
 
         return answer, self._json_state(model.snapshot_state())
 
