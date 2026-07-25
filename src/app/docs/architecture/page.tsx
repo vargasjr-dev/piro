@@ -76,42 +76,56 @@ export default function ArchitecturePage() {
         <section className="mt-8 rounded-2xl border border-amber-900/25 bg-[#100c0a] p-6 shadow-2xl shadow-black/10 sm:p-8">
           <div className="overflow-x-auto rounded-xl border border-amber-900/20 bg-[#0b0908] px-4 py-5 sm:px-6" role="region" aria-label="Piro inference pseudocode">
             <code className="block min-w-[40ch] font-mono text-sm leading-6 text-amber-100/85 sm:min-w-[42rem]">
-              <div className="whitespace-pre"><Variable>weights</Variable> = <MethodLink href="/docs/architecture/loadWeights">LoadWeights</MethodLink>()</div>
+              <div className="whitespace-pre"><Variable>durableWeights</Variable> = <MethodLink href="/docs/architecture/loadWeights">LoadWeights</MethodLink>()</div>
+              <div className="whitespace-pre"><Variable>fastState</Variable> = <MethodLink href="/docs/architecture/initializeFastState">InitializeFastState</MethodLink>(<Variable>durableWeights</Variable>, sessionId)</div>
+              <div className="whitespace-pre"><Variable>attentionWindow</Variable> = <MethodLink href="/docs/architecture/attentionWindow">GetAttentionWindow</MethodLink>(<Variable>durableWeights</Variable>)</div>
               <div className="whitespace-pre"><Variable>x</Variable> = <MethodLink href="/docs/architecture/embedding">Embed</MethodLink>(<Link href="/docs/architecture/observation" className="text-violet-300 underline decoration-violet-500/40 underline-offset-4 transition hover:text-violet-100">PiroInput</Link>)</div>
-              <div className="whitespace-pre"><Variable>h₀</Variable> = <MethodLink href="/docs/architecture/initialize">InitializeOrRetrieveState</MethodLink>(<Variable>x</Variable>, <Variable>weights</Variable>)</div>
-              <div className="whitespace-pre"><Keyword>for</Keyword> k = 0 ... Kmax:</div>
-              <div className="h-3" aria-hidden="true" />
-              <div className="whitespace-pre">    <Variable>contextₖ</Variable> = <MethodLink href="/docs/architecture/attention">Attention</MethodLink>(</div>
-              <div className="whitespace-pre">        <Variable>hₖ</Variable>,</div>
-              <div className="whitespace-pre">        <Variable>historyₖ</Variable>,</div>
-              <div className="whitespace-pre">        <Variable>x</Variable>,</div>
-              <div className="whitespace-pre">        k,</div>
-              <div className="whitespace-pre">        <Variable>weights</Variable></div>
+              <div className="whitespace-pre"><Variable>runtimeWeights</Variable> = <MethodLink href="/docs/architecture/bindFastState">BindFastState</MethodLink>(<Variable>durableWeights</Variable>, <Variable>fastState</Variable>)</div>
+              <div className="whitespace-pre"><Variable>h</Variable> = <MethodLink href="/docs/architecture/initialize">InitializeOrRetrieveState</MethodLink>(<Variable>x</Variable>, <Variable>runtimeWeights</Variable>)</div>
+              <div className="whitespace-pre"><Variable>history</Variable> = []</div>
+              <div className="whitespace-pre"><Keyword>for</Keyword> each observedChunk in <MethodLink href="/docs/architecture/chunkText">ChunkText</MethodLink>(<Variable>x</Variable>.text):</div>
+              <div className="whitespace-pre">    <Variable>prediction</Variable> = <MethodLink href="/docs/architecture/predictNext">PredictNextToken</MethodLink>(observedChunk, <Variable>h</Variable>, <Variable>runtimeWeights</Variable>)</div>
+              <div className="whitespace-pre">    <Variable>fastState</Variable> = <MethodLink href="/docs/architecture/fastAdaptation">FastAdaptation</MethodLink>(</div>
+              <div className="whitespace-pre">        <Variable>fastState</Variable>,</div>
+              <div className="whitespace-pre">        observedChunk,</div>
+              <div className="whitespace-pre">        <Variable>prediction</Variable>,</div>
+              <div className="whitespace-pre">        <Variable>runtimeWeights</Variable></div>
               <div className="whitespace-pre">    )</div>
-              <div className="h-3" aria-hidden="true" />
-              <div className="whitespace-pre">    <Variable>deltaₖ</Variable> = <MethodLink href="/docs/architecture/delta">ComputeStateDelta</MethodLink>(</div>
-              <div className="whitespace-pre">        <Variable>hₖ</Variable>,</div>
-              <div className="whitespace-pre">        <Variable>x</Variable>,</div>
-              <div className="whitespace-pre">        <Variable>contextₖ</Variable>,</div>
-              <div className="whitespace-pre">        <Variable>historyₖ</Variable>,</div>
-              <div className="whitespace-pre">        <Variable>weights</Variable></div>
-              <div className="whitespace-pre">    )</div>
-              <div className="h-3" aria-hidden="true" />
-              <div className="whitespace-pre">    <Variable>hₖ₊₁</Variable> = <MethodLink href="/docs/architecture/residual">ApplyGatedStateUpdate</MethodLink>(<Variable>hₖ</Variable>, <Variable>gateₖ</Variable>, <Variable>deltaₖ</Variable>)</div>
-              <div className="whitespace-pre">    <Variable>historyₖ₊₁</Variable> = <MethodLink href="/docs/architecture/history">UpdateHistory</MethodLink>(</div>
-              <div className="whitespace-pre">        <Variable>historyₖ</Variable>,</div>
-              <div className="whitespace-pre">        <Variable>hₖ₊₁</Variable>,</div>
-              <div className="whitespace-pre">        <Variable>x</Variable>,</div>
-              <div className="whitespace-pre">        k</div>
-              <div className="whitespace-pre">    )</div>
-              <div className="whitespace-pre">    <Keyword>if</Keyword> <MethodLink href="/docs/architecture/shouldHalt">ShouldHalt</MethodLink>(<Variable>hₖ₊₁</Variable>, k):</div>
-              <div className="whitespace-pre">        <Variable>outputₖ</Variable> = <MethodLink href="/docs/architecture/output">OutputHead</MethodLink>(<Variable>hₖ₊₁</Variable>)</div>
-              <div className="whitespace-pre">        <MethodLink href="/docs/architecture/plasticity">PlasticityController</MethodLink>(</div>
+              <div className="whitespace-pre">    <Variable>runtimeWeights</Variable> = <MethodLink href="/docs/architecture/bindFastState">BindFastState</MethodLink>(<Variable>durableWeights</Variable>, <Variable>fastState</Variable>)</div>
+              <div className="whitespace-pre">    <Keyword>for</Keyword> k = 0 ... Kmax:</div>
+              <div className="whitespace-pre">        <Variable>contextₖ</Variable> = <MethodLink href="/docs/architecture/attention">Attention</MethodLink>(</div>
+              <div className="whitespace-pre">            <Variable>hₖ</Variable>,</div>
+              <div className="whitespace-pre">            <Variable>historyₖ</Variable>,</div>
+              <div className="whitespace-pre">            <Variable>x</Variable>,</div>
+              <div className="whitespace-pre">            k,</div>
+              <div className="whitespace-pre">            <Variable>attentionWindow</Variable>,</div>
+              <div className="whitespace-pre">            <Variable>runtimeWeights</Variable></div>
+              <div className="whitespace-pre">        )</div>
+              <div className="whitespace-pre">        <Variable>deltaₖ</Variable> = <MethodLink href="/docs/architecture/delta">ComputeStateDelta</MethodLink>(</div>
+              <div className="whitespace-pre">            <Variable>hₖ</Variable>,</div>
+              <div className="whitespace-pre">            <Variable>x</Variable>,</div>
+              <div className="whitespace-pre">            <Variable>contextₖ</Variable>,</div>
+              <div className="whitespace-pre">            <Variable>historyₖ</Variable>,</div>
+              <div className="whitespace-pre">            <Variable>runtimeWeights</Variable></div>
+              <div className="whitespace-pre">        )</div>
+              <div className="whitespace-pre">        <Variable>hₖ₊₁</Variable> = <MethodLink href="/docs/architecture/residual">ApplyGatedStateUpdate</MethodLink>(<Variable>hₖ</Variable>, <Variable>gateₖ</Variable>, <Variable>deltaₖ</Variable>)</div>
+              <div className="whitespace-pre">        <Variable>historyₖ₊₁</Variable> = <MethodLink href="/docs/architecture/history">UpdateHistory</MethodLink>(</div>
+              <div className="whitespace-pre">            <Variable>historyₖ</Variable>,</div>
               <div className="whitespace-pre">            <Variable>hₖ₊₁</Variable>,</div>
               <div className="whitespace-pre">            <Variable>x</Variable>,</div>
-              <div className="whitespace-pre">            <Variable>historyₖ₊₁</Variable></div>
+              <div className="whitespace-pre">            k</div>
               <div className="whitespace-pre">        )</div>
-              <div className="whitespace-pre">        <Keyword>return</Keyword> <Variable>outputₖ</Variable></div>
+              <div className="whitespace-pre">        <Keyword>if</Keyword> <MethodLink href="/docs/architecture/shouldHalt">ShouldHalt</MethodLink>(<Variable>hₖ₊₁</Variable>, k):</div>
+              <div className="whitespace-pre">            <Variable>h</Variable> = <Variable>hₖ₊₁</Variable></div>
+              <div className="whitespace-pre">            <Keyword>break</Keyword></div>
+              <div className="whitespace-pre"><Variable>output</Variable> = <MethodLink href="/docs/architecture/output">OutputHead</MethodLink>(<Variable>h</Variable>)</div>
+              <div className="whitespace-pre"><Variable>persistence</Variable> = <MethodLink href="/docs/architecture/persistencePolicy">WeightPersistencePolicy</MethodLink>(<Variable>fastState</Variable>, <Variable>history</Variable>)</div>
+              <div className="whitespace-pre"><Keyword>if</Keyword> persistence.mode == "consolidate":</div>
+              <div className="whitespace-pre">    <Variable>durableWeights</Variable> = <MethodLink href="/docs/architecture/consolidate">ConsolidateWeights</MethodLink>(<Variable>durableWeights</Variable>, <Variable>fastState</Variable>)</div>
+              <div className="whitespace-pre">    <MethodLink href="/docs/architecture/saveWeights">SaveWeights</MethodLink>(<Variable>durableWeights</Variable>, scope = "model")</div>
+              <div className="whitespace-pre"><Keyword>elif</Keyword> persistence.mode == "session-checkpoint":</div>
+              <div className="whitespace-pre">    <MethodLink href="/docs/architecture/saveWeights">SaveWeights</MethodLink>(<Variable>fastState</Variable>, scope = "session")</div>
+              <div className="whitespace-pre"><Keyword>return</Keyword> <Variable>output</Variable></div>
             </code>
           </div>
         </section>

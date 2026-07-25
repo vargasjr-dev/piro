@@ -26,7 +26,15 @@ type DiagramKind =
   | "weights"
   | "loadWeights"
   | "saveWeights"
-  | "plasticity";
+  | "plasticity"
+  | "initializeFastState"
+  | "attentionWindow"
+  | "fastAdaptation"
+  | "bindFastState"
+  | "predictNext"
+  | "persistencePolicy"
+  | "consolidate"
+  | "chunkText";
 
 const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   observation: {
@@ -107,7 +115,7 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   weights: {
     title: "Weights",
-    subtitle: "A proposed 256M-parameter runtime layout split across INT4 base tensors, FP8 fast overlays, and BF16 dynamic state.",
+    subtitle: "A proposed 256M-parameter runtime layout split across INT4 base tensors, BF16 fast overlays, and BF16 dynamic state.",
   },
   loadWeights: {
     title: "LoadWeights",
@@ -115,11 +123,43 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   saveWeights: {
     title: "SaveWeights",
-    subtitle: "Writes changed overlays and updated snapshots to versioned R2 objects without rewriting unchanged base components.",
+    subtitle: "Writes session fast-state checkpoints or consolidated durable snapshots to versioned R2 objects without rewriting unchanged base components.",
   },
   plasticity: {
     title: "PlasticityController",
-    subtitle: "Uses the current input to score earlier predictions, then updates fast overlays and occasionally consolidates durable weights.",
+    subtitle: "Coordinates prediction error and eligibility without treating every fast update as a durable model revision.",
+  },
+  initializeFastState: {
+    title: "InitializeFastState",
+    subtitle: "Creates the session’s mutable BF16 fast-weight state from durable weights without loading short-term history into the model revision.",
+  },
+  attentionWindow: {
+    title: "GetAttentionWindow",
+    subtitle: "Reads the bounded recent-history window used by local attention; its value is tunable rather than an unlimited transcript.",
+  },
+  fastAdaptation: {
+    title: "FastAdaptation",
+    subtitle: "Updates the active fast-weight state from observed text and next-token prediction before later chunks are processed.",
+  },
+  bindFastState: {
+    title: "BindFastState",
+    subtitle: "Combines durable weights with the current session fast state to produce the runtime parameter view used by inference.",
+  },
+  predictNext: {
+    title: "PredictNextToken",
+    subtitle: "Produces a causal text prediction so the observed stream can supervise fast adaptation.",
+  },
+  persistencePolicy: {
+    title: "WeightPersistencePolicy",
+    subtitle: "Chooses whether fast state stays in runtime memory, receives a session checkpoint, or is consolidated into durable model weights.",
+  },
+  consolidate: {
+    title: "ConsolidateWeights",
+    subtitle: "Moves validated, replay-safe evidence from fast state into the slower durable weight substrate.",
+  },
+  chunkText: {
+    title: "ChunkText",
+    subtitle: "Groups the text stream into causal adaptation chunks while preserving token order.",
   },
 };
 
@@ -303,12 +343,12 @@ function LoadWeightsDiagram() {
       <Box x={306} y={190} width={236} height={150} title="manifest.json" detail="revision · 256M params · object index" tone="blue" />
       <path d="M542 265H584" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
       <Box x={584} y={138} width={260} height={108} title="base.safetensors" detail="~230M INT4 values + BF16 scales" tone="blue" />
-      <Box x={584} y={278} width={260} height={108} title="overlay.safetensors" detail="~20M FP8 fast plastic tensors" tone="violet" />
+      <Box x={584} y={278} width={260} height={108} title="overlay.safetensors" detail="~20M BF16 fast plastic tensors" tone="violet" />
       <Box x={584} y={418} width={260} height={108} title="state.safetensors" detail="~6M BF16 dynamic state + traces" tone="orange" />
       <path d="M844 192H900V265H936" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
       <path d="M844 332H900V265H936" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
       <path d="M844 472H900V265H936" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
-      <Box x={936} y={190} width={300} height={150} title="Decode + dequantize" detail="INT4 → BF16 compute tensors; attach FP8 overlays" tone="blue" />
+      <Box x={936} y={190} width={300} height={150} title="Decode + dequantize" detail="INT4 → BF16 compute tensors; attach BF16 overlays" tone="blue" />
       <path d="M1086 340V420" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
       <Box x={936} y={420} width={300} height={150} title="runtime weights" detail="base + overlay + BF16 state" tone="green" />
       <text x="28" y="660" fill="rgb(253 230 138 / 0.62)" fontSize="13">R2 guidance: use one PUT below roughly 100 MB; use multipart above that or when resumability and parallel transfer matter. Multipart parts are not model shards.</text>
@@ -324,7 +364,7 @@ function SaveWeightsDiagram() {
       </defs>
       <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">SAVEWEIGHTS · CHANGED GROUPS → VERSIONED R2 OBJECTS</text>
       <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Plasticity updates overlays frequently; durable INT4 base components change only during explicit consolidation or retraining.</text>
-      <Box x={28} y={166} width={230} height={150} title="changed groups" detail="FP8 fast overlay + BF16 traces" tone="green" />
+      <Box x={28} y={166} width={230} height={150} title="changed groups" detail="BF16 fast overlay + BF16 traces" tone="green" />
       <path d="M258 241H304" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
       <Box x={304} y={166} width={230} height={150} title="delta / overlay encode" detail="sparse changed tensors + scales" tone="violet" />
       <path d="M534 241H580" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
@@ -353,7 +393,7 @@ function WeightsDiagram() {
       <Box x={36} y={170} width={260} height={166} title="~256M parameters" detail="manifest tracks counts, dtype, shape, object key, and ownership" tone="green" />
       <path d="M296 253H350" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
       <Box x={350} y={120} width={360} height={150} title="INT4 base · ~230M" detail="frozen after pretraining; 4-bit values + per-group BF16 scales" tone="blue" />
-      <Box x={350} y={320} width={360} height={150} title="FP8 fast overlay · ~20M" detail="plastic low-rank / sparse deltas updated online" tone="violet" />
+      <Box x={350} y={320} width={360} height={150} title="BF16 fast overlay · ~20M" detail="plastic low-rank / sparse deltas updated online" tone="violet" />
       <Box x={350} y={520} width={360} height={150} title="BF16 state + heads · ~6M" detail="dynamic recurrent, normalization, output, and eligibility tensors" tone="orange" />
       <path d="M710 195H770V253H824" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
       <path d="M710 395H770V253H824" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
@@ -361,12 +401,12 @@ function WeightsDiagram() {
       <Box x={824} y={170} width={410} height={166} title="method ownership" detail="attention projections · state update · embedding · output · plasticity" tone="orange" />
       <Box x={824} y={390} width={410} height={166} title="logical objects" detail="base.safetensors · overlay.safetensors · state.safetensors" tone="orange" />
       <Box x={824} y={610} width={410} height={166} title="optional physical sharding" detail="multipart upload or extra shards for larger / resumable transfers" tone="blue" />
-      <text x="36" y="800" fill="rgb(253 230 138 / 0.62)" fontSize="13">Rough storage: 230M × 0.5 bytes + 20M × 1 byte + 6M × 2 bytes ≈ 147 MB before scales, metadata, and optimizer state.</text>
+      <text x="36" y="800" fill="rgb(253 230 138 / 0.62)" fontSize="13">Rough storage: 230M × 0.5 bytes + 20M × 1 byte + 6M × 2 bytes ≈ 167 MB before scales, metadata, and optimizer state.</text>
     </svg>
   );
 }
 
-const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights">, { input: string; output: string; relation: string; tone: "green" | "blue" | "orange" }> = {
+const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights">, { input: string; output: string; relation: string; tone: "green" | "blue" | "orange" | "violet" }> = {
   initialize: { input: "x + weights", output: "h₀", relation: "starts or retrieves the state for this input", tone: "blue" },
   attention: { input: "hₖ + historyₖ + x + k + weights", output: "contextₖ", relation: "retrieves relevant memory and gates it into the recurrent context", tone: "green" },
   buildMemorySlots: { input: "historyₖ + k", output: "memoryₖ", relation: "turns timestamped history entries into retrievable slots", tone: "green" },
@@ -383,9 +423,17 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   residual: { input: "hₖ + deltaₖ + weights", output: "hₖ₊₁", relation: "computes hₖ + gateₖ · deltaₖ", tone: "green" },
   history: { input: "historyₖ + hₖ₊₁ + x + k", output: "historyₖ₊₁", relation: "records state, input, and tick metadata", tone: "blue" },
   shouldHalt: { input: "hₖ₊₁ + k + budget", output: "continue / exit", relation: "controls the recurrent loop or returns outputₖ", tone: "orange" },
-  loadWeights: { input: "R2 manifest + INT4/FP8/BF16 components", output: "runtime weights", relation: "reads, decodes, combines, and returns the mixed-precision parameter object", tone: "blue" },
+  loadWeights: { input: "R2 manifest + INT4/BF16/BF16 components", output: "runtime weights", relation: "reads, decodes, combines, and returns the mixed-precision parameter object", tone: "blue" },
   saveWeights: { input: "changed overlays + revision", output: "versioned R2 snapshot", relation: "writes only the changed representation and publishes a new manifest pointer", tone: "blue" },
-  plasticity: { input: "state + history + current input", output: "fast overlay + durable update", relation: "uses future-input prediction error and eligibility to update selected parameter groups", tone: "orange" },
+  plasticity: { input: "state + history + current input", output: "fast-state update signals", relation: "coordinates local prediction credit and identifies evidence for persistence", tone: "orange" },
+  initializeFastState: { input: "durableWeights + sessionId", output: "fastState", relation: "starts or restores mutable session-local weight state", tone: "violet" },
+  attentionWindow: { input: "durableWeights.attention", output: "attentionWindow", relation: "returns the bounded number of recent history slots local attention may inspect", tone: "blue" },
+  fastAdaptation: { input: "fastState + observedChunk + prediction + runtimeWeights", output: "updated fastState", relation: "applies the inner-loop next-token learning update before later chunks run", tone: "orange" },
+  bindFastState: { input: "durableWeights + fastState", output: "runtimeWeights", relation: "binds mutable session state to the stable parameter substrate", tone: "violet" },
+  predictNext: { input: "observedChunk + state + runtimeWeights", output: "prediction", relation: "produces the causal target used by fast adaptation", tone: "green" },
+  persistencePolicy: { input: "fastState + session evidence", output: "none / session-checkpoint / consolidate", relation: "selects a persistence boundary instead of writing every update", tone: "orange" },
+  consolidate: { input: "durableWeights + fastState + validated evidence", output: "updated durableWeights", relation: "merges stable evidence into the slow substrate while leaving transient state separate", tone: "blue" },
+  chunkText: { input: "text", output: "ordered chunks", relation: "creates causal mini-batches for text adaptation", tone: "green" },
 };
 
 function MethodDiagram({ kind }: { kind: Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights"> }) {
@@ -402,7 +450,7 @@ function MethodDiagram({ kind }: { kind: Exclude<DiagramKind, "observation" | "e
       <Box x={52} y={222} width={300} height={138} title="Arguments" detail={detail.input} tone="violet" />
       <Arrow d="M352 291H480" marker="gold" />
       <Box x={480} y={198} width={300} height={186} title={details[kind].title} detail={detail.relation} tone={detail.tone} />
-      <Arrow d="M780 291H908" marker={detail.tone === "blue" ? "blue" : detail.tone === "orange" ? "orange" : "gold"} color={detail.tone === "blue" ? "rgb(125 211 252 / 0.72)" : detail.tone === "orange" ? "rgb(253 186 116 / 0.76)" : undefined} />
+      <Arrow d="M780 291H908" marker={detail.tone === "blue" ? "blue" : detail.tone === "orange" ? "orange" : detail.tone === "violet" ? "violet" : "gold"} color={detail.tone === "blue" ? "rgb(125 211 252 / 0.72)" : detail.tone === "orange" ? "rgb(253 186 116 / 0.76)" : detail.tone === "violet" ? "rgb(192 132 252 / 0.72)" : undefined} />
       <Box x={908} y={222} width={240} height={138} title="Result" detail={detail.output} tone={detail.tone} />
       <text x="52" y="520" fill="rgb(253 230 138 / 0.62)" fontSize="13">This is a zoomed-in contract view, not a claim that the implementation has one literal function per box.</text>
     </svg>
@@ -609,7 +657,7 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
       {line(<>        provider: R2, bucket: "piro-kb", prefix: "models/&#123;modelId&#125;/weights/"</>)}
       {line(<>    {"}"},</>)}
       {line(<>    base: {"{"} format: INT4, parameters: 230_000_000, object: "base.safetensors", scales: BF16 {"}"},</>)}
-      {line(<>    fastOverlay: {"{"} format: FP8, parameters: 20_000_000, object: "overlay.safetensors", sparseOrLowRank: true {"}"},</>)}
+      {line(<>    fastOverlay: {"{"} format: BF16, parameters: 20_000_000, object: "overlay.safetensors", sparseOrLowRank: true {"}"},</>)}
       {line(<>    dynamicState: {"{"} format: BF16, parameters: 6_000_000, object: "state.safetensors", eligibility, normalization, heads {"}"}</>)}
       {line(<>{"}"}</>)}
       {line(<>Linear tensor convention: W = [outDim, inDim], b = [outDim]</>)}
@@ -636,7 +684,7 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
       {line(<>    revision = ReadCurrentRevision() + 1</>)}
       {line(<>    for each group in changed:</>)}
       {line(<>        if group.owner == "plasticity.fastOverlay":</>)}
-      {line(<>            component = Encode(group, format = FP8, scales = BF16)</>)}
+      {line(<>            component = Encode(group, format = BF16, scales = BF16)</>)}
       {line(<>        else if group.owner == "durable.base":</>)}
       {line(<>            component = Quantize(group, format = INT4, scales = BF16)</>)}
       {line(<>        else:</>)}
@@ -650,30 +698,78 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
 
     plasticity: <>
       {line(<>{call("PlasticityController", "plasticity")}</>)}
-      {line(<>    hₖ₊₁,</>)}
-      {line(<>    xₖ₊₁,</>)}
-      {line(<>    historyₖ₊₁</>)}
+      {line(<>    fastState,</>)}
+      {line(<>    observedChunk,</>)}
+      {line(<>    prediction</>)}
       {line(<>):</>)}
-      {line(<>    pending = historyₖ₊₁.entries with unresolved predictions</>)}
-      {line(<>    for each eventₜ in pending:</>)}
-      {line(<>        expectedₜ = eventₜ.prediction</>)}
-      {line(<>        observedₜ = PredictNextInput(eventₜ.state, xₖ₊₁)</>)}
-      {line(<>        surpriseₜ = PredictionError(expectedₜ, observedₜ)</>)}
-      {line(<>        noveltyₜ = Novelty(xₖ₊₁, historyₖ₊₁)</>)}
-      {line(<>        eligibilityₜ = Decay(eventₜ.trace, elapsedTicks)</>)}
-      {line(<>        localCreditₜ = surpriseₜ · noveltyₜ · eligibilityₜ</>)}
-      {line(<>        weights.fastOverlay += UpdateFastOverlay(</>)}
-      {line(<>            eventₜ.activity,</>)}
-      {line(<>            localCreditₜ,</>)}
-      {line(<>            weights.plasticity.learningRate</>)}
-      {line(<>        )</>)}
-      {line(<>    consolidation = AccumulateDurableEvidence(pending, localCreditₜ)</>)}
-      {line(<>    if consolidation exceeds threshold:</>)}
-      {line(<>        weights.durableBase += ConsolidateToBase(consolidation)</>)}
-      {line(<>        weights.fastOverlay -= ConsolidatedPortion(consolidation)</>)}
-      {line(<>    weights.plasticity.traces = UpdateTraces(pending, surpriseₜ)</>)}
-      {line(<>    {call("SaveWeights", "saveWeights")}weights)</>)}
-      {line(<>    return nothing</>)}
+      {line(<>    surprise = PredictionError(prediction, observedChunk.nextToken)</>)}
+      {line(<>    eligibility = UpdateEligibility(fastState, observedChunk)</>)}
+      {line(<>    return LocalCredit(surprise, eligibility)</>)}
+    </>,
+    initializeFastState: <>
+      {line(<>{call("InitializeFastState", "initializeFastState")}</>)}
+      {line(<>    durableWeights,</>)}
+      {line(<>    sessionId</>)}
+      {line(<>):</>)}
+      {line(<>    if session checkpoint exists:</>)}
+      {line(<>        return DecodeSessionFastState(sessionId)</>)}
+      {line(<>    return ZeroLike(durableWeights.plasticGroups, format = BF16)</>)}
+    </>,
+    attentionWindow: <>
+      {line(<>{call("GetAttentionWindow", "attentionWindow")}durableWeights)</>)}
+      {line(<>    return durableWeights.attention.localWindow</>)}
+    </>,
+    fastAdaptation: <>
+      {line(<>{call("FastAdaptation", "fastAdaptation")}</>)}
+      {line(<>    fastState,</>)}
+      {line(<>    observedChunk,</>)}
+      {line(<>    prediction,</>)}
+      {line(<>    runtimeWeights</>)}
+      {line(<>):</>)}
+      {line(<>    target = observedChunk.nextToken</>)}
+      {line(<>    loss = CrossEntropy(prediction, target)</>)}
+      {line(<>    update = Gradient(loss, fastState)</>)}
+      {line(<>    return fastState - runtimeWeights.fastLearningRate · update</>)}
+    </>,
+    bindFastState: <>
+      {line(<>{call("BindFastState", "bindFastState")}</>)}
+      {line(<>    durableWeights,</>)}
+      {line(<>    fastState</>)}
+      {line(<>):</>)}
+      {line(<>    return RuntimeWeights(durableWeights, fastState)</>)}
+    </>,
+    predictNext: <>
+      {line(<>{call("PredictNextToken", "predictNext")}</>)}
+      {line(<>    observedChunk,</>)}
+      {line(<>    state,</>)}
+      {line(<>    runtimeWeights</>)}
+      {line(<>):</>)}
+      {line(<>    return TextHead(Forward(observedChunk, state, runtimeWeights))</>)}
+    </>,
+    persistencePolicy: <>
+      {line(<>{call("WeightPersistencePolicy", "persistencePolicy")}</>)}
+      {line(<>    fastState,</>)}
+      {line(<>    sessionEvidence</>)}
+      {line(<>):</>)}
+      {line(<>    if DurableEvidenceReady(sessionEvidence, fastState):</>)}
+      {line(<>        return {"{"} mode: "consolidate" {"}"}</>)}
+      {line(<>    if SessionCheckpointDue(sessionEvidence):</>)}
+      {line(<>        return {"{"} mode: "session-checkpoint" {"}"}</>)}
+      {line(<>    return {"{"} mode: "none" {"}"}</>)}
+    </>,
+    consolidate: <>
+      {line(<>{call("ConsolidateWeights", "consolidate")}</>)}
+      {line(<>    durableWeights,</>)}
+      {line(<>    fastState</>)}
+      {line(<>):</>)}
+      {line(<>    candidate = MergeStableEvidence(durableWeights, fastState)</>)}
+      {line(<>    if ReplayRegression(candidate) fails:</>)}
+      {line(<>        return durableWeights</>)}
+      {line(<>    return candidate</>)}
+    </>,
+    chunkText: <>
+      {line(<>{call("ChunkText", "chunkText")}text):</>)}
+      {line(<>    return OrderedChunks(text, adaptationBatchSize)</>)}
     </>,
   };
   return <div className="overflow-x-auto rounded-xl border border-amber-900/20 bg-[#0b0908] px-4 py-5 sm:px-6" role="region" aria-label={`${details[kind].title} pseudocode`}><code className="block min-w-[40ch] font-mono text-sm leading-6 text-amber-100/85 sm:min-w-[42rem] sm:text-[0.95rem]">{snippets[kind]}</code></div>;
@@ -695,10 +791,10 @@ const explanations: Partial<Record<DiagramKind, { doing: string; why: string }>>
   history: { doing: "Appends the new state together with x and tick k so future retrieval can recover content and age.", why: "History is both the state trajectory and the source of Attention’s timestamped memory slots." },
   output: { doing: "Reads the final recurrent state into the externally returned output.", why: "The outside world needs a stable output boundary after the internal loop halts." },
   shouldHalt: { doing: "Evaluates the current state and tick against the continuation budget and decides whether the loop exits.", why: "Adaptive computation lets Piro spend more recurrent steps when the state has not converged." },
-  weights: { doing: "Defines a proposed 256M-parameter runtime object: about 230M INT4 base parameters, 20M FP8 fast-overlay parameters, and 6M BF16 dynamic state, with every tensor assigned to an owning method and logical object.", why: "The model needs a concrete mixed-precision storage contract so compression, online adaptation, and runtime reconstruction are reviewable rather than hidden inside one blob." },
+  weights: { doing: "Defines a proposed 256M-parameter runtime object: about 230M INT4 base parameters, 20M BF16 fast-overlay parameters, and 6M BF16 dynamic state, with every tensor assigned to an owning method and logical object.", why: "The model needs a concrete mixed-precision storage contract so compression, online adaptation, and runtime reconstruction are reviewable rather than hidden inside one blob." },
   loadWeights: { doing: "Reads models/{modelId}/weights/current/manifest.json from the piro-kb R2 bucket, follows its logical base, overlay, and state objects, checks checksums and shapes, dequantizes base tensors for BF16 compute, and attaches fast overlays.", why: "A 256M mixed-precision model fits comfortably below R2's single-upload and per-object limits; the manifest still gives us revision and ownership semantics without forcing physical sharding." },
-  saveWeights: { doing: "Diffs the active runtime object against the loaded manifest, encodes changed fast overlays as FP8, encodes dynamic state as BF16, re-quantizes durable base changes as INT4 only during consolidation, and publishes a versioned R2 manifest. Multipart upload is available for large or resumable component transfers.", why: "Plasticity should not rewrite the ~230M-parameter base object on every interaction; R2's storage capacity is not the constraint here, while write volume and operation cost are." },
-  plasticity: { doing: "Compares later input against unresolved earlier predictions, multiplies prediction error by novelty and eligibility, updates selected FP8 overlay groups, and periodically moves stable evidence into durable base weights.", why: "Human-like learning can assign credit from future consequences and local surprise without requiring one global reward function for every interaction." },
+  saveWeights: { doing: "Diffs the active runtime object against the loaded manifest, encodes changed fast overlays as BF16, encodes dynamic state as BF16, re-quantizes durable base changes as INT4 only during consolidation, and publishes a versioned R2 manifest. Multipart upload is available for large or resumable component transfers.", why: "Plasticity should not rewrite the ~230M-parameter base object on every interaction; R2's storage capacity is not the constraint here, while write volume and operation cost are." },
+  plasticity: { doing: "Compares later input against unresolved earlier predictions, multiplies prediction error by novelty and eligibility, updates selected BF16 overlay groups, and periodically moves stable evidence into durable base weights.", why: "Human-like learning can assign credit from future consequences and local surprise without requiring one global reward function for every interaction." },
 };
 function MethodExplanation({ kind }: { kind: DiagramKind }) {
   const explanation = explanations[kind];
