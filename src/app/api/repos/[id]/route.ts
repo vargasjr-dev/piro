@@ -6,6 +6,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
 import { parseGitHubRepositoryRef } from "~/lib/github-repository";
 import { reconcileStaleTrainingRun } from "~/lib/training-runs.server";
+import { deriveLiveTrainingMetrics } from "~/lib/training-run-metrics";
 
 /**
  * GET /api/repos/[id]
@@ -138,6 +139,7 @@ export async function GET(
       runtimeMs: r.runtimeMs,
       costUsd: r.costUsd,
       costBasis: r.costBasis,
+      ...deriveLiveTrainingMetrics(r),
       resourceType: r.resourceType,
       gpuType: r.gpuType,
       checkpointStep: r.checkpointStep,

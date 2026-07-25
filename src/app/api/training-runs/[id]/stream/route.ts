@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
+import { deriveLiveTrainingMetrics } from "~/lib/training-run-metrics";
 import { reconcileStaleTrainingRun } from "~/lib/training-run-observability.server";
 import { db } from "../../../../../../data/db";
 import { trainingRun } from "../../../../../../data/schema";
@@ -47,6 +48,7 @@ export async function GET(
         }
 
         const reconciled = await reconcileStaleTrainingRun(run);
+        const liveMetrics = deriveLiveTrainingMetrics(reconciled);
 
         // Push every new live-progress snapshot, including work inside a
         // checkpoint interval. Checkpoint metadata remains separate so the
@@ -63,7 +65,11 @@ export async function GET(
         if (reconciled.progressJson) {
           try {
             const parsed = JSON.parse(reconciled.progressJson);
-            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            if (
+              parsed &&
+              typeof parsed === "object" &&
+              !Array.isArray(parsed)
+            ) {
               progress = parsed as Record<string, unknown>;
             }
           } catch {
@@ -77,6 +83,7 @@ export async function GET(
           checkpointAt: reconciled.checkpointAt?.toISOString() ?? null,
           history,
           progress,
+          ...liveMetrics,
           status: reconciled.status,
         });
         if (progressPayload !== lastProgressSignature) {
@@ -96,6 +103,7 @@ export async function GET(
               runtimeMs: reconciled.runtimeMs,
               costUsd: reconciled.costUsd,
               costBasis: reconciled.costBasis,
+              ...liveMetrics,
             }),
           );
           controller.close();
@@ -109,6 +117,7 @@ export async function GET(
               runtimeMs: reconciled.runtimeMs,
               costUsd: reconciled.costUsd,
               costBasis: reconciled.costBasis,
+              ...liveMetrics,
             }),
           );
           controller.close();
