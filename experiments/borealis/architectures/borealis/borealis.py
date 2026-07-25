@@ -7,7 +7,7 @@ Borealis is intentionally smaller than the deferred CTM experiment.  It follows
 * a run-local fast output-bias state adapts from causal prediction error;
 * each prediction is made with durable weights bound to the current fast state;
 * the updated fast state is returned as a value;
-* consolidation is explicit and infrequent rather than an implicit side effect.
+* consolidation runs at the end of every invocation and produces the next durable revision.
 
 The model is token-id based for the first experiment.  Tokenization belongs at the
 experiment boundary; keeping it out of the core makes the causal state behavior
@@ -17,7 +17,7 @@ measurable and lets synthetic tasks use tiny vocabularies.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -26,9 +26,6 @@ import torch.nn.functional as F
 from piro import PiroModel
 from piro.schema import ArchitectureGraph, GraphEdge, GraphNode
 
-PersistenceMode = Literal["retain", "consolidate"]
-
-
 @dataclass
 class BorealisConfig:
     vocab_size: int = 32
@@ -36,8 +33,6 @@ class BorealisConfig:
     hidden_dim: int = 64
     fast_learning_rate: float = 0.1
     consolidation_rate: float = 0.25
-    consolidation_min_updates: int = 16
-    consolidation_loss_threshold: float = 1.5
 
 
 @dataclass
@@ -64,12 +59,6 @@ class BorealisRuntimeWeights:
 
 
 @dataclass
-class BorealisPersistence:
-    mode: PersistenceMode
-    reason: str
-
-
-@dataclass
 class BorealisOutput:
     """Result of one causal episode, including the next fast state."""
 
@@ -79,8 +68,6 @@ class BorealisOutput:
     loss: torch.Tensor
     predictions: torch.Tensor
     fast_state: BorealisFastState
-    persistence: BorealisPersistence
-    consolidated: bool
 
 
 class Borealis(PiroModel):
@@ -166,8 +153,6 @@ class Borealis(PiroModel):
             raise ValueError("fast_learning_rate must be non-negative")
         if not 0 <= cfg.consolidation_rate <= 1:
             raise ValueError("consolidation_rate must be in [0, 1]")
-        if cfg.consolidation_min_updates < 1:
-            raise ValueError("consolidation_min_updates must be positive")
 
         self.config = cfg
         self.token_embedding = nn.Embedding(cfg.vocab_size, cfg.embed_dim)
@@ -250,17 +235,6 @@ class Borealis(PiroModel):
             )
         return next_state
 
-    def weight_persistence_policy(self, fast_state: BorealisFastState) -> BorealisPersistence:
-        """Decide whether the run-local state has enough stable evidence to merge."""
-        if fast_state.updates < self.config.consolidation_min_updates:
-            return BorealisPersistence("retain", "insufficient adaptation evidence")
-        if (
-            fast_state.loss_ema is None
-            or fast_state.loss_ema > self.config.consolidation_loss_threshold
-        ):
-            return BorealisPersistence("retain", "causal loss has not stabilized")
-        return BorealisPersistence("consolidate", "stable adaptation evidence")
-
     def consolidate_weights(self, fast_state: BorealisFastState) -> BorealisFastState:
         """Propose a durable output-bias update and clear consumed fast state."""
         self._validate_fast_state(fast_state)
@@ -273,7 +247,7 @@ class Borealis(PiroModel):
         return next_state
 
     def save_weights(self) -> dict[str, torch.Tensor]:
-        """Return a detached durable revision for an adapter or state store."""
+        """Return the updated durable revision for the next invocation."""
         return {key: value.detach().clone() for key, value in self.state_dict().items()}
 
     def snapshot_fast_state(self, fast_state: BorealisFastState) -> dict[str, Any]:
@@ -312,12 +286,13 @@ class Borealis(PiroModel):
         fast_state: BorealisFastState | None = None,
         *,
         adapt: bool = True,
-        consolidate: bool = False,
     ) -> BorealisOutput:
         """Run a causal episode and return output plus updated fast state.
 
-        ``token_ids`` is a one-dimensional sequence.  Every token except the
+        ``token_ids`` is a one-dimensional sequence. Every token except the
         final one is observed and used to predict the following causal target.
+        Durable consolidation runs at the end of every invocation; callers can
+        persist the resulting durable revision with :meth:`save_weights`.
         """
         tokens = self._validate_tokens(token_ids)
         state = (fast_state or self.initialize_fast_state()).clone()
@@ -344,11 +319,7 @@ class Borealis(PiroModel):
 
         stacked_logits = torch.stack(logits_per_step)
         mean_loss = torch.stack(losses).mean()
-        persistence = self.weight_persistence_policy(state)
-        consolidated = False
-        if consolidate and persistence.mode == "consolidate":
-            state = self.consolidate_weights(state)
-            consolidated = True
+        state = self.consolidate_weights(state)
 
         return BorealisOutput(
             logits=stacked_logits[-1],
@@ -357,8 +328,6 @@ class Borealis(PiroModel):
             loss=mean_loss,
             predictions=torch.stack(predictions),
             fast_state=state,
-            persistence=persistence,
-            consolidated=consolidated,
         )
 
     def causal_loss(self, token_ids: torch.Tensor) -> torch.Tensor:
@@ -386,5 +355,4 @@ class Borealis(PiroModel):
 BorealisConfig.__module__ = __name__
 BorealisFastState.__module__ = __name__
 BorealisRuntimeWeights.__module__ = __name__
-BorealisPersistence.__module__ = __name__
 BorealisOutput.__module__ = __name__

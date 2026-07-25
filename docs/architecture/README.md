@@ -15,7 +15,7 @@ Observation
   -> Update fast weights
   -> Bind fast state with durable weights
   -> Output + updated fast state
-  -> Consolidate durable weights when warranted
+  -> Consolidate and save durable weights
 ```
 
 The core hypothesis is that a model with **fast, writable weights** and **slow,

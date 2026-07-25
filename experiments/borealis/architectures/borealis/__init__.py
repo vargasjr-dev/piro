@@ -5,7 +5,6 @@ from .borealis import (
     BorealisConfig,
     BorealisFastState,
     BorealisOutput,
-    BorealisPersistence,
     BorealisRuntimeWeights,
 )
 
@@ -14,6 +13,5 @@ __all__ = [
     "BorealisConfig",
     "BorealisFastState",
     "BorealisOutput",
-    "BorealisPersistence",
     "BorealisRuntimeWeights",
 ]

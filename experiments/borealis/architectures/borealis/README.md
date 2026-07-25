@@ -6,7 +6,7 @@ Borealis is a functional, text-first fast/slow self-updating model.
 - A run-local `BorealisFastState` adapts from causal prediction error.
 - Each prediction binds durable weights with the current fast state.
 - Fast state is returned explicitly and can be snapshotted or restored.
-- Consolidation is explicit and deliberate rather than an implicit side effect.
+- Consolidation runs at every invocation boundary and produces the next durable revision.
 
 This relocation preserves the existing implementation and tests. It does not
 add Modal training or inference support: the current worker supports CTM,

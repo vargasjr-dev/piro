@@ -31,7 +31,6 @@ const supportedNodes = [
   "fastAdaptation",
   "bindFastState",
   "predictNext",
-  "persistencePolicy",
   "consolidate",
   "chunkText",
 ] as const;
@@ -66,7 +65,6 @@ const titles: Record<SupportedNode, string> = {
   fastAdaptation: "FastAdaptation",
   bindFastState: "BindFastState",
   predictNext: "PredictNextToken",
-  persistencePolicy: "WeightPersistencePolicy",
   consolidate: "ConsolidateWeights",
   chunkText: "ChunkText",
 };
@@ -106,8 +104,7 @@ export async function generateMetadata({ params }: { params: Promise<{ node: str
     fastAdaptation: "FastAdaptation",
     bindFastState: "BindFastState",
     predictNext: "PredictNextToken",
-    persistencePolicy: "WeightPersistencePolicy",
-    consolidate: "ConsolidateWeights",
+      consolidate: "ConsolidateWeights",
     chunkText: "ChunkText",
   };
   const title = titles[node as SupportedNode] ?? "Architecture";
