@@ -369,6 +369,34 @@ export const model = pgTable(
 );
 
 /**
+ * A hosted model deployment. Deployments are the user-visible stateful
+ * inference targets; the model row holds the underlying model metadata.
+ *
+ * isAdmin marks a deployment as part of the shared/global Piro fleet.
+ * enabled controls whether the deployment is available in the model picker.
+ */
+export const deployment = pgTable(
+  "deployment",
+  {
+    id: text("id").primaryKey(),
+    modelId: text("modelId")
+      .notNull()
+      .references(() => model.id, { onDelete: "cascade" }),
+    createdByUserId: text("createdByUserId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    isAdmin: boolean("isAdmin").notNull().default(false),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => [
+    index("deployment_creator_enabled").on(t.createdByUserId, t.enabled),
+    index("deployment_admin_enabled").on(t.isAdmin, t.enabled),
+  ],
+);
+
+/**
  * 1:1 link between a model and the training run that produced it.
  * Presence of this row means the model is Piro-trained.
  */
