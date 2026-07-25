@@ -10,8 +10,6 @@ training, and experiments belong here.
 
 ## Canonical modules
 
-- `borealis.py` — functional text-first fast/slow self-updating model with
-  causal next-token prediction, explicit fast-state snapshots, and deliberate consolidation.
 - `ctm.py` — deferred Continuous Thought Model experiment with neuron MLPs,
   rolling history, synchrony, burst state, optional oscillators, and Oja plasticity.
 - `baseline_transformer.py` — matched fixed-depth transformer baseline.
@@ -23,14 +21,9 @@ training, and experiments belong here.
 
 See `docs/research-persistent-memory.md` for the falsifiable WRITE / DISTRACT / QUERY protocol and required controls.
 
-## Borealis fast/slow model contract
-
-`Borealis` follows `docs/architecture/stateful-rl-first-model-v0.1.md`. Durable
-PyTorch parameters produce causal next-token logits, while `BorealisFastState`
-contains a run-local output-bias update. `run()` returns predictions, the causal
-loss, and the next fast state. `snapshot_fast_state()` and `load_fast_state()`
-keep storage outside the model. `consolidate_weights()` is explicit and only
-consumes fast state when `weight_persistence_policy()` says evidence is stable.
+Borealis is maintained as the standalone experiment in
+`experiments/borealis/architectures/borealis/`; it is not part of the shared
+model package or current platform runtime templates.
 
 ## Stateful model contract
 

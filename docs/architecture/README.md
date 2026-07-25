@@ -40,6 +40,8 @@ shift recovery.
 
 - [Core self-updating model](./stateful-rl-first-model-v0.1.md) — the current
   pseudocode-first contract, with linked method-level detail in the application.
+- [Borealis experiment](../../experiments/borealis/architectures/borealis/) — the
+  current executable research implementation of the fast/slow model contract.
 - [Diagram source](./stateful-rl-first-model-v0.1.mmd) — editable Mermaid source
   for the current core flow.
 - [Oscillatory entrainment](../phase-4-oscillatory-entrainment.md) — deferred CTM
