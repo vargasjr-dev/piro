@@ -2,37 +2,19 @@ import { randomUUID } from "crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../../../../../data/db";
 import { deployment, model } from "../../../../../../data/schema";
-import { resolveDeploymentAuth } from "~/lib/deployment-auth";
-
-interface CreateDeploymentBody {
-  admin?: boolean;
-}
+import { resolveRequestAuth } from "~/lib/request-auth";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: modelId } = await params;
-  const resolvedAuth = await resolveDeploymentAuth(request);
+  const resolvedAuth = await resolveRequestAuth(request);
   if (!resolvedAuth) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: CreateDeploymentBody = {};
-  try {
-    body = (await request.json()) as CreateDeploymentBody;
-  } catch {
-    // An empty request body is valid for a private deployment.
-  }
-
-  const isAdminDeployment = body.admin === true;
-  if (isAdminDeployment && !resolvedAuth.isAdmin) {
-    return Response.json(
-      { error: "Only admins can create admin deployments" },
-      { status: 403 },
-    );
-  }
-
+  const isAdminDeployment = resolvedAuth.isAdmin;
   const modelConditions = [eq(model.id, modelId)];
   if (!isAdminDeployment) {
     modelConditions.push(eq(model.userId, resolvedAuth.userId));
