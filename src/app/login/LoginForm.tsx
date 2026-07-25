@@ -17,7 +17,7 @@ export default function LoginForm({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const destination = callbackUrl || "/dashboard";
+  const destination = callbackUrl || "/models";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

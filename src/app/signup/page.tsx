@@ -17,7 +17,7 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
     try {
-      const callbackUrl = new URLSearchParams(window.location.search).get("callbackUrl") || "/dashboard";
+      const callbackUrl = new URLSearchParams(window.location.search).get("callbackUrl") || "/models";
       const { error: authError } = await authClient.signUp.email({
         name,
         email,
@@ -107,7 +107,7 @@ export default function SignupPage() {
           </div>
 
           <button
-            onClick={() => authClient.signIn.social({ provider: "github", callbackURL: "/dashboard" })}
+            onClick={() => authClient.signIn.social({ provider: "github", callbackURL: "/models" })}
             className="w-full py-3 bg-[#24292e] text-white font-semibold rounded-xl hover:bg-[#2f363d] transition-all flex items-center justify-center gap-3"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">

@@ -11,7 +11,7 @@ export default async function LoginPage({
   const headersList = await headers();
   const session = await auth.api.getSession({ headers: headersList });
 
-  if (session) redirect("/dashboard");
+  if (session) redirect("/models");
 
   const { callbackUrl } = await searchParams;
   return (
