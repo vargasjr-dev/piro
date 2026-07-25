@@ -96,7 +96,7 @@ async function listComponentDirectory(
   const contents = await fetchGitHubContents({ owner, repository, path: directory, accessToken, signal });
   if (!Array.isArray(contents)) return [];
 
-  return Promise.all(
+  const components = await Promise.all(
     contents
       .filter((item) => item.type === "dir" && !item.name.startsWith(".") && item.name !== "__pycache__")
       .map(async (item) => {
@@ -112,14 +112,78 @@ async function listComponentDirectory(
             return file && !Array.isArray(file) && file.type === "file" ? entrypoint : null;
           }),
         );
-        return {
-          name: item.name,
-          path: item.path,
-          htmlUrl: item.html_url,
-          entrypoint: candidates.find(Boolean) ?? null,
-        };
+        const entrypoint = candidates.find(Boolean) ?? null;
+        return entrypoint
+          ? {
+              name: item.name,
+              path: item.path,
+              htmlUrl: item.html_url,
+              entrypoint,
+            }
+          : null;
       }),
   );
+
+  return components.flatMap((component) => (component ? [component] : []));
+}
+
+async function listFlatArchitectureFiles(
+  owner: string,
+  repository: string,
+  directory: string,
+  accessToken?: string | null,
+  signal?: AbortSignal,
+): Promise<GitHubRepositoryComponent[]> {
+  const contents = await fetchGitHubContents({ owner, repository, path: directory, accessToken, signal });
+  if (!Array.isArray(contents)) return [];
+
+  const directFiles = contents
+    .filter(
+      (item) =>
+        item.type === "file" &&
+        item.name.endsWith(".py") &&
+        item.name !== "__init__.py",
+    )
+    .map((file) => ({
+      name: file.name.replace(/\.py$/, ""),
+      path: file.path,
+      htmlUrl: file.html_url,
+      entrypoint: null,
+    }));
+
+  const nestedFiles = await Promise.all(
+    contents
+      .filter((item) => item.type === "dir" && !item.name.startsWith(".") && item.name !== "__pycache__")
+      .map(async (item) => {
+        const nested = await fetchGitHubContents({
+          owner,
+          repository,
+          path: item.path,
+          accessToken,
+          signal,
+        });
+        if (!Array.isArray(nested)) return [];
+        const hasDirectoryEntrypoint = nested.some(
+          (file) => file.type === "file" && COMPONENT_ENTRYPOINTS.includes(file.name),
+        );
+        if (hasDirectoryEntrypoint) return [];
+        return nested
+          .filter(
+            (file) =>
+              file.type === "file" &&
+              file.name.endsWith(".py") &&
+              file.name !== "__init__.py",
+          )
+          .map((file) => ({
+            name: file.name.replace(/\.py$/, ""),
+            path: file.path,
+            htmlUrl: file.html_url,
+            entrypoint: null,
+          }));
+      }),
+  );
+
+  return [...directFiles, ...nestedFiles.flat()];
 }
 
 export async function listRepositoryDirectory(
@@ -141,7 +205,11 @@ export async function listRepositoryArchitectures(
   accessToken?: string | null,
   signal?: AbortSignal,
 ): Promise<GitHubRepositoryComponent[]> {
-  return listRepositoryDirectory(owner, repository, "architectures", accessToken, signal);
+  const [directories, files] = await Promise.all([
+    listComponentDirectory(owner, repository, "architectures", accessToken, signal),
+    listFlatArchitectureFiles(owner, repository, "architectures", accessToken, signal),
+  ]);
+  return [...directories, ...files].sort((a, b) => a.path.localeCompare(b.path));
 }
 
 export interface RepositoryComponentFile {
@@ -155,6 +223,12 @@ export interface RepositoryComponentFile {
 function componentPath(kind: RepositoryComponentKind, name: string): string {
   if (name.startsWith(`${kind}/`)) return name;
   return `${kind}/${name}`;
+}
+
+function decodeSource(contents: GitHubContentItem): string | null {
+  return contents.encoding === "base64" && contents.content
+    ? Buffer.from(contents.content.replace(/\n/g, ""), "base64").toString("utf8")
+    : null;
 }
 
 export async function getRepositoryComponent(
@@ -176,23 +250,21 @@ export async function getRepositoryComponent(
       signal,
     });
     if (!contents || Array.isArray(contents) || contents.type !== "file") continue;
-    const source =
-      contents.encoding === "base64" && contents.content
-        ? Buffer.from(contents.content.replace(/\n/g, ""), "base64").toString("utf8")
-        : null;
     const parts = basePath.split("/");
     return {
       name: parts.at(-1) ?? name,
       path: basePath,
       htmlUrl: contents.html_url,
       entrypoint,
-      source,
+      source: decodeSource(contents),
     };
   }
   return null;
 }
 
-export interface RepositoryArchitectureFile extends RepositoryComponentFile {}
+export interface RepositoryArchitectureFile extends Omit<RepositoryComponentFile, "entrypoint"> {
+  entrypoint: string | null;
+}
 
 export async function getRepositoryArchitecture(
   owner: string,
@@ -201,5 +273,46 @@ export async function getRepositoryArchitecture(
   accessToken?: string | null,
   signal?: AbortSignal,
 ): Promise<RepositoryArchitectureFile | null> {
-  return getRepositoryComponent(owner, repository, "architectures", name, accessToken, signal);
+  const trimmed = name.trim().replace(/^\/+|\/+$/g, "");
+  const candidates = trimmed.startsWith("architectures/")
+    ? [trimmed, `${trimmed}.py`]
+    : [
+        `architectures/${trimmed}`,
+        `architectures/${trimmed}.py`,
+        `architectures/ashfall/${trimmed}.py`,
+      ];
+
+  for (const candidate of candidates) {
+    if (candidate.endsWith(".py")) {
+      const contents = await fetchGitHubContents({
+        owner,
+        repository,
+        path: candidate,
+        accessToken,
+        signal,
+      });
+      if (!contents || Array.isArray(contents) || contents.type !== "file") continue;
+      const fileName = candidate.split("/").at(-1) ?? name;
+      return {
+        name: fileName.replace(/\.py$/, ""),
+        path: candidate,
+        htmlUrl: contents.html_url,
+        entrypoint: "",
+        source: decodeSource(contents),
+      };
+    }
+
+    const component = await getRepositoryComponent(
+      owner,
+      repository,
+      "architectures",
+      candidate.replace(/^architectures\//, ""),
+      accessToken,
+      signal,
+      candidate,
+    );
+    if (component) return component;
+  }
+
+  return null;
 }

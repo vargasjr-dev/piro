@@ -9,14 +9,6 @@ export type CurrentPiroArchitecture = {
 
 const ARCHITECTURES_DIR = join(process.cwd(), "architectures");
 
-function titleCase(value: string) {
-  return value
-    .split(/[-_]/g)
-    .filter(Boolean)
-    .map((word) => word[0]?.toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
 function architectureLabel(value: string) {
   return value
     .split("-")
@@ -34,17 +26,23 @@ export function getCurrentPiroArchitecture(): CurrentPiroArchitecture {
   };
   if (!existsSync(ARCHITECTURES_DIR)) return fallback;
 
-  const architectures = readdirSync(ARCHITECTURES_DIR)
+  const tracks = readdirSync(ARCHITECTURES_DIR)
     .filter((entry) => !entry.startsWith(".") && entry !== "_common")
     .filter((entry) => statSync(join(ARCHITECTURES_DIR, entry)).isDirectory())
     .sort((a, b) => a.localeCompare(b));
-  const architecture = architectures.at(-1);
-  if (!architecture) return fallback;
+  const track = tracks.at(-1);
+  if (!track) return fallback;
 
-  const modelName = architecture === "baseline_transformer" ? "baseline-transformer" : architecture;
+  const files = readdirSync(join(ARCHITECTURES_DIR, track))
+    .filter((entry) => entry.endsWith(".py") && entry !== "__init__.py")
+    .sort((a, b) => a.localeCompare(b));
+  const file = files.at(-1);
+  if (!file) return fallback;
+
+  const modelName = file.replace(/\.py$/, "").replace(/_/g, "-");
   return {
     architecture: modelName,
-    architecturePath: `architectures/${architecture}`,
+    architecturePath: `architectures/${track}/${file}`,
     label: `Piro · ${architectureLabel(modelName)}`,
   };
 }
