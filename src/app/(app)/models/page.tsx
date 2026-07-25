@@ -1,8 +1,12 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 import { auth } from "~/lib/auth.server";
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "../../../../data/db";
 import { deployment, model } from "../../../../data/schema";
+import { getSubscription, isActive } from "~/lib/billing";
+import { createSuggestedModelId } from "~/lib/model-id-suggestion";
+import DeployModelButton from "~/components/DeployModelButton";
 
 type ModelRow = {
   id: string;
@@ -92,7 +96,15 @@ function ModelCard({
   );
 }
 
-function EmptyState({ global = false }: { global?: boolean }) {
+function EmptyState({
+  global = false,
+  canDeploy = false,
+  defaultModelId,
+}: {
+  global?: boolean;
+  canDeploy?: boolean;
+  defaultModelId?: string;
+}) {
   return (
     <div className="rounded-2xl border border-dashed border-amber-900/25 bg-amber-900/5 px-5 py-10 text-center">
       <p className="text-sm font-semibold text-amber-200/60">
@@ -103,6 +115,17 @@ function EmptyState({ global = false }: { global?: boolean }) {
           ? "The Piro team will publish the first shared model here."
           : "Your dedicated stateful deployments will appear here once they are ready."}
       </p>
+      {!global && canDeploy && defaultModelId && (
+        <DeployModelButton defaultModelId={defaultModelId} />
+      )}
+      {!global && !canDeploy && (
+        <Link
+          href="/upgrade"
+          className="mt-6 inline-flex rounded-xl border border-orange-500/40 bg-orange-500/10 px-5 py-3 text-sm font-bold text-orange-300 transition hover:border-orange-400/70 hover:bg-orange-500/20 hover:text-orange-200"
+        >
+          Upgrade To Deploy
+        </Link>
+      )}
     </div>
   );
 }
@@ -110,6 +133,10 @@ function EmptyState({ global = false }: { global?: boolean }) {
 export default async function ModelsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
+
+  const subscription = await getSubscription(session.user.id);
+  const canDeploy = isActive(subscription);
+  const defaultModelId = createSuggestedModelId();
 
   const selectFields = {
     id: model.id,
@@ -191,7 +218,7 @@ export default async function ModelsPage() {
             </span>
           </div>
           {privateModels.length === 0 ? (
-            <EmptyState />
+            <EmptyState canDeploy={canDeploy} defaultModelId={defaultModelId} />
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {toRows(privateModels).map((item) => (
