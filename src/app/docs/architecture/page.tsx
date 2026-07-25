@@ -40,7 +40,6 @@ export default function ArchitecturePage() {
     >
       <div className="grid gap-5 lg:grid-cols-[0.76fr_1.24fr]">
         <section className="rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-500/10 to-[#13100c] p-7 sm:p-9">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-orange-300">The contract</p>
           <h2 className="mt-4 text-2xl font-bold text-amber-50">Fast state. Durable weights.</h2>
           <p className="mt-4 text-sm leading-relaxed text-amber-300/60">
             A Piro invocation can adapt quickly without forcing every observation into durable model knowledge. The model returns updated fast state as a value; a serving adapter may persist that value under an application-level state key.
@@ -79,21 +78,9 @@ export default function ArchitecturePage() {
               <div className="whitespace-pre"><Keyword>return</Keyword> <Variable>output</Variable>, <Variable>fastState</Variable></div>
             </code>
           </div>
-          <p className="mt-5 text-xs leading-relaxed text-amber-400/45">Every linked operation is a place where the model can be inspected, benchmarked, and improved. The pseudocode is intentionally a product contract before it is a service implementation.</p>
         </section>
       </div>
 
-      <section className="mt-12 grid gap-4 md:grid-cols-3">
-        {["Durable knowledge", "Fast adaptation", "Explicit persistence"].map((title, index) => (
-          <article key={title} className="rounded-2xl border border-amber-900/30 bg-[#13100c] p-6">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-400">0{index + 1}</p>
-            <h2 className="mt-4 font-semibold text-amber-50">{title}</h2>
-            <p className="mt-3 text-sm leading-relaxed text-amber-300/55">
-              {index === 0 ? "Model-level knowledge is durable, versioned, and shared only according to the deployment contract." : index === 1 ? "Fast state adapts quickly as the model processes observations without forcing every update into durable weights." : "Piro returns fast state to its caller; the surrounding adapter decides whether to retain it, store it, or discard it."}
-            </p>
-          </article>
-        ))}
-      </section>
     </DocsShell>
   );
 }
