@@ -55,10 +55,8 @@ export default function ArchitecturePage() {
               <div className="whitespace-pre">    )</div>
               <div className="whitespace-pre">    <Variable>runtimeWeights</Variable> = <MethodLink href="/docs/architecture/bindFastState">BindFastState</MethodLink>(<Variable>durableWeights</Variable>, <Variable>fastState</Variable>)</div>
               <div className="whitespace-pre">    <Variable>output</Variable>.append(<MethodLink href="/docs/architecture/output">OutputHead</MethodLink>(<Variable>runtimeWeights</Variable>))</div>
-              <div className="whitespace-pre"><Variable>persistence</Variable> = <MethodLink href="/docs/architecture/persistencePolicy">WeightPersistencePolicy</MethodLink>(<Variable>fastState</Variable>)</div>
-              <div className="whitespace-pre"><Keyword>if</Keyword> persistence.mode == "consolidate":</div>
-              <div className="whitespace-pre">    <Variable>durableWeights</Variable> = <MethodLink href="/docs/architecture/consolidate">ConsolidateWeights</MethodLink>(<Variable>durableWeights</Variable>, <Variable>fastState</Variable>)</div>
-              <div className="whitespace-pre">    <MethodLink href="/docs/architecture/saveWeights">SaveWeights</MethodLink>(<Variable>durableWeights</Variable>, scope = "model")</div>
+              <div className="whitespace-pre"><Variable>durableWeights</Variable> = <MethodLink href="/docs/architecture/consolidate">ConsolidateWeights</MethodLink>(<Variable>durableWeights</Variable>, <Variable>fastState</Variable>)</div>
+              <div className="whitespace-pre"><MethodLink href="/docs/architecture/saveWeights">SaveWeights</MethodLink>(<Variable>durableWeights</Variable>)</div>
               <div className="whitespace-pre"><Keyword>return</Keyword> <Variable>output</Variable>, <Variable>fastState</Variable></div>
             </code>
           </div>

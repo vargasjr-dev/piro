@@ -18,12 +18,9 @@ The baseline architecture contains only these responsibilities:
 - **FastAdaptation** — updates selected fast weights from causal prediction loss.
 - **BindFastState** — combines durable weights with the active fast state.
 - **OutputHead** — produces the response using the current runtime weights.
-- **WeightPersistencePolicy** — decides whether to keep the fast state in the
-  runtime result or consolidate it into durable weights.
 - **ConsolidateWeights** — proposes durable changes only when evidence is stable
   and replay checks do not regress validated capabilities.
-- **SaveWeights** — writes a model-scope durable revision. It does not know how
-  an application names or stores a stream.
+- **SaveWeights** — writes the updated durable model revision.
 
 There is no required recurrent thought loop, synchronization mechanism, learned
 halting policy, timestamped history buffer, or specialized memory-attention stack
@@ -49,11 +46,8 @@ for each observedChunk in ChunkText(x.text):
     runtimeWeights = BindFastState(durableWeights, fastState)
     output.append(OutputHead(runtimeWeights))
 
-persistence = WeightPersistencePolicy(fastState)
-
-if persistence.mode == "consolidate":
-    durableWeights = ConsolidateWeights(durableWeights, fastState)
-    SaveWeights(durableWeights, scope = "model")
+durableWeights = ConsolidateWeights(durableWeights, fastState)
+SaveWeights(durableWeights)
 
 return output, fastState
 ```
@@ -66,31 +60,10 @@ addressable retrieval path when that capability is tested.
 
 ## Serving-layer state boundary
 
-The model contract is independent of API identity. A serving adapter may associate
-an external state key with the returned fast state:
-
-```text
-stateKey = ResolveStateKey(authenticatedPrincipal, requestedStateId)
-durableWeights = LoadWeights(modelRevision)
-fastState = StateStore.Load(stateKey)
-
-if fastState is absent:
-    fastState = InitializeFastState(durableWeights)
-
-output, nextFastState = PiroModel.Run(
-    durableWeights,
-    fastState,
-    PiroInput
-)
-
-StateStore.Save(stateKey, nextFastState)
-return output
-```
-
-`stateKey` can be a session, stream, task, or another application-level handle.
-It is metadata owned by the adapter and state store, not an input to
-`FastAdaptation` or `InitializeFastState`. TTT-style evaluation can run the same
-model directly with an in-memory fast-state value and no API layer at all.
+The model contract is independent of API identity. The model contract remains value-based: the caller supplies the current fast-state
+value and receives the next one. Durable weights are loaded and saved as the
+model’s persistent substrate, while fast-state continuity is represented directly
+by the value passed between runs. No session ID or state-store key is a model input.
 
 ## State and lifetime boundaries
 
@@ -101,11 +74,10 @@ model directly with an in-memory fast-state value and no API layer at all.
 | `runtimeWeights`  | current forward pass | durable weights plus fast state                |
 | `durableWeights`  | model revision       | stable knowledge and validated personalization |
 
-A fast update is not automatically a durable model revision. The model returns its
-updated fast state as a value. A serving or training adapter may keep that value in
-memory or persist it in an external state store, but the model does not receive the
-store key. Durable consolidation is deliberate, replay-protected, and infrequent
-relative to online adaptation.
+Fast adaptation and durable consolidation both happen at the invocation boundary.
+The model returns its updated fast state as a value while `ConsolidateWeights`
+updates the durable substrate. `SaveWeights` writes that updated durable revision;
+the model does not receive an application-level store key.
 
 ## Training plan
 

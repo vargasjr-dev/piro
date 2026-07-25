@@ -32,7 +32,6 @@ type DiagramKind =
   | "fastAdaptation"
   | "bindFastState"
   | "predictNext"
-  | "persistencePolicy"
   | "consolidate"
   | "chunkText";
 
@@ -148,10 +147,6 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   predictNext: {
     title: "PredictNextToken",
     subtitle: "Produces a causal text prediction so the observed stream can supervise fast adaptation.",
-  },
-  persistencePolicy: {
-    title: "WeightPersistencePolicy",
-    subtitle: "Chooses whether the updated fast-state value is returned or proposed for durable consolidation.",
   },
   consolidate: {
     title: "ConsolidateWeights",
@@ -431,7 +426,6 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   fastAdaptation: { input: "fastState + observedChunk + prediction + runtimeWeights", output: "updated fastState", relation: "applies the inner-loop next-token learning update before later chunks run", tone: "orange" },
   bindFastState: { input: "durableWeights + fastState", output: "runtimeWeights", relation: "binds the current fast-state value to the stable parameter substrate", tone: "violet" },
   predictNext: { input: "observedChunk + state + runtimeWeights", output: "prediction", relation: "produces the causal target used by fast adaptation", tone: "green" },
-  persistencePolicy: { input: "fastState + run evidence", output: "return / consolidate", relation: "selects whether to return fast state or propose durable consolidation", tone: "orange" },
   consolidate: { input: "durableWeights + fastState + validated evidence", output: "updated durableWeights", relation: "merges stable evidence into the slow substrate while leaving transient state separate", tone: "blue" },
   chunkText: { input: "text", output: "ordered chunks", relation: "creates causal mini-batches for text adaptation", tone: "green" },
 };
@@ -742,15 +736,6 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
       {line(<>    runtimeWeights</>)}
       {line(<>):</>)}
       {line(<>    return TextHead(Forward(observedChunk, state, runtimeWeights))</>)}
-    </>,
-    persistencePolicy: <>
-      {line(<>{call("WeightPersistencePolicy", "persistencePolicy")}</>)}
-      {line(<>    fastState,</>)}
-      {line(<>    runEvidence</>)}
-      {line(<>):</>)}
-      {line(<>    if DurableEvidenceReady(runEvidence, fastState):</>)}
-      {line(<>        return {"{"} mode: "consolidate" {"}"}</>)}
-      {line(<>    return {"{"} mode: "return" {"}"}</>)}
     </>,
     consolidate: <>
       {line(<>{call("ConsolidateWeights", "consolidate")}</>)}
