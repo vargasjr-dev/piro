@@ -61,6 +61,14 @@ const titles: Record<SupportedNode, string> = {
   loadWeights: "LoadWeights",
   saveWeights: "SaveWeights",
   plasticity: "PlasticityController",
+  initializeFastState: "InitializeFastState",
+  attentionWindow: "GetAttentionWindow",
+  fastAdaptation: "FastAdaptation",
+  bindFastState: "BindFastState",
+  predictNext: "PredictNextToken",
+  persistencePolicy: "WeightPersistencePolicy",
+  consolidate: "ConsolidateWeights",
+  chunkText: "ChunkText",
 };
 
 export function generateStaticParams() {
