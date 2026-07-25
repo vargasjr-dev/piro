@@ -18,10 +18,10 @@ export default function DocsPage() {
         <section className="rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-500/10 via-[#17100b] to-[#100b08] p-7 shadow-[0_0_80px_rgba(249,115,22,0.08)] sm:p-10">
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-orange-300">What is Piro?</p>
           <h2 className="mt-4 max-w-2xl text-3xl font-black leading-tight tracking-[-0.035em] text-amber-50 sm:text-4xl">
-            A training and deployment layer for small, stateful models.
+            Pretrained models you can deploy as your own.
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-amber-200/65">
-            Piro helps you define an experiment, train a model, measure what it learned, and serve the result through a model API that can carry state forward.
+            Piro provides pretrained, stateful models that you can deploy, run, and build into your own applications through a model API designed to carry state forward.
           </p>
         </section>
 
