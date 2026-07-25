@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "../../../../data/db";
 import { deployment, model } from "../../../../data/schema";
 
@@ -143,6 +143,10 @@ export default async function ModelsPage() {
         and(
           eq(deployment.isAdmin, true),
           eq(deployment.enabled, true),
+          or(
+            isNull(deployment.targetUserId),
+            eq(deployment.targetUserId, session.user.id),
+          ),
           isNull(model.archivedAt),
         ),
       )

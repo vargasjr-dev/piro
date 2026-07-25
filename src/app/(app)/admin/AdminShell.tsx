@@ -5,6 +5,7 @@ const tabs = [
   { href: "/admin/models", label: "Models" },
   { href: "/admin/deployments", label: "Deployments" },
   { href: "/admin/nodes", label: "Nodes" },
+  { href: "/admin/users", label: "Users" },
 ];
 
 export function AdminShell({
