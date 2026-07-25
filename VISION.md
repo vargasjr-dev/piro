@@ -239,17 +239,6 @@ The economics favor a smaller number of fully mutable, high-fidelity parameters 
 
 ---
 
-## What We Are Not Doing Now
-
-- We are not building a general-purpose frontier model.
-- We are not using the old Opus-judge/PKM framing as the current product thesis.
-- We are not treating GRPO, a reward API, or a particular trainer as the definition of Piro.
-- We are not claiming random key/value recall demonstrates personal intelligence.
-- We are not starting with LoRA or a shared frozen base.
-- We are not scaling model size before the 20K personalization mechanism produces a real signal.
-
----
-
 ## One-Sentence Version
 
 > **Piro is a small model that learns an owner's relational policies through interaction, stores them in independently owned weights, survives restart without the original history, and grows into an affordable personal intelligence.**

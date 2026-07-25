@@ -143,7 +143,7 @@ class Trainer:
         from piro.trainer import Trainer as _Trainer, TrainerConfig
         from piro.ctm import ContinuousThoughtModel, CTMConfig
         from piro.baseline_transformer import BaselineTransformer, TransformerConfig
-        from model.memory_encoding import memory_embedding
+        from model.memory_encoding import memory_embedding, policy_embedding
         from model.weight_serialization import round_nested_numbers
 
         # Expose to run()
@@ -156,6 +156,7 @@ class Trainer:
         self._BaselineTransformer = BaselineTransformer
         self._TransformerConfig = TransformerConfig
         self._memory_embedding = memory_embedding
+        self._policy_embedding = policy_embedding
 
         # Configs
         self._ctm_cfg = CTMConfig(
@@ -253,15 +254,43 @@ class Trainer:
                     samples.append((emb, label))
                 return samples
 
-            if data_source != "associative-recall":
+            if data_source not in {"associative-recall", "owner-policy-worlds"}:
                 raise ValueError(
-                    "the Modal trainer supports sorting-sequences and associative-recall datasets"
+                    "the Modal trainer supports sorting-sequences, associative-recall, "
+                    "and owner-policy-worlds datasets"
                 )
 
             r2 = _r2_client(os)
             key = f"{dataset_r2_prefix.rstrip('/')}/train.jsonl"
             response = r2.get_object(Bucket=R2_BUCKET, Key=key)
-            records = [json.loads(line) for line in response["Body"].read().decode("utf-8").splitlines() if line.strip()]
+            records = [
+                json.loads(line)
+                for line in response["Body"].read().decode("utf-8").splitlines()
+                if line.strip()
+            ]
+            if data_source == "owner-policy-worlds":
+                episodes = []
+                for record in records:
+                    inputs = record.get("inputs")
+                    target = record.get("answerIndex")
+                    if not isinstance(inputs, list) or len(inputs) < 2:
+                        raise ValueError("owner-policy-worlds records need history and query inputs")
+                    if not isinstance(target, int) or not 0 <= target < 4:
+                        raise ValueError("owner-policy-worlds answerIndex must be in [0, 4)")
+                    texts = [item["parts"][0]["text"] for item in inputs]
+                    episodes.append((tuple(texts[:-1]), texts[-1], target))
+                if not episodes:
+                    raise ValueError("owner-policy-worlds dataset is empty")
+                marked = [
+                    episode
+                    for record, episode in zip(records, episodes, strict=True)
+                    if record.get("metadata", {}).get("split") == ("train" if split == "train" else "eval")
+                ]
+                if marked:
+                    return marked
+                split_at = max(1, int(len(episodes) * 0.8))
+                return episodes[:split_at] if split == "train" else episodes[split_at:] or episodes[:1]
+
             episodes = []
             for record in records:
                 inputs = record.get("inputs")
@@ -390,13 +419,13 @@ class Trainer:
             torch.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
 
-            if data_source == "associative-recall" and model_template not in {"ctm", "ctm-10x"}:
+            if data_source in {"associative-recall", "owner-policy-worlds"} and model_template not in {"ctm", "ctm-10x"}:
                 raise ValueError(
-                    "associative-recall training requires the stateful ctm architecture"
+                    f"{data_source} training requires the stateful ctm architecture"
                 )
 
             if model_template in {"ctm", "ctm-10x"}:
-                if data_source == "associative-recall":
+                if data_source in {"associative-recall", "owner-policy-worlds"}:
                     cfg = self._memory_ctm_10x_cfg if model_template == "ctm-10x" else self._memory_ctm_cfg
                 else:
                     cfg = self._ctm_cfg
@@ -429,6 +458,7 @@ class Trainer:
                 raise ValueError(f"Unknown model_template: {model_template!r}")
 
             # Persist architecture and training-budget config immediately.
+            config_dict["dataSource"] = data_source
             config_dict["maxSteps"] = max_steps
             config_dict["checkpointIntervalSteps"] = CHECKPOINT_INTERVAL_STEPS
             config_dict["evalIntervalSteps"] = EVAL_INTERVAL_STEPS
@@ -457,7 +487,7 @@ class Trainer:
             r2 = _r2_client(os)
 
             def _memory_prediction(
-                episode: tuple[tuple[str, ...], str, str],
+                episode: tuple[tuple[str, ...], str, str | int],
                 *,
                 train_mode: bool,
             ):
@@ -465,12 +495,13 @@ class Trainer:
 
                 observations, query, value = episode
                 model.reset()
+                embed = self._policy_embedding if data_source == "owner-policy-worlds" else self._memory_embedding
                 for packet in observations:
                     for observation in packet.splitlines():
                         if not observation.strip():
                             continue
                         model(
-                            self._memory_embedding(
+                            embed(
                                 observation,
                                 cfg.embed_dim,
                                 torch_module=torch,
@@ -480,8 +511,8 @@ class Trainer:
                             preserve_graph=train_mode,
                         )
                 output = model(
-                    self._memory_embedding(
-                        f"QUERY:{query}",
+                    embed(
+                        query if data_source == "owner-policy-worlds" else f"QUERY:{query}",
                         cfg.embed_dim,
                         torch_module=torch,
                         dtype=next(model.parameters()).dtype,
@@ -490,7 +521,7 @@ class Trainer:
                     preserve_graph=train_mode,
                 )
                 logits = output.logits if hasattr(output, "logits") else output
-                target = int(value.removeprefix("value_"))
+                target = int(value if data_source == "owner-policy-worlds" else str(value).removeprefix("value_"))
                 loss = F.cross_entropy(
                     logits.unsqueeze(0),
                     torch.tensor([target], device=logits.device),
@@ -730,7 +761,7 @@ class Trainer:
                     return
 
                 batch = _next_batch()
-                if data_source == "associative-recall":
+                if data_source in {"associative-recall", "owner-policy-worlds"}:
                     train_loss = _memory_step(batch, step=step)
                 else:
                     train_loss = trainer._train_step(batch)
@@ -738,7 +769,7 @@ class Trainer:
 
                 should_evaluate = step % EVAL_INTERVAL_STEPS == 0 or step == max_steps
                 if should_evaluate:
-                    if data_source == "associative-recall":
+                    if data_source in {"associative-recall", "owner-policy-worlds"}:
                         val_loss, val_acc = _memory_evaluate(val_data, step=step)
                     else:
                         val_loss, val_acc = trainer._evaluate(val_data)
@@ -919,12 +950,13 @@ class Infer:
         self._torch = torch
         from piro.ctm import ContinuousThoughtModel, CTMConfig
         from piro.baseline_transformer import BaselineTransformer, TransformerConfig
-        from model.memory_encoding import memory_embedding
+        from model.memory_encoding import memory_embedding, policy_embedding
         self._CTM = ContinuousThoughtModel
         self._CTMConfig = CTMConfig
         self._Transformer = BaselineTransformer
         self._TransformerConfig = TransformerConfig
         self._memory_embedding = memory_embedding
+        self._policy_embedding = policy_embedding
 
         # model_id → (model, cfg_dict) — persists across warm calls
         self._cache: dict = {}
@@ -1086,7 +1118,7 @@ class Infer:
 
     def _associative_step(self, model, cfg: dict, input_text: str, state: dict | None) -> tuple[str, dict]:
         if cfg.get("template") not in {"ctm", "ctm-10x"}:
-            raise ValueError("associative-recall inference requires a CTM model")
+            raise ValueError("stateful dataset inference requires a CTM model")
 
         import torch
 
@@ -1096,23 +1128,52 @@ class Infer:
             model.load_state(self._load_json_state(model, state))
 
         parameter = next(model.parameters())
+        policy_mode = cfg.get("dataSource") == "owner-policy-worlds"
         answer = "ACK"
-        for observation in input_text.splitlines():
-            observation = observation.strip()
-            if not observation:
-                continue
-            is_query = "=" not in observation and not observation.startswith("token_")
-            encoded = self._memory_embedding(
-                f"QUERY:{observation}" if is_query else observation,
-                cfg["embed_dim"],
-                torch_module=torch,
-                dtype=parameter.dtype,
-                device=parameter.device,
-            )
-            output = model(encoded)
+        if policy_mode:
+            is_query = "CHOICE|" not in input_text
             if is_query:
+                encoded = self._policy_embedding(
+                    input_text,
+                    cfg["embed_dim"],
+                    torch_module=torch,
+                    dtype=parameter.dtype,
+                    device=parameter.device,
+                )
+                output = model(encoded)
                 logits = output.logits if hasattr(output, "logits") else output
-                answer = f"value_{int(logits.argmax().item()):03d}"
+                answer = str(int(logits.argmax().item()))
+            else:
+                for observation in input_text.splitlines():
+                    observation = observation.strip()
+                    if not observation:
+                        continue
+                    model(
+                        self._policy_embedding(
+                            observation,
+                            cfg["embed_dim"],
+                            torch_module=torch,
+                            dtype=parameter.dtype,
+                            device=parameter.device,
+                        )
+                    )
+        else:
+            for observation in input_text.splitlines():
+                observation = observation.strip()
+                if not observation:
+                    continue
+                is_query = "=" not in observation and not observation.startswith("token_")
+                encoded = self._memory_embedding(
+                    f"QUERY:{observation}" if is_query else observation,
+                    cfg["embed_dim"],
+                    torch_module=torch,
+                    dtype=parameter.dtype,
+                    device=parameter.device,
+                )
+                output = model(encoded)
+                if is_query:
+                    logits = output.logits if hasattr(output, "logits") else output
+                    answer = f"value_{int(logits.argmax().item()):03d}"
 
         return answer, self._json_state(model.snapshot_state())
 
