@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Piro",
-  description: "Deploy a dedicated, stateful Piro model that follows the latest experiment.",
+  description: "Deploy a dedicated, stateful Piro model that follows the current architecture.",
   icons: {
     icon: "/favicon.svg",
   },

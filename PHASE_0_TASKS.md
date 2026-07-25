@@ -8,30 +8,30 @@
 
 ## B1 — Benchmark Infrastructure
 
-- Implement `model/benchmarks/base.py`: abstract `Benchmark` base class with `run(model) -> BenchmarkResult` interface, where `BenchmarkResult` contains `score: float`, `baseline_scores: dict`, `passed: bool`, `metadata: dict`
-- Implement `model/benchmarks/models.py`: `GPTBaseline` adapter class wrapping the OpenAI API — accepts a model name string (e.g. `"gpt-4o-mini"`, `"gpt-4o"`) and exposes the same interface as our model for benchmark evaluation
-- Implement `model/run_benchmarks.py`: runs all registered benchmarks against three targets — weakest GPT (gpt-4o-mini), strongest GPT (gpt-4o), and our model (stub returning random scores for now) — prints formatted score table, saves `model/results/latest.json`
-- Add `bench` script to `package.json`: `"bench": "uv run python model/run_benchmarks.py"`
+- Implement `benchmarks/base.py`: abstract `Benchmark` base class with `run(model) -> BenchmarkResult` interface, where `BenchmarkResult` contains `score: float`, `baseline_scores: dict`, `passed: bool`, `metadata: dict`
+- Implement `benchmarks/models.py`: `GPTBaseline` adapter class wrapping the OpenAI API — accepts a model name string (e.g. `"gpt-4o-mini"`, `"gpt-4o"`) and exposes the same interface as our model for benchmark evaluation
+- Implement `benchmarks/run.py`: runs all registered benchmarks against three targets — weakest GPT (gpt-4o-mini), strongest GPT (gpt-4o), and our model (stub returning random scores for now) — prints formatted score table, saves `benchmarks/results/latest.json`
+- Add `bench` script to `package.json`: `"bench": "uv run python benchmarks/run.py"`
 - Add `--benchmark <name>` flag to `run_benchmarks.py` to run a single benchmark in isolation
 - Add `--model <name>` flag to run benchmarks against a single target instead of all three
 
 ## B2 — Benchmark: OOD Generalization
 
-- Implement `model/benchmarks/ood_generalization.py`: generates sorting sequences of length N (train) and 4×N (test); evaluates each model on the test set by prompting with the sequence and checking if output matches ground-truth sorted order
+- Implement `benchmarks/ood_generalization.py`: generates sorting sequences of length N (train) and 4×N (test); evaluates each model on the test set by prompting with the sequence and checking if output matches ground-truth sorted order
 - Add sequence generation utility: random integer sequences with ground-truth sorted output as labels, serialized as plain text prompts for GPT compatibility
 - Report fields: accuracy at 4×N per model, sample count, example failures
 
 ## B3 — Benchmark: Adaptive Compute
 
-- Implement `model/benchmarks/adaptive_compute.py`: generates easy tasks (single-step: "what is 2+2?") and hard tasks (multi-step: chained arithmetic reasoning); records tick count for our model and response latency (ms) as a compute proxy for GPT models
+- Implement `benchmarks/adaptive_compute.py`: generates easy tasks (single-step: "what is 2+2?") and hard tasks (multi-step: chained arithmetic reasoning); records tick count for our model and response latency (ms) as a compute proxy for GPT models
 - Statistical test: Mann-Whitney U on tick counts (our model) and latency (GPT) to confirm hard tasks use significantly more compute than easy tasks (p < 0.05 = pass)
 - Report fields: mean ticks/latency for easy vs hard per model, p-value, pass/fail
 
 ## B4 — Benchmark: Calibration
 
-- Implement `model/benchmarks/calibration.py`: runs each model on a held-out multi-choice classification set; for GPT models extract confidence from logprobs (top token probability); bins predictions by confidence decile; computes Expected Calibration Error (ECE)
+- Implement `benchmarks/calibration.py`: runs each model on a held-out multi-choice classification set; for GPT models extract confidence from logprobs (top token probability); bins predictions by confidence decile; computes Expected Calibration Error (ECE)
 - Threshold: ECE < 0.05 = pass
-- Save calibration curve plot to `model/results/calibration_[timestamp].png`
+- Save calibration curve plot to `benchmarks/results/calibration_[timestamp].png`
 - Report fields: ECE per model, curve plot path, pass/fail
 
 ## QA-1 — Benchmark UX (Mobile)
@@ -93,13 +93,13 @@
 - Implement `OutputHead` class: MLP that takes the final sync matrix and produces a probability distribution over classes (softmax output)
 - Wire all components into a single `ContinuousThoughtModel` class with a clean `forward(x) -> (logits, confidence, tick_count)` interface
 - Write end-to-end smoke test: random input → forward pass → verify output shape, confidence is scalar in [0,1], tick_count is integer ≤ MAX_TICKS
-- Add `model/train.py` with a minimal training loop (cross-entropy loss, Adam optimizer, 10-epoch toy run on random data) to verify gradients flow through the full graph
+- Add `architectures/train.py` with a minimal training loop (cross-entropy loss, Adam optimizer, 10-epoch toy run on random data) to verify gradients flow through the full graph
 
 ## A6 — Transformer Baseline
 
 - Implement `BaselineTransformer` class: minimal 2-layer transformer (multi-head attention + FFN) with the same parameter budget as the CTM (match total parameter count within 10%)
 - Implement shared `Trainer` class that can train either model with the same loop, optimizer settings, and data pipeline — ensures fair comparison
-- Add `model/compare.py` script: trains both models on the same dataset, prints side-by-side parameter count and training loss, then runs all three benchmarks against gpt-4o-mini, gpt-4o, baseline transformer, and our CTM
+- Add `benchmarks/compare.py` script: trains both models on the same dataset, prints side-by-side parameter count and training loss, then runs all three benchmarks against gpt-4o-mini, gpt-4o, baseline transformer, and our CTM
 
 ## QA-3 — Full Benchmark Suite (Mobile)
 

@@ -82,7 +82,6 @@ export interface GitHubRepositoryComponent {
   path: string;
   htmlUrl: string;
   entrypoint: string | null;
-  experiment: string | null;
 }
 
 const COMPONENT_ENTRYPOINTS = ["main.py", "model.py", "script.py"];
@@ -93,7 +92,6 @@ async function listComponentDirectory(
   directory: string,
   accessToken?: string | null,
   signal?: AbortSignal,
-  experiment: string | null = null,
 ): Promise<GitHubRepositoryComponent[]> {
   const contents = await fetchGitHubContents({ owner, repository, path: directory, accessToken, signal });
   if (!Array.isArray(contents)) return [];
@@ -119,7 +117,6 @@ async function listComponentDirectory(
           path: item.path,
           htmlUrl: item.html_url,
           entrypoint: candidates.find(Boolean) ?? null,
-          experiment,
         };
       }),
   );
@@ -133,30 +130,7 @@ export async function listRepositoryDirectory(
   signal?: AbortSignal,
 ): Promise<GitHubRepositoryComponent[]> {
   const components = await listComponentDirectory(owner, repository, directory, accessToken, signal);
-  if (directory !== "sources" && directory !== "benchmarks" && directory !== "architectures") {
-    return components.sort((a, b) => a.path.localeCompare(b.path));
-  }
-
-  const experiments = await fetchGitHubContents({ owner, repository, path: "experiments", accessToken, signal });
-  if (!Array.isArray(experiments)) return components.sort((a, b) => a.path.localeCompare(b.path));
-
-  const nested = (
-    await Promise.all(
-      experiments
-        .filter((item) => item.type === "dir" && !item.name.startsWith("."))
-        .map((item) =>
-          listComponentDirectory(
-            owner,
-            repository,
-            `experiments/${item.name}/${directory}`,
-            accessToken,
-            signal,
-            item.name,
-          ),
-        ),
-    )
-  ).flat();
-  return [...components, ...nested].sort((a, b) => a.path.localeCompare(b.path));
+  return components.sort((a, b) => a.path.localeCompare(b.path));
 }
 
 export type RepositoryArchitecture = GitHubRepositoryComponent;
@@ -176,11 +150,10 @@ export interface RepositoryComponentFile {
   htmlUrl: string;
   entrypoint: string;
   source: string | null;
-  experiment: string | null;
 }
 
 function componentPath(kind: RepositoryComponentKind, name: string): string {
-  if (name.startsWith(`${kind}/`) || name.startsWith("experiments/")) return name;
+  if (name.startsWith(`${kind}/`)) return name;
   return `${kind}/${name}`;
 }
 
@@ -214,7 +187,6 @@ export async function getRepositoryComponent(
       htmlUrl: contents.html_url,
       entrypoint,
       source,
-      experiment: parts[0] === "experiments" ? parts[1] ?? null : null,
     };
   }
   return null;
