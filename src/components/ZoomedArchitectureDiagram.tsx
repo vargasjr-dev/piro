@@ -107,19 +107,19 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   weights: {
     title: "Weights",
-    subtitle: "A typed runtime object whose tensor groups belong to the methods that consume or update them.",
+    subtitle: "A proposed 200M-parameter runtime layout split across INT4 base tensors, FP8 fast overlays, and BF16 dynamic state.",
   },
   loadWeights: {
     title: "LoadWeights",
-    subtitle: "Reads one committed weight snapshot, validates its schema and tensor shapes, then reconstructs the runtime weights object.",
+    subtitle: "Reads the model manifest and shards from R2, reconstructs mixed-precision tensors, and prepares the runtime weights for inference.",
   },
   saveWeights: {
     title: "SaveWeights",
-    subtitle: "Validates and serializes updated weights into an immutable snapshot, then atomically publishes it for the next inference.",
+    subtitle: "Writes changed overlays and updated snapshots to versioned R2 objects without rewriting frozen base shards unnecessarily.",
   },
   plasticity: {
     title: "PlasticityController",
-    subtitle: "The model-internal method that derives learning signals from the completed state and persists the weight update without returning a value.",
+    subtitle: "Uses the current input to score earlier predictions, then updates fast overlays and occasionally consolidates durable weights.",
   },
 };
 
@@ -292,69 +292,76 @@ function OutputDiagram() {
 
 function LoadWeightsDiagram() {
   return (
-    <svg viewBox="0 0 1200 620" className="mx-auto block h-auto w-full min-w-[820px]" role="img" aria-label="Piro LoadWeights validation and reconstruction flow">
+    <svg viewBox="0 0 1280 760" className="mx-auto block h-auto w-full min-w-[900px]" role="img" aria-label="Piro LoadWeights R2 manifest and mixed precision shard loading flow">
       <defs>
         <marker id="load-weights-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.72)" /></marker>
       </defs>
-      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">LOADWEIGHTS · SNAPSHOT → RUNTIME OBJECT</text>
-      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">LoadWeights never exposes a partial or unvalidated parameter set to inference.</text>
-      <Box x={28} y={220} width={200} height={142} title="Committed snapshot" detail="bytes + revision + checksum" tone="orange" />
-      <path d="M228 291H270" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
-      <Box x={270} y={220} width={200} height={142} title="Read + parse" detail="canonical serialized envelope" tone="blue" />
-      <path d="M470 291H512" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
-      <Box x={512} y={220} width={200} height={142} title="Validate" detail="schema · shapes · finite values" tone="blue" />
-      <path d="M712 291H754" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
-      <Box x={754} y={220} width={200} height={142} title="Reconstruct" detail="typed tensors + group ownership" tone="blue" />
-      <path d="M954 291H996" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
-      <Box x={996} y={220} width={176} height={142} title="weights" detail="safe inference inputs" tone="green" />
-      <text x="28" y="500" fill="rgb(253 230 138 / 0.62)" fontSize="13">Invalid schema, shape mismatch, checksum failure, or non-finite tensor values fail before the inference loop starts.</text>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">LOADWEIGHTS · R2 MANIFEST + SHARDS → RUNTIME OBJECT</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">The manifest identifies immutable base shards, trainable overlays, formats, shapes, and byte ranges.</text>
+      <Box x={28} y={190} width={236} height={150} title="R2 bucket" detail="piro-kb / models/{modelId}/weights/" tone="orange" />
+      <path d="M264 265H306" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <Box x={306} y={190} width={236} height={150} title="manifest.json" detail="revision · 200M params · shard index" tone="blue" />
+      <path d="M542 265H584" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <Box x={584} y={138} width={260} height={108} title="base-*.safetensors" detail="INT4 frozen tensors + scales" tone="blue" />
+      <Box x={584} y={278} width={260} height={108} title="overlay-*.safetensors" detail="FP8 fast plastic tensors" tone="violet" />
+      <Box x={584} y={418} width={260} height={108} title="state-*.safetensors" detail="BF16 dynamic state + traces" tone="orange" />
+      <path d="M844 192H900V265H936" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <path d="M844 332H900V265H936" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <path d="M844 472H900V265H936" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <Box x={936} y={190} width={300} height={150} title="Decode + dequantize" detail="INT4 → BF16 compute tensors; attach FP8 overlays" tone="blue" />
+      <path d="M1086 340V420" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <Box x={936} y={420} width={300} height={150} title="runtime weights" detail="base + overlay + BF16 state" tone="green" />
+      <text x="28" y="660" fill="rgb(253 230 138 / 0.62)" fontSize="13">LoadWeights reads R2 objects through the existing S3-compatible bucket layer; a bad manifest or shard returns an explicit LoadError before inference.</text>
     </svg>
   );
 }
 
 function SaveWeightsDiagram() {
   return (
-    <svg viewBox="0 0 1200 680" className="mx-auto block h-auto w-full min-w-[820px]" role="img" aria-label="Piro SaveWeights serialization and atomic publication flow">
+    <svg viewBox="0 0 1280 820" className="mx-auto block h-auto w-full min-w-[900px]" role="img" aria-label="Piro SaveWeights overlay update and R2 snapshot publication flow">
       <defs>
         <marker id="save-weights-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
       </defs>
-      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">SAVEWEIGHTS · RUNTIME OBJECT → COMMITTED SNAPSHOT</text>
-      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">SaveWeights makes the update visible atomically: the next load sees the old snapshot or the new one, never a half-written file.</text>
-      <Box x={28} y={214} width={190} height={150} title="active weights" detail="updated tensor groups" tone="green" />
-      <path d="M218 289H258" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
-      <Box x={258} y={214} width={190} height={150} title="Validate" detail="schema + shapes + finiteness" tone="blue" />
-      <path d="M448 289H488" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
-      <Box x={488} y={214} width={190} height={150} title="Canonicalize" detail="stable field order + checksum" tone="blue" />
-      <path d="M678 289H718" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
-      <Box x={718} y={214} width={190} height={150} title="Write temporary" detail="new revision + fsync" tone="orange" />
-      <path d="M908 289H948" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
-      <Box x={948} y={214} width={224} height={150} title="Atomic publish" detail="rename snapshot + advance current" tone="orange" />
-      <path d="M1060 364V462H1080" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
-      <Box x={894} y={462} width={278} height={112} title="next LoadWeights()" detail="reads the newly committed revision" tone="green" />
-      <text x="28" y="540" fill="rgb(253 230 138 / 0.62)" fontSize="13">A failed validation or write leaves the previous committed revision active.</text>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">SAVEWEIGHTS · CHANGED GROUPS → VERSIONED R2 OBJECTS</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Plasticity updates overlays frequently; durable INT4 base shards change only during explicit consolidation or retraining.</text>
+      <Box x={28} y={166} width={230} height={150} title="changed groups" detail="FP8 fast overlay + BF16 traces" tone="green" />
+      <path d="M258 241H304" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
+      <Box x={304} y={166} width={230} height={150} title="delta / overlay encode" detail="sparse changed tensors + scales" tone="violet" />
+      <path d="M534 241H580" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
+      <Box x={580} y={166} width={230} height={150} title="new revision" detail="manifest + checksum + parent" tone="blue" />
+      <path d="M810 241H856" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
+      <Box x={856} y={166} width={230} height={150} title="R2 temporary objects" detail="models/{modelId}/weights/revisions/{r}/" tone="orange" />
+      <path d="M1086 241H1132" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
+      <Box x={1132} y={166} width={120} height={150} title="publish" detail="manifest pointer" tone="orange" />
+      <Box x={28} y={454} width={230} height={150} title="fast update" detail="read next inference immediately" tone="green" />
+      <Box x={304} y={454} width={230} height={150} title="durable consolidation" detail="merge overlay into base later" tone="orange" />
+      <path d="M534 529H650V365H650" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
+      <Box x={650} y={454} width={260} height={150} title="LoadWeights()" detail="next inference follows current pointer" tone="blue" />
+      <text x="28" y="700" fill="rgb(253 230 138 / 0.62)" fontSize="13">If only the overlay changed, SaveWeights writes the overlay and manifest, not 200M base parameters.</text>
     </svg>
   );
 }
 
 function WeightsDiagram() {
   return (
-    <svg viewBox="0 0 1200 760" className="mx-auto block h-auto w-full min-w-[820px]" role="img" aria-label="Piro runtime weights schema and method ownership">
+    <svg viewBox="0 0 1280 860" className="mx-auto block h-auto w-full min-w-[900px]" role="img" aria-label="Piro 200 million parameter mixed precision weight layout">
       <defs>
         <marker id="weights-schema-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
       </defs>
-      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">WEIGHTS · TYPED GROUPS + METHOD OWNERSHIP</text>
-      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Weights are a structured parameter object, not one flat blob: each group owns the tensors consumed by related methods.</text>
-      <Box x={42} y={258} width={250} height={190} title="weights" detail="revision + architecture + tensor groups" tone="green" />
-      <path d="M292 332H350" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
-      <Box x={350} y={142} width={340} height={166} title="attention" detail="modelWidth · headCount · Query/Key/Value · time/sync bias · readGate · outputProjection" tone="blue" />
-      <Box x={350} y={364} width={340} height={166} title="state" detail="initialization · delta · update gate · recurrent state transforms" tone="violet" />
-      <path d="M292 374H322V447H350" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
-      <path d="M292 374H322V225H350" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
-      <Box x={760} y={142} width={340} height={166} title="embedding + output" detail="Embed encoders and OutputHead readout tensors" tone="orange" />
-      <Box x={760} y={364} width={340} height={166} title="plasticity" detail="fast/durable parameters + optimizer or eligibility state" tone="orange" />
-      <path d="M690 225H730V225H760" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
-      <path d="M690 447H730V447H760" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
-      <text x="42" y="650" fill="rgb(253 230 138 / 0.62)" fontSize="13">For a linear transform, W has shape [outDim, inDim] and b has shape [outDim]; every consumer validates its boundary shape.</text>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">WEIGHTS · PROPOSED 200M PARAMETER LAYOUT</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">The exact split is a design target, but the storage contract makes ownership and precision visible.</text>
+      <Box x={36} y={170} width={260} height={166} title="~200M parameters" detail="manifest tracks group counts, dtype, shape, and shard offsets" tone="green" />
+      <path d="M296 253H350" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
+      <Box x={350} y={120} width={360} height={150} title="INT4 base · ~180M" detail="frozen after pretraining; 4-bit values + per-group BF16 scales" tone="blue" />
+      <Box x={350} y={320} width={360} height={150} title="FP8 fast overlay · ~15M" detail="plastic low-rank / sparse deltas updated online" tone="violet" />
+      <Box x={350} y={520} width={360} height={150} title="BF16 state + heads · ~5M" detail="dynamic recurrent, normalization, output, and optimizer-facing tensors" tone="orange" />
+      <path d="M710 195H770V253H824" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
+      <path d="M710 395H770V253H824" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
+      <path d="M710 595H770V253H824" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
+      <Box x={824} y={170} width={410} height={166} title="method ownership" detail="attention projections · state update · embedding · output · plasticity" tone="orange" />
+      <Box x={824} y={390} width={410} height={166} title="storage representation" detail="INT4 base shards · FP8 overlay shards · BF16 state shards" tone="blue" />
+      <Box x={824} y={610} width={410} height={166} title="runtime representation" detail="dequantized BF16 compute + FP8 overlay application" tone="green" />
+      <text x="36" y="800" fill="rgb(253 230 138 / 0.62)" fontSize="13">Rough storage: 180M × 0.5 bytes + 15M × 1 byte + 5M × 2 bytes ≈ 110 MB before scales, metadata, and optimizer state.</text>
     </svg>
   );
 }
@@ -376,9 +383,9 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   residual: { input: "hₖ + deltaₖ + weights", output: "hₖ₊₁", relation: "computes hₖ + gateₖ · deltaₖ", tone: "green" },
   history: { input: "historyₖ + hₖ₊₁ + x + k", output: "historyₖ₊₁", relation: "records state, input, and tick metadata", tone: "blue" },
   shouldHalt: { input: "hₖ₊₁ + k + budget", output: "continue / exit", relation: "controls the recurrent loop or returns outputₖ", tone: "orange" },
-  loadWeights: { input: "committed snapshot + schema", output: "validated runtime weights", relation: "reads, verifies, and reconstructs the parameter object used by inference", tone: "blue" },
-  saveWeights: { input: "validated runtime weights", output: "committed snapshot", relation: "serializes a revision and atomically publishes it for the next inference", tone: "blue" },
-  plasticity: { input: "hₖ₊₁", output: "persisted weight update", relation: "derives learning signals, updates active weights, and saves them without returning a value", tone: "orange" },
+  loadWeights: { input: "R2 manifest + INT4/FP8/BF16 shards", output: "runtime weights", relation: "reads, decodes, combines, and returns the mixed-precision parameter object", tone: "blue" },
+  saveWeights: { input: "changed overlays + revision", output: "versioned R2 snapshot", relation: "writes only the changed representation and publishes a new manifest pointer", tone: "blue" },
+  plasticity: { input: "state + history + current input", output: "fast overlay + durable update", relation: "uses future-input prediction error and eligibility to update selected parameter groups", tone: "orange" },
 };
 
 function MethodDiagram({ kind }: { kind: Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights"> }) {
@@ -533,7 +540,8 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
       {line(<>{call("GetAttentionShape", "getAttentionShape")}weights):</>)}
       {line(<>    modelWidth = weights.attention.modelWidth</>)}
       {line(<>    headCount = weights.attention.headCount</>)}
-      {line(<>    assert modelWidth % headCount == 0</>)}
+      {line(<>    if modelWidth % headCount != 0:</>)}
+      {line(<>        return Error("attention width is not divisible by head count")</>)}
       {line(<>    d_head = modelWidth / headCount</>)}
       {line(<>    return modelWidth, headCount, d_head</>)}
     </>,
@@ -568,7 +576,8 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
       {line(<>    gateLogitsₖ = gateInputₖ · weights.attention.readGate.W</>)}
       {line(<>        + weights.attention.readGate.b</>)}
       {line(<>    readGateₖ = sigmoid(gateLogitsₖ)</>)}
-      {line(<>    assert Shape(readGateₖ) == Shape(contextₖ)</>)}
+      {line(<>    if Shape(readGateₖ) != Shape(contextₖ):</>)}
+      {line(<>        return Error("read gate cannot be applied to context")</>)}
       {line(<>    return readGateₖ</>)}
     </>,
     delta: <>
@@ -595,61 +604,79 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
       {line(<>{variable("weights")} = {"{"}</>)}
       {line(<>    formatVersion: 1,</>)}
       {line(<>    revision: integer,</>)}
-      {line(<>    architecture: {"{"}</>)}
-      {line(<>        modelWidth, headCount, stateWidth, inputWidth, contextWidth</>)}
+      {line(<>    parameterCount: 200_000_000,</>)}
+      {line(<>    architecture: {"{"} modelWidth, headCount, stateWidth, inputWidth, contextWidth {"}"},</>)}
+      {line(<>    storage: {"{"}</>)}
+      {line(<>        provider: R2, bucket: "piro-kb", prefix: "models/&#123;modelId&#125;/weights/"</>)}
       {line(<>    {"}"},</>)}
-      {line(<>    embedding: {"{"}</>)}
-      {line(<>        encoder: {"{"} W, b, modalityTables {"}"},</>)}
-      {line(<>    {"}"},</>)}
-      {line(<>    attention: {"{"}</>)}
-      {line(<>        modelWidth, headCount,</>)}
-      {line(<>        queryProjection: {"{"} W, b {"}"},</>)}
-      {line(<>        keyProjection: {"{"} W, b {"}"},</>)}
-      {line(<>        valueProjection: {"{"} W, b {"}"},</>)}
-      {line(<>        relativeTimeBias: {"{"} W, b {"}"},</>)}
-      {line(<>        synchronizationBias: {"{"} W, b {"}"},</>)}
-      {line(<>        readGate: {"{"} W, b {"}"},</>)}
-      {line(<>        outputProjection: {"{"} W, b {"}"}</>)}
-      {line(<>    {"}"},</>)}
-      {line(<>    state: {"{"} initialization, delta, updateGate, outputHead {"}"},</>)}
-      {line(<>    plasticity: {"{"} fast, durable, eligibility, optimizer {"}"}</>)}
+      {line(<>    base: {"{"} format: INT4, parameters: 180_000_000, shards: [...], scales: BF16 {"}"},</>)}
+      {line(<>    fastOverlay: {"{"} format: FP8, parameters: 15_000_000, sparseOrLowRank: true {"}"},</>)}
+      {line(<>    dynamicState: {"{"} format: BF16, parameters: 5_000_000, eligibility, normalization, heads {"}"}</>)}
       {line(<>{"}"}</>)}
-      {line(<>For each linear layer: W = [outDim, inDim], b = [outDim]</>)}
-      {line(<>For each tensor: dtype, shape, and finite numeric values are required</>)}
+      {line(<>Linear tensor convention: W = [outDim, inDim], b = [outDim]</>)}
+      {line(<>The manifest also stores dtype, shape, shard, byte range, scale, and owner method</>)}
     </>,
     loadWeights: <>
       {line(<>{call("LoadWeights", "loadWeights")}():</>)}
-      {line(<>    snapshot = ReadCommittedSnapshot("weights/current")</>)}
-      {line(<>    assert snapshot.formatVersion == 1</>)}
-      {line(<>    assert VerifyChecksum(snapshot.payload, snapshot.checksum)</>)}
-      {line(<>    parsed = ParseCanonical(snapshot.payload)</>)}
-      {line(<>    ValidateWeightSchema(parsed)</>)}
-      {line(<>    ValidateTensorShapes(parsed, parsed.architecture)</>)}
-      {line(<>    assert AllFiniteTensors(parsed)</>)}
-      {line(<>    weights = ReconstructRuntimeWeights(parsed)</>)}
-      {line(<>    return weights</>)}
+      {line(<>    manifest = R2Get("models/&#123;modelId&#125;/weights/current/manifest.json")</>)}
+      {line(<>    if manifest is missing:</>)}
+      {line(<>        return Error("weights manifest not found")</>)}
+      {line(<>    if manifest.formatVersion != 1:</>)}
+      {line(<>        return Error("unsupported weight manifest version")</>)}
+      {line(<>    for each shard in manifest.shards:</>)}
+      {line(<>        bytes = R2Get(shard.key, shard.byteRange)</>)}
+      {line(<>        if Hash(bytes) != shard.checksum:</>)}
+      {line(<>            return Error("weight shard checksum mismatch")</>)}
+      {line(<>        tensor = Decode(bytes, shard.format, shard.shape, shard.scales)</>)}
+      {line(<>        if tensor is missing or shape is incompatible:</>)}
+      {line(<>            return Error("weight shard cannot reconstruct declared tensor")</>)}
+      {line(<>        runtime[shard.owner][shard.name] = ToBF16ComputeTensor(tensor)</>)}
+      {line(<>    return AttachFastOverlay(runtime)</>)}
     </>,
     saveWeights: <>
       {line(<>{call("SaveWeights", "saveWeights")}weights:</>)}
-      {line(<>    ValidateWeightSchema(weights)</>)}
-      {line(<>    ValidateTensorShapes(weights, weights.architecture)</>)}
-      {line(<>    assert AllFiniteTensors(weights)</>)}
-      {line(<>    nextRevision = ReadCurrentRevision() + 1</>)}
-      {line(<>    payload = SerializeCanonical(weights)</>)}
-      {line(<>    checksum = Hash(payload)</>)}
-      {line(<>    snapshot = {"{"} formatVersion: 1, nextRevision, payload, checksum {"}"}</>)}
-      {line(<>    WriteAndFsyncTemporary(snapshot)</>)}
-      {line(<>    AtomicRenameTemporaryToRevision(nextRevision)</>)}
-      {line(<>    AdvanceCurrentPointer(nextRevision)</>)}
-      {line(<>    return nothing</>)}
+      {line(<>    changed = DiffAgainstLoadedManifest(weights)</>)}
+      {line(<>    if changed is empty:</>)}
+      {line(<>        return NoOp("nothing changed")</>)}
+      {line(<>    revision = ReadCurrentRevision() + 1</>)}
+      {line(<>    for each group in changed:</>)}
+      {line(<>        if group.owner == "plasticity.fastOverlay":</>)}
+      {line(<>            shard = Encode(group, format = FP8, scales = BF16)</>)}
+      {line(<>        else if group.owner == "durable.base":</>)}
+      {line(<>            shard = Quantize(group, format = INT4, scales = BF16)</>)}
+      {line(<>        else:</>)}
+      {line(<>            shard = Encode(group, format = BF16)</>)}
+      {line(<>        R2Put("models/&#123;modelId&#125;/weights/revisions/&#123;revision&#125;/" + shard.name, shard.bytes)</>)}
+      {line(<>    manifest = BuildManifest(revision, changed, parentRevision)</>)}
+      {line(<>    R2Put("models/&#123;modelId&#125;/weights/revisions/&#123;revision&#125;/manifest.json", manifest)</>)}
+      {line(<>    R2Put("models/&#123;modelId&#125;/weights/current/manifest.json", manifest)</>)}
+      {line(<>    return revision</>)}
     </>,
 
     plasticity: <>
-      {line(<>{call("PlasticityController", "plasticity")}hₖ₊₁):</>)}
-      {line(<>    predictionₖ = derive prediction from hₖ₊₁</>)}
-      {line(<>    valueₖ = derive value from hₖ₊₁</>)}
-      {line(<>    creditₖ = assign credit using historyₖ and hₖ₊₁</>)}
-      {line(<>    weights = update plastic weights using predictionₖ, valueₖ, and creditₖ</>)}
+      {line(<>{call("PlasticityController", "plasticity")}</>)}
+      {line(<>    hₖ₊₁,</>)}
+      {line(<>    xₖ₊₁,</>)}
+      {line(<>    historyₖ₊₁</>)}
+      {line(<>):</>)}
+      {line(<>    pending = historyₖ₊₁.entries with unresolved predictions</>)}
+      {line(<>    for each eventₜ in pending:</>)}
+      {line(<>        expectedₜ = eventₜ.prediction</>)}
+      {line(<>        observedₜ = PredictNextInput(eventₜ.state, xₖ₊₁)</>)}
+      {line(<>        surpriseₜ = PredictionError(expectedₜ, observedₜ)</>)}
+      {line(<>        noveltyₜ = Novelty(xₖ₊₁, historyₖ₊₁)</>)}
+      {line(<>        eligibilityₜ = Decay(eventₜ.trace, elapsedTicks)</>)}
+      {line(<>        localCreditₜ = surpriseₜ · noveltyₜ · eligibilityₜ</>)}
+      {line(<>        weights.fastOverlay += UpdateFastOverlay(</>)}
+      {line(<>            eventₜ.activity,</>)}
+      {line(<>            localCreditₜ,</>)}
+      {line(<>            weights.plasticity.learningRate</>)}
+      {line(<>        )</>)}
+      {line(<>    consolidation = AccumulateDurableEvidence(pending, localCreditₜ)</>)}
+      {line(<>    if consolidation exceeds threshold:</>)}
+      {line(<>        weights.durableBase += ConsolidateToBase(consolidation)</>)}
+      {line(<>        weights.fastOverlay -= ConsolidatedPortion(consolidation)</>)}
+      {line(<>    weights.plasticity.traces = UpdateTraces(pending, surpriseₜ)</>)}
       {line(<>    {call("SaveWeights", "saveWeights")}weights)</>)}
       {line(<>    return nothing</>)}
     </>,
@@ -673,10 +700,10 @@ const explanations: Partial<Record<DiagramKind, { doing: string; why: string }>>
   history: { doing: "Appends the new state together with x and tick k so future retrieval can recover content and age.", why: "History is both the state trajectory and the source of Attention’s timestamped memory slots." },
   output: { doing: "Reads the final recurrent state into the externally returned output.", why: "The outside world needs a stable output boundary after the internal loop halts." },
   shouldHalt: { doing: "Evaluates the current state and tick against the continuation budget and decides whether the loop exits.", why: "Adaptive computation lets Piro spend more recurrent steps when the state has not converged." },
-  weights: { doing: "Defines a typed runtime object with architecture metadata plus grouped tensors for embedding, attention, recurrent state/output, and plasticity.", why: "Grouping parameters by the methods that own them makes tensor provenance and shape contracts reviewable instead of hiding everything inside an opaque blob." },
-  loadWeights: { doing: "Reads the committed snapshot, verifies its format and checksum, parses the canonical payload, validates required groups, shapes, and finite values, then reconstructs the runtime weights object.", why: "Inference must never start from a partial, corrupt, incompatible, or half-written parameter set; failure happens before the recurrent loop." },
-  saveWeights: { doing: "Validates the active runtime weights, serializes them in a canonical field order, computes a checksum, writes and syncs a temporary snapshot, then atomically publishes its revision.", why: "Plasticity only affects the next inference when the complete update crosses a durable atomic boundary; a failed write must leave the previous committed revision readable." },
-  plasticity: { doing: "Derives prediction, value, eligibility, and credit internally from hₖ₊₁, updates active plastic weights, and saves them without returning a value.", why: "Learning belongs to the stateful controller that owns the weight mutation and must complete before the next inference loads parameters." },
+  weights: { doing: "Defines a proposed 200M-parameter runtime object: about 180M INT4 base parameters, 15M FP8 fast-overlay parameters, and 5M BF16 dynamic state, with every tensor assigned to an owning method.", why: "The model needs a concrete mixed-precision storage contract so compression, online adaptation, and runtime reconstruction are reviewable rather than hidden inside one blob." },
+  loadWeights: { doing: "Reads models/{modelId}/weights/current/manifest.json from the piro-kb R2 bucket, fetches the listed INT4, FP8, and BF16 shards, checks checksums and shapes, dequantizes base tensors for BF16 compute, and attaches fast overlays.", why: "Inference must never start from a missing, incompatible, corrupt, or partially reconstructable parameter set; the failure path returns before the recurrent loop." },
+  saveWeights: { doing: "Diffs the active runtime object against the loaded manifest, encodes changed fast overlays as FP8, encodes dynamic state as BF16, re-quantizes durable base changes as INT4 only during consolidation, and publishes a versioned R2 manifest.", why: "Plasticity should not rewrite 200M frozen base parameters on every interaction; the next inference sees a complete new revision only after its changed objects and manifest are published." },
+  plasticity: { doing: "Compares later input against unresolved earlier predictions, multiplies prediction error by novelty and eligibility, updates selected FP8 overlay groups, and periodically moves stable evidence into durable base weights.", why: "Human-like learning can assign credit from future consequences and local surprise without requiring one global reward function for every interaction." },
 };
 function MethodExplanation({ kind }: { kind: DiagramKind }) {
   const explanation = explanations[kind];
@@ -727,7 +754,7 @@ export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind 
         <div className="mt-8 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#100c0a] p-3 sm:p-6">
           {kind === "observation" && <ObservationDiagram />}
           {kind === "embedding" && <EmbeddingDiagram />}
-          {kind !== "observation" && kind !== "embedding" && kind !== "output" && kind !== "weights" && kind !== "loadWeights" && kind !== "saveWeights" && <MethodDiagram kind={kind} />}
+          {kind !== "observation" && kind !== "embedding" && kind !== "output" && kind !== "weights" && kind !== "loadWeights" && kind !== "saveWeights" && kind !== "plasticity" && <MethodDiagram kind={kind} />}
           {kind === "output" && <OutputDiagram />}
           {kind === "weights" && <WeightsDiagram />}
           {kind === "loadWeights" && <LoadWeightsDiagram />}
