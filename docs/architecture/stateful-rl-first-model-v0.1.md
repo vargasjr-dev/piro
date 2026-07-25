@@ -23,8 +23,18 @@ the current model weights; `Embed` produces the shared representation `x`;
 `InitializeOrRetrieveState` establishes the starting state; the recurrent loop
 performs attention, state-delta computation, gated state updates, and history
 updates; `ShouldHalt` controls loop exit; `OutputHead` produces the final output;
-and `PlasticityController` derives its own learning signals from the completed
-state and persists the weight update before each completed inference returns.
+and `PlasticityController` compares the current input with unresolved earlier
+predictions, updates fast overlays from prediction error and eligibility, and
+persists the changed weight groups before each completed inference returns.
+
+The current storage target is the existing S3-compatible object layer used by Piro:
+R2 bucket `piro-kb`, under `models/{modelId}/weights/`. A committed revision has a
+manifest plus mixed-precision shards: approximately 180M frozen INT4 base
+parameters, 15M FP8 fast-overlay parameters, and 5M BF16 dynamic state and heads.
+The manifest records dtype, shape, shard key, byte range, scale, checksum, and the
+method that owns each tensor. This is an architecture target; the existing
+repository storage boundary is real, while the model-specific shard serializer is
+still to be implemented.
 
 ## Pseudocode method contracts
 
@@ -53,16 +63,22 @@ for k = 0 ... Kmax:
 
     if ShouldHalt(hₖ₊₁, k):
         outputₖ = OutputHead(hₖ₊₁)
-        PlasticityController(hₖ₊₁)
+        PlasticityController(
+            hₖ₊₁,
+            x,
+            historyₖ₊₁
+        )
         return outputₖ
 ```
 
 `ShouldHalt` receives the current state and tick index inside each loop iteration in this working contract.
-Prediction, value, and halt heads are implementation details of `ShouldHalt`, so
-they are not separate top-level transformations. `PlasticityController` receives
-only `hₖ₊₁`; inside the controller it derives `predictionₖ`, `valueₖ`, and `creditₖ`,
-uses eligibility traces when a consequence arrives later, updates plastic weights,
-updates the active model weights, persists them through `SaveWeights(weights)`, and returns no value.
+Prediction and halt heads are implementation details of `ShouldHalt`, not separate
+top-level transformations. `PlasticityController` receives the completed state,
+current input, and updated history. It matches later input against unresolved
+predictions, computes prediction error, novelty, and eligibility-weighted local
+credit, updates fast overlays, and persists the changed groups through
+`SaveWeights(weights)`. Repeated stable evidence can be consolidated into the
+INT4 durable base; ordinary interactions do not require a global reward function.
 The next inference sources the persisted parameters again through `LoadWeights()`.
 The learned gate and residual addition are represented by
 `ApplyGatedStateUpdate` rather than hidden inside a neighboring method.
@@ -200,7 +216,7 @@ be measured:
 2. It predicts the next observation and eventual utility.
 3. The environment returns observations, not an immediate correctness label.
 4. The model maintains an eligibility trace over recent actions.
-5. `PlasticityController` derives learning signals from `hₖ₊₁`, persists its weight update with `SaveWeights()`, and returns no value before each completed inference returns.
+5. `PlasticityController` compares future input with unresolved predictions, updates eligible FP8 overlays, persists the changed groups with `SaveWeights()`, and returns no value before each completed inference returns.
 6. We compare against:
    - no adaptation,
    - immediate reward-only adaptation,
@@ -270,7 +286,9 @@ ReadGate(hₖ, x, contextₖ, weights):
         + weights.attention.readGate.b
     readGateₖ = sigmoid(gateLogitsₖ)
 
-    assert Shape(readGateₖ) == Shape(contextₖ)
+    if Shape(readGateₖ) != Shape(contextₖ):
+        return Error("read gate cannot be applied to context")
+
     return readGateₖ
 
 BuildMemorySlots(historyₖ, k):

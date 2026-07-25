@@ -106,7 +106,11 @@ export default function ArchitecturePage() {
               <div className="whitespace-pre">    )</div>
               <div className="whitespace-pre">    <Keyword>if</Keyword> <MethodLink href="/docs/architecture/shouldHalt">ShouldHalt</MethodLink>(<Variable>hₖ₊₁</Variable>, k):</div>
               <div className="whitespace-pre">        <Variable>outputₖ</Variable> = <MethodLink href="/docs/architecture/output">OutputHead</MethodLink>(<Variable>hₖ₊₁</Variable>)</div>
-              <div className="whitespace-pre">        <MethodLink href="/docs/architecture/plasticity">PlasticityController</MethodLink>(<Variable>hₖ₊₁</Variable>)</div>
+              <div className="whitespace-pre">        <MethodLink href="/docs/architecture/plasticity">PlasticityController</MethodLink>(</div>
+              <div className="whitespace-pre">            <Variable>hₖ₊₁</Variable>,</div>
+              <div className="whitespace-pre">            <Variable>x</Variable>,</div>
+              <div className="whitespace-pre">            <Variable>historyₖ₊₁</Variable></div>
+              <div className="whitespace-pre">        )</div>
               <div className="whitespace-pre">        <Keyword>return</Keyword> <Variable>outputₖ</Variable></div>
             </code>
           </div>
