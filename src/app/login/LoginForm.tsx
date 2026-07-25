@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import FlameLogo from "~/components/FlameLogo";
+import PublicNavbar from "~/components/PublicNavbar";
 import { authClient } from "~/lib/auth.client";
 
 export default function LoginForm({
@@ -38,19 +38,15 @@ export default function LoginForm({
   };
 
   return (
-    <main className="min-h-screen bg-[#0d0a08] flex items-center justify-center p-4">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-orange-600/8 rounded-full blur-[100px]" />
-      </div>
-
-      <div className="relative z-10 w-full max-w-md">
-        <div className="mb-8 flex justify-center">
-          <Link href="/">
-            <FlameLogo size={52} />
-          </Link>
+    <main className="min-h-screen bg-[#0d0a08] text-amber-100">
+      <PublicNavbar isLoggedIn={false} />
+      <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center p-4">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-orange-600/8 rounded-full blur-[100px]" />
         </div>
 
-        <div className="bg-[#1a1208]/80 border border-amber-900/30 rounded-2xl p-8 backdrop-blur-sm">
+        <div className="relative z-10 w-full max-w-md">
+          <div className="bg-[#1a1208]/80 border border-amber-900/30 rounded-2xl p-8 backdrop-blur-sm">
           <h1 className="text-2xl font-bold text-amber-50 mb-6 text-center">
             Welcome back
           </h1>
@@ -145,6 +141,7 @@ export default function LoginForm({
             </Link>
           </div>
         </div>
+      </div>
       </div>
     </main>
   );

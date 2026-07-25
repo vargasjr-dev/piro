@@ -1,5 +1,5 @@
 import Link from "next/link";
-import FlameLogo from "~/components/FlameLogo";
+import DocsShell from "~/components/DocsShell";
 import ZoomedArchitectureDiagram from "~/components/ZoomedArchitectureDiagram";
 
 const supportedNodes = [
@@ -36,6 +36,32 @@ const supportedNodes = [
   "chunkText",
 ] as const;
 type SupportedNode = (typeof supportedNodes)[number];
+
+const titles: Record<SupportedNode, string> = {
+  observation: "Observation",
+  embedding: "Embed",
+  initialize: "InitializeOrRetrieveState",
+  attention: "Attention",
+  buildMemorySlots: "BuildMemorySlots",
+  summarizeSynchronization: "SummarizeSynchronization",
+  getAttentionShape: "GetAttentionShape",
+  queryProjection: "QueryProjection",
+  keyProjection: "KeyProjection",
+  valueProjection: "ValueProjection",
+  relativeTimeBias: "RelativeTimeBias",
+  synchronizationBias: "SynchronizationBias",
+  outputProjection: "OutputProjection",
+  readGate: "ReadGate",
+  delta: "ComputeStateDelta",
+  residual: "ApplyGatedStateUpdate",
+  history: "UpdateHistory",
+  output: "OutputHead",
+  shouldHalt: "ShouldHalt",
+  weights: "Weights",
+  loadWeights: "LoadWeights",
+  saveWeights: "SaveWeights",
+  plasticity: "PlasticityController",
+};
 
 export function generateStaticParams() {
   return supportedNodes.map((node) => ({ node }));
@@ -98,21 +124,18 @@ export default async function ArchitectureNodePage({ params }: { params: Promise
   }
 
   return (
-    <main className="min-h-screen bg-[#0d0a08] text-amber-100">
-      <header className="sticky top-0 z-50 border-b border-amber-900/20 bg-[#0d0a08]/95 backdrop-blur">
-        <div className="flex h-14 items-center gap-6 px-4 lg:px-6">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5 transition hover:opacity-80">
-            <FlameLogo size={22} />
-            <span className="hidden font-bold tracking-tight text-amber-50 sm:inline">Piro</span>
-          </Link>
-          <Link href="/docs" className="text-sm text-amber-400/60 transition hover:text-amber-100">Docs</Link>
-          <span className="text-amber-900/50">/</span>
-          <Link href="/docs/architecture" className="text-sm text-amber-400/60 transition hover:text-amber-100">Architecture</Link>
-        </div>
-      </header>
-      <div className="mx-auto max-w-7xl px-6 py-12 lg:px-10">
+    <DocsShell
+      active="/docs/architecture"
+      eyebrow="Architecture detail"
+      title={titles[node as SupportedNode] ?? "Architecture node"}
+      description="A zoomed-in view of one operation in Piro’s stateful inference loop."
+    >
+      <div className="rounded-3xl border border-amber-900/30 bg-[#100c0a] p-6 shadow-2xl shadow-black/10 sm:p-8">
         <ZoomedArchitectureDiagram kind={node as SupportedNode} />
       </div>
-    </main>
+      <Link href="/docs/architecture" className="mt-8 inline-block text-sm text-amber-400/50 transition hover:text-amber-200">
+        ← Back to architecture
+      </Link>
+    </DocsShell>
   );
 }

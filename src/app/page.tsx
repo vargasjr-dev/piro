@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import FlameLogo from "~/components/FlameLogo";
+import PublicNavbar from "~/components/PublicNavbar";
 import { getLatestPiroModel } from "~/lib/latest-experiment";
 
 export default async function HomePage() {
@@ -12,25 +13,7 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen bg-[#0d0a08] text-amber-100">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6 sm:px-6">
-        <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight text-amber-50">
-          <FlameLogo size={28} />
-          Piro
-        </Link>
-        <div className="flex items-center gap-5 text-sm text-amber-300/70">
-          <Link href="/docs" className="transition-colors hover:text-amber-100">Docs</Link>
-          <Link href="/pricing" className="transition-colors hover:text-amber-100">Pricing</Link>
-          {isLoggedIn ? (
-            <Link href="/repos" className="rounded-full border border-amber-700/50 px-4 py-2 text-amber-100 transition-colors hover:border-orange-400/70 hover:bg-orange-500/10">
-              Open Piro →
-            </Link>
-          ) : (
-            <Link href="/login" className="rounded-full border border-amber-700/50 px-4 py-2 text-amber-100 transition-colors hover:border-orange-400/70 hover:bg-orange-500/10">
-              Sign in
-            </Link>
-          )}
-        </div>
-      </nav>
+      <PublicNavbar isLoggedIn={isLoggedIn} />
 
       <section className="relative overflow-hidden px-4 pb-24 pt-16 sm:px-6 sm:pb-32 sm:pt-24">
         <div className="pointer-events-none absolute left-1/2 top-0 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-orange-600/10 blur-3xl" />
