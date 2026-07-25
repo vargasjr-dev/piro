@@ -107,15 +107,15 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   },
   weights: {
     title: "Weights",
-    subtitle: "The model parameters that provide memory and shape every method invocation.",
+    subtitle: "A typed runtime object whose tensor groups belong to the methods that consume or update them.",
   },
   loadWeights: {
     title: "LoadWeights",
-    subtitle: "The persistence boundary that sources the current model weights before inference begins.",
+    subtitle: "Reads one committed weight snapshot, validates its schema and tensor shapes, then reconstructs the runtime weights object.",
   },
   saveWeights: {
     title: "SaveWeights",
-    subtitle: "Persists the updated weights after PlasticityController changes the model’s active memory.",
+    subtitle: "Validates and serializes updated weights into an immutable snapshot, then atomically publishes it for the next inference.",
   },
   plasticity: {
     title: "PlasticityController",
@@ -292,39 +292,69 @@ function OutputDiagram() {
 
 function LoadWeightsDiagram() {
   return (
-    <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Piro weight loading persistence boundary">
+    <svg viewBox="0 0 1200 620" className="mx-auto block h-auto w-full min-w-[820px]" role="img" aria-label="Piro LoadWeights validation and reconstruction flow">
       <defs>
         <marker id="load-weights-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.72)" /></marker>
       </defs>
-      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">WEIGHT PERSISTENCE · LOAD BOUNDARY</text>
-      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Each inference starts from the weights persisted by the previous completed inference.</text>
-      <Box x={70} y={232} width={260} height={118} title="Persistent storage" detail="saved model parameters" tone="orange" />
-      <path d="M330 291H480" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
-      <Box x={480} y={208} width={260} height={166} title="LoadWeights" detail="sources current parameters" tone="blue" />
-      <path d="M740 291H890" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
-      <Box x={890} y={232} width={160} height={118} title="weights" detail="inference inputs" tone="green" />
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">LOADWEIGHTS · SNAPSHOT → RUNTIME OBJECT</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">LoadWeights never exposes a partial or unvalidated parameter set to inference.</text>
+      <Box x={28} y={220} width={200} height={142} title="Committed snapshot" detail="bytes + revision + checksum" tone="orange" />
+      <path d="M228 291H270" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <Box x={270} y={220} width={200} height={142} title="Read + parse" detail="canonical serialized envelope" tone="blue" />
+      <path d="M470 291H512" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <Box x={512} y={220} width={200} height={142} title="Validate" detail="schema · shapes · finite values" tone="blue" />
+      <path d="M712 291H754" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <Box x={754} y={220} width={200} height={142} title="Reconstruct" detail="typed tensors + group ownership" tone="blue" />
+      <path d="M954 291H996" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#load-weights-arrow)" />
+      <Box x={996} y={220} width={176} height={142} title="weights" detail="safe inference inputs" tone="green" />
+      <text x="28" y="500" fill="rgb(253 230 138 / 0.62)" fontSize="13">Invalid schema, shape mismatch, checksum failure, or non-finite tensor values fail before the inference loop starts.</text>
+    </svg>
+  );
+}
+
+function SaveWeightsDiagram() {
+  return (
+    <svg viewBox="0 0 1200 680" className="mx-auto block h-auto w-full min-w-[820px]" role="img" aria-label="Piro SaveWeights serialization and atomic publication flow">
+      <defs>
+        <marker id="save-weights-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+      </defs>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">SAVEWEIGHTS · RUNTIME OBJECT → COMMITTED SNAPSHOT</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">SaveWeights makes the update visible atomically: the next load sees the old snapshot or the new one, never a half-written file.</text>
+      <Box x={28} y={214} width={190} height={150} title="active weights" detail="updated tensor groups" tone="green" />
+      <path d="M218 289H258" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
+      <Box x={258} y={214} width={190} height={150} title="Validate" detail="schema + shapes + finiteness" tone="blue" />
+      <path d="M448 289H488" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
+      <Box x={488} y={214} width={190} height={150} title="Canonicalize" detail="stable field order + checksum" tone="blue" />
+      <path d="M678 289H718" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
+      <Box x={718} y={214} width={190} height={150} title="Write temporary" detail="new revision + fsync" tone="orange" />
+      <path d="M908 289H948" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
+      <Box x={948} y={214} width={224} height={150} title="Atomic publish" detail="rename snapshot + advance current" tone="orange" />
+      <path d="M1060 364V462H1080" fill="none" stroke="rgb(253 186 116 / 0.76)" strokeWidth="2" markerEnd="url(#save-weights-arrow)" />
+      <Box x={894} y={462} width={278} height={112} title="next LoadWeights()" detail="reads the newly committed revision" tone="green" />
+      <text x="28" y="540" fill="rgb(253 230 138 / 0.62)" fontSize="13">A failed validation or write leaves the previous committed revision active.</text>
     </svg>
   );
 }
 
 function WeightsDiagram() {
   return (
-    <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Piro internal memory architecture">
+    <svg viewBox="0 0 1200 760" className="mx-auto block h-auto w-full min-w-[820px]" role="img" aria-label="Piro runtime weights schema and method ownership">
       <defs>
-        <marker id="zoom-arrow-gold" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
-        <marker id="zoom-arrow-blue" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(125 211 252 / 0.7)" /></marker>
-        <marker id="zoom-arrow-orange" markerWidth="10" height="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(253 186 116 / 0.76)" /></marker>
+        <marker id="weights-schema-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(251 191 36 / 0.72)" /></marker>
       </defs>
-      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">INTERNAL MEMORY · WEIGHT TIMESCALES</text>
-      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Piro remembers by changing the parameters that shape future dynamics.</text>
-      <Box x={60} y={232} width={230} height={118} title="Stateful CTM" detail="activations and dynamics" tone="green" />
-      <Arrow d="M290 291H430" marker="blue" color="rgb(125 211 252 / 0.72)" />
-      <Box x={430} y={178} width={230} height={118} title="Plastic weights" detail="fast adaptation" tone="blue" />
-      <Box x={430} y={354} width={230} height={118} title="Durable weights" detail="slow consolidation" tone="orange" />
-      <Arrow d="M545 296V354" marker="orange" color="rgb(253 186 116 / 0.76)" />
-      <Arrow d="M660 413H820V350H660" dashed marker="gold" color="rgb(251 191 36 / 0.72)" />
-      <Box x={820} y={232} width={230} height={118} title="Future dynamics" detail="changed interpretation and action" tone="violet" />
-      <text x="60" y="540" fill="rgb(253 230 138 / 0.62)" fontSize="13">The weights are not a memory database beside Piro; they are part of Piro.</text>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">WEIGHTS · TYPED GROUPS + METHOD OWNERSHIP</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">Weights are a structured parameter object, not one flat blob: each group owns the tensors consumed by related methods.</text>
+      <Box x={42} y={258} width={250} height={190} title="weights" detail="revision + architecture + tensor groups" tone="green" />
+      <path d="M292 332H350" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
+      <Box x={350} y={142} width={340} height={166} title="attention" detail="modelWidth · headCount · Query/Key/Value · time/sync bias · readGate · outputProjection" tone="blue" />
+      <Box x={350} y={364} width={340} height={166} title="state" detail="initialization · delta · update gate · recurrent state transforms" tone="violet" />
+      <path d="M292 374H322V447H350" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
+      <path d="M292 374H322V225H350" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
+      <Box x={760} y={142} width={340} height={166} title="embedding + output" detail="Embed encoders and OutputHead readout tensors" tone="orange" />
+      <Box x={760} y={364} width={340} height={166} title="plasticity" detail="fast/durable parameters + optimizer or eligibility state" tone="orange" />
+      <path d="M690 225H730V225H760" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
+      <path d="M690 447H730V447H760" fill="none" stroke="rgb(251 191 36 / 0.72)" strokeWidth="2" markerEnd="url(#weights-schema-arrow)" />
+      <text x="42" y="650" fill="rgb(253 230 138 / 0.62)" fontSize="13">For a linear transform, W has shape [outDim, inDim] and b has shape [outDim]; every consumer validates its boundary shape.</text>
     </svg>
   );
 }
@@ -346,8 +376,8 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   residual: { input: "hₖ + deltaₖ + weights", output: "hₖ₊₁", relation: "computes hₖ + gateₖ · deltaₖ", tone: "green" },
   history: { input: "historyₖ + hₖ₊₁ + x + k", output: "historyₖ₊₁", relation: "records state, input, and tick metadata", tone: "blue" },
   shouldHalt: { input: "hₖ₊₁ + k + budget", output: "continue / exit", relation: "controls the recurrent loop or returns outputₖ", tone: "orange" },
-  loadWeights: { input: "persistent model storage", output: "weights", relation: "sources the current model weights for this inference", tone: "blue" },
-  saveWeights: { input: "weights", output: "persistent model storage", relation: "persists updated parameters for the next inference", tone: "blue" },
+  loadWeights: { input: "committed snapshot + schema", output: "validated runtime weights", relation: "reads, verifies, and reconstructs the parameter object used by inference", tone: "blue" },
+  saveWeights: { input: "validated runtime weights", output: "committed snapshot", relation: "serializes a revision and atomically publishes it for the next inference", tone: "blue" },
   plasticity: { input: "hₖ₊₁", output: "persisted weight update", relation: "derives learning signals, updates active weights, and saves them without returning a value", tone: "orange" },
 };
 
@@ -561,9 +591,59 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
     </>,
     output: line(<>{variable("outputₖ")} = {call("OutputHead", "output")}hₖ₊₁)</>),
     shouldHalt: line(<>{keyword("if")} {call("ShouldHalt", "shouldHalt")}hₖ₊₁, k):</>),
-    weights: line(<>{variable("weights")} = {call("LoadWeights", "loadWeights")})</>),
-    loadWeights: line(<>{variable("weights")} = {call("LoadWeights", "loadWeights")})</>),
-    saveWeights: line(<>{call("SaveWeights", "saveWeights")}weights)</>),
+    weights: <>
+      {line(<>{variable("weights")} = {"{"}</>)}
+      {line(<>    formatVersion: 1,</>)}
+      {line(<>    revision: integer,</>)}
+      {line(<>    architecture: {"{"}</>)}
+      {line(<>        modelWidth, headCount, stateWidth, inputWidth, contextWidth</>)}
+      {line(<>    {"}"},</>)}
+      {line(<>    embedding: {"{"}</>)}
+      {line(<>        encoder: {"{"} W, b, modalityTables {"}"},</>)}
+      {line(<>    {"}"},</>)}
+      {line(<>    attention: {"{"}</>)}
+      {line(<>        modelWidth, headCount,</>)}
+      {line(<>        queryProjection: {"{"} W, b {"}"},</>)}
+      {line(<>        keyProjection: {"{"} W, b {"}"},</>)}
+      {line(<>        valueProjection: {"{"} W, b {"}"},</>)}
+      {line(<>        relativeTimeBias: {"{"} W, b {"}"},</>)}
+      {line(<>        synchronizationBias: {"{"} W, b {"}"},</>)}
+      {line(<>        readGate: {"{"} W, b {"}"},</>)}
+      {line(<>        outputProjection: {"{"} W, b {"}"}</>)}
+      {line(<>    {"}"},</>)}
+      {line(<>    state: {"{"} initialization, delta, updateGate, outputHead {"}"},</>)}
+      {line(<>    plasticity: {"{"} fast, durable, eligibility, optimizer {"}"}</>)}
+      {line(<>{"}"}</>)}
+      {line(<>For each linear layer: W = [outDim, inDim], b = [outDim]</>)}
+      {line(<>For each tensor: dtype, shape, and finite numeric values are required</>)}
+    </>,
+    loadWeights: <>
+      {line(<>{call("LoadWeights", "loadWeights")}():</>)}
+      {line(<>    snapshot = ReadCommittedSnapshot("weights/current")</>)}
+      {line(<>    assert snapshot.formatVersion == 1</>)}
+      {line(<>    assert VerifyChecksum(snapshot.payload, snapshot.checksum)</>)}
+      {line(<>    parsed = ParseCanonical(snapshot.payload)</>)}
+      {line(<>    ValidateWeightSchema(parsed)</>)}
+      {line(<>    ValidateTensorShapes(parsed, parsed.architecture)</>)}
+      {line(<>    assert AllFiniteTensors(parsed)</>)}
+      {line(<>    weights = ReconstructRuntimeWeights(parsed)</>)}
+      {line(<>    return weights</>)}
+    </>,
+    saveWeights: <>
+      {line(<>{call("SaveWeights", "saveWeights")}weights:</>)}
+      {line(<>    ValidateWeightSchema(weights)</>)}
+      {line(<>    ValidateTensorShapes(weights, weights.architecture)</>)}
+      {line(<>    assert AllFiniteTensors(weights)</>)}
+      {line(<>    nextRevision = ReadCurrentRevision() + 1</>)}
+      {line(<>    payload = SerializeCanonical(weights)</>)}
+      {line(<>    checksum = Hash(payload)</>)}
+      {line(<>    snapshot = {"{"} formatVersion: 1, nextRevision, payload, checksum {"}"}</>)}
+      {line(<>    WriteAndFsyncTemporary(snapshot)</>)}
+      {line(<>    AtomicRenameTemporaryToRevision(nextRevision)</>)}
+      {line(<>    AdvanceCurrentPointer(nextRevision)</>)}
+      {line(<>    return nothing</>)}
+    </>,
+
     plasticity: <>
       {line(<>{call("PlasticityController", "plasticity")}hₖ₊₁):</>)}
       {line(<>    predictionₖ = derive prediction from hₖ₊₁</>)}
@@ -593,8 +673,9 @@ const explanations: Partial<Record<DiagramKind, { doing: string; why: string }>>
   history: { doing: "Appends the new state together with x and tick k so future retrieval can recover content and age.", why: "History is both the state trajectory and the source of Attention’s timestamped memory slots." },
   output: { doing: "Reads the final recurrent state into the externally returned output.", why: "The outside world needs a stable output boundary after the internal loop halts." },
   shouldHalt: { doing: "Evaluates the current state and tick against the continuation budget and decides whether the loop exits.", why: "Adaptive computation lets Piro spend more recurrent steps when the state has not converged." },
-  loadWeights: { doing: "Loads the parameter set that shapes the entire inference from persistent model storage.", why: "Each completed inference must begin from the weights persisted by the previous completed inference." },
-  saveWeights: { doing: "Writes updated active weights to persistent model storage.", why: "Inference-time plasticity only affects the next inference if its mutation crosses an explicit persistence boundary." },
+  weights: { doing: "Defines a typed runtime object with architecture metadata plus grouped tensors for embedding, attention, recurrent state/output, and plasticity.", why: "Grouping parameters by the methods that own them makes tensor provenance and shape contracts reviewable instead of hiding everything inside an opaque blob." },
+  loadWeights: { doing: "Reads the committed snapshot, verifies its format and checksum, parses the canonical payload, validates required groups, shapes, and finite values, then reconstructs the runtime weights object.", why: "Inference must never start from a partial, corrupt, incompatible, or half-written parameter set; failure happens before the recurrent loop." },
+  saveWeights: { doing: "Validates the active runtime weights, serializes them in a canonical field order, computes a checksum, writes and syncs a temporary snapshot, then atomically publishes its revision.", why: "Plasticity only affects the next inference when the complete update crosses a durable atomic boundary; a failed write must leave the previous committed revision readable." },
   plasticity: { doing: "Derives prediction, value, eligibility, and credit internally from hₖ₊₁, updates active plastic weights, and saves them without returning a value.", why: "Learning belongs to the stateful controller that owns the weight mutation and must complete before the next inference loads parameters." },
 };
 function MethodExplanation({ kind }: { kind: DiagramKind }) {
@@ -646,10 +727,11 @@ export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind 
         <div className="mt-8 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#100c0a] p-3 sm:p-6">
           {kind === "observation" && <ObservationDiagram />}
           {kind === "embedding" && <EmbeddingDiagram />}
-          {kind !== "observation" && kind !== "embedding" && kind !== "output" && kind !== "weights" && kind !== "loadWeights" && <MethodDiagram kind={kind} />}
+          {kind !== "observation" && kind !== "embedding" && kind !== "output" && kind !== "weights" && kind !== "loadWeights" && kind !== "saveWeights" && <MethodDiagram kind={kind} />}
           {kind === "output" && <OutputDiagram />}
           {kind === "weights" && <WeightsDiagram />}
           {kind === "loadWeights" && <LoadWeightsDiagram />}
+          {kind === "saveWeights" && <SaveWeightsDiagram />}
         </div>
       )}
 
