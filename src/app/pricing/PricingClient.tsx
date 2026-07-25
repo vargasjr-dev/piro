@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import FlameLogo from "~/components/FlameLogo";
+import PublicNavbar from "~/components/PublicNavbar";
 
 const PRO_FEATURES = [
   ["🧠", "Dedicated stateful model", "Continuity between invocations"],
@@ -22,9 +23,10 @@ const ENTERPRISE_FEATURES = [
 
 type PricingClientProps = {
   latestModelLabel: string;
+  isLoggedIn: boolean;
 };
 
-export default function PricingClient({ latestModelLabel }: PricingClientProps) {
+export default function PricingClient({ latestModelLabel, isLoggedIn }: PricingClientProps) {
   const [proLoading, setProLoading] = useState(false);
   const [enterpriseLoading, setEnterpriseLoading] = useState(false);
   const [enterpriseSent, setEnterpriseSent] = useState(false);
@@ -88,18 +90,7 @@ export default function PricingClient({ latestModelLabel }: PricingClientProps) 
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#0d0a08] text-amber-100">
-      <header className="sticky top-0 z-50 border-b border-amber-900/20 bg-[#0d0a08]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight text-amber-50 transition-opacity hover:opacity-80">
-            <FlameLogo size={28} />
-            Piro
-          </Link>
-          <nav className="flex items-center gap-5 text-sm text-amber-300/70">
-            <Link href="/docs" className="transition-colors hover:text-amber-100">Docs</Link>
-            <Link href="/" className="transition-colors hover:text-amber-100">Home</Link>
-          </nav>
-        </div>
-      </header>
+      <PublicNavbar isLoggedIn={isLoggedIn} active="pricing" />
 
       <section className="relative px-4 pb-20 pt-20 sm:px-6 sm:pb-28 sm:pt-28">
         <div className="pointer-events-none absolute left-1/2 top-[-12rem] h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-orange-600/10 blur-3xl" />

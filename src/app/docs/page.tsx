@@ -1,213 +1,92 @@
 import Link from "next/link";
-import FlameLogo from "~/components/FlameLogo";
+import DocsShell from "~/components/DocsShell";
 
 export const metadata = {
-  title: "Docs — Piro",
-  description: "How to structure your Piro experiment repo.",
+  title: "Piro Docs — Stateful model infrastructure",
+  description: "Build, train, and invoke small stateful models with Piro.",
 };
+
+const pillars = [
+  ["Train", "Define the learning loop", "Bring your own sources, reward signals, and architecture. Piro turns experiments into repeatable training runs."],
+  ["Deploy", "Keep the state", "Every model is an independently owned, mutable deployment — built to carry context forward instead of resetting between requests."],
+  ["Measure", "Prove the claim", "Benchmarks are the contract. Compare architectures against falsifiable questions and ship only what the evidence supports."],
+];
 
 export default function DocsPage() {
   return (
-    <main className="min-h-screen bg-[#0d0a08] text-amber-100">
-      {/* Top bar */}
-      <header className="sticky top-0 z-50 border-b border-amber-900/20 bg-[#0d0a08]/95 backdrop-blur">
-        <div className="flex items-center gap-6 px-4 lg:px-6 h-14">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 hover:opacity-80 transition shrink-0"
-          >
-            <FlameLogo size={22} />
-            <span className="font-bold text-amber-50 tracking-tight hidden sm:inline">
-              Piro
-            </span>
-          </Link>
-          <Link
-            href="/docs"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-orange-500/15 text-amber-100"
-          >
-            Docs
-          </Link>
-        </div>
-      </header>
-
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        <h1 className="text-3xl font-bold text-amber-50 mb-2">
-          Repo Structure
-        </h1>
-        <p className="text-amber-400/50 text-sm mb-10">
-          Every Piro experiment repo follows the same directory convention. Piro
-          discovers components by path — no registration needed.
-        </p>
-
-        {/* Directory tree */}
-        <section className="mb-10">
-          <h2 className="text-sm font-semibold text-amber-300/70 uppercase tracking-wider mb-4">
-            Directory Layout
+    <DocsShell
+      active="/docs"
+      eyebrow="Piro platform documentation"
+      title="Build models that keep becoming."
+      description="Piro is the training and deployment layer for small, stateful models. Start with an experiment, grow it through reinforcement learning, and expose the result through a clean model API."
+    >
+      <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+        <section className="relative overflow-hidden rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-500/12 via-[#17100b] to-[#100b08] p-7 shadow-[0_0_80px_rgba(249,115,22,0.08)] sm:p-10">
+          <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-orange-500/10 blur-3xl" />
+          <p className="relative text-xs font-bold uppercase tracking-[0.22em] text-orange-300">The Piro thesis</p>
+          <h2 className="relative mt-5 max-w-2xl text-3xl font-black leading-tight tracking-[-0.035em] text-amber-50 sm:text-5xl">
+            RL is not the finishing step. It is the organizing principle.
           </h2>
-          <pre className="rounded-xl border border-amber-900/20 bg-amber-950/30 px-5 py-4 text-[13px] font-mono leading-relaxed text-amber-200/70 overflow-x-auto">{`my-experiment/
-├── sources/
-│   └── associative-recall/
-│       └── main.py          # generates WRITE / DISTRACT / QUERY data (JSONL → R2)
-├── architectures/
-│   ├── ctm/
-│   │   └── main.py          # defines a PiroModel subclass
-│   └── baseline-transformer/
-│       └── main.py
-├── benchmarks/
-│   ├── persistent-memory/
-│   │   └── main.py          # evaluates retained state
-│   └── ood-generalization/
-│       └── main.py
-└── README.md`}</pre>
-        </section>
-
-        {/* Sources */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-amber-100 mb-3">Sources</h2>
-          <p className="text-sm text-amber-400/60 leading-relaxed mb-4">
-            A <strong className="text-amber-200">source</strong> is a data
-            generation script. Each source lives in{" "}
-            <code className="font-mono text-amber-300/70">
-              sources/&lt;name&gt;/main.py
-            </code>{" "}
-            and produces JSONL output that Piro stores in R2 as a{" "}
-            <strong className="text-amber-200">dataset</strong>.
+          <p className="relative mt-6 max-w-2xl text-base leading-relaxed text-amber-200/65 sm:text-lg">
+            The frontier stack starts with a giant static corpus and adds adaptation later. Piro starts smaller, keeps the model’s internal state visible, and uses learning signals to make intelligence compound around the person using it.
           </p>
-          <p className="text-sm text-amber-400/60 leading-relaxed">
-            Generate a dataset from the repository source page — Piro executes
-            the script, uploads the output to R2, and records a row in the{" "}
-            <code className="font-mono text-amber-300/70">dataset</code> table.
-          </p>
-        </section>
-
-        {/* Architectures */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-amber-100 mb-3">
-            Architectures
-          </h2>
-          <p className="text-sm text-amber-400/60 leading-relaxed mb-4">
-            An <strong className="text-amber-200">architecture</strong> defines
-            a model. Each architecture lives in{" "}
-            <code className="font-mono text-amber-300/70">
-              architectures/&lt;name&gt;/main.py
-            </code>{" "}
-            and exports a{" "}
-            <code className="font-mono text-amber-300/70">PiroModel</code>{" "}
-            subclass that Piro instantiates during training.
-          </p>
-          <p className="text-sm text-amber-400/60 leading-relaxed">
-            When you start a training run, you specify the architecture by its
-            repo path (e.g.{" "}
-            <code className="font-mono text-amber-300/70">
-              architectures/ctm
-            </code>
-            ). Piro clones the repo, imports the module, and trains the model on
-            Modal GPUs.
-          </p>
-        </section>
-
-        {/* Benchmarks */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-amber-100 mb-3">
-            Benchmarks
-          </h2>
-          <p className="text-sm text-amber-400/60 leading-relaxed mb-4">
-            A <strong className="text-amber-200">benchmark</strong> evaluates a
-            trained model. Each benchmark lives in{" "}
-            <code className="font-mono text-amber-300/70">
-              benchmarks/&lt;name&gt;/main.py
-            </code>{" "}
-            and runs against a model's weights to produce metrics like accuracy,
-            generalization gaps, or compute allocation.
-          </p>
-          <p className="text-sm text-amber-400/60 leading-relaxed">
-            Benchmarks are how you compare architectures against falsifiable
-            claims — for example, whether retained state beats reset state after
-            a delayed WRITE / DISTRACT / QUERY episode.
-          </p>
-        </section>
-
-        {/* Datasets */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-amber-100 mb-3">
-            Datasets
-          </h2>
-          <p className="text-sm text-amber-400/60 leading-relaxed">
-            A <strong className="text-amber-200">dataset</strong> is the
-            materialized output of a source run. It's stored in R2 and tracked
-            in the Piro database with its sample count, source path, and
-            generation timestamp. Training runs reference a dataset by ID — Piro
-            streams the data from R2 into the training process on Modal.
-          </p>
-        </section>
-
-        {/* How it fits together */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-amber-100 mb-3">
-            How it fits together
-          </h2>
-          <div className="rounded-xl border border-amber-900/20 bg-amber-900/5 px-5 py-4">
-            <ol className="space-y-3 text-sm text-amber-400/60">
-              <li className="flex gap-3">
-                <span className="text-orange-400 font-mono text-xs mt-0.5">
-                  1
-                </span>
-                <span>
-                  Write a <strong className="text-amber-200">source</strong>{" "}
-                  that generates your training data.
-                </span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-orange-400 font-mono text-xs mt-0.5">
-                  2
-                </span>
-                <span>
-                  Generate the source from its repository page to produce a{" "}
-                  <strong className="text-amber-200">dataset</strong> in R2.
-                </span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-orange-400 font-mono text-xs mt-0.5">
-                  3
-                </span>
-                <span>
-                  Write an{" "}
-                  <strong className="text-amber-200">architecture</strong> that
-                  defines your model.
-                </span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-orange-400 font-mono text-xs mt-0.5">
-                  4
-                </span>
-                <span>
-                  Start a{" "}
-                  <strong className="text-amber-200">training run</strong> —
-                  Piro trains your model on the dataset using Modal GPUs.
-                </span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-orange-400 font-mono text-xs mt-0.5">
-                  5
-                </span>
-                <span>
-                  Write <strong className="text-amber-200">benchmarks</strong>{" "}
-                  to evaluate the trained model and compare architectures.
-                </span>
-              </li>
-            </ol>
+          <div className="relative mt-8 flex flex-wrap gap-3 text-sm">
+            <span className="rounded-full border border-orange-400/30 bg-orange-500/10 px-4 py-2 text-orange-200">Stateful by design</span>
+            <span className="rounded-full border border-amber-700/40 px-4 py-2 font-mono text-amber-200/75">96 × 256M target</span>
+            <span className="rounded-full border border-amber-700/40 px-4 py-2 text-amber-200/75">One H100 serving track</span>
           </div>
         </section>
 
-        <div className="border-t border-amber-900/20 pt-6 mt-12">
-          <Link
-            href="/"
-            className="text-sm text-amber-400/50 hover:text-amber-200 transition-colors"
-          >
-            ← Back to Piro
-          </Link>
-        </div>
+        <section className="rounded-3xl border border-amber-900/30 bg-[#13100c] p-7 sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-400/60">Where to go next</p>
+          <div className="mt-6 space-y-3">
+            {[
+              ["/docs/getting-started", "Getting started", "Create your first experiment and understand the repo contract."],
+              ["/docs/api", "Invoke via API", "Send observations, continue state, and receive model output."],
+              ["/docs/architecture", "Architecture", "Trace the state update loop from input to output."],
+            ].map(([href, label, detail]) => (
+              <Link key={href} href={href} className="group block rounded-2xl border border-amber-900/30 bg-amber-950/10 p-4 transition-colors hover:border-orange-500/40 hover:bg-orange-500/5">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="font-semibold text-amber-50">{label}</span>
+                  <span className="text-orange-300 transition-transform group-hover:translate-x-1">→</span>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-amber-300/55">{detail}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
-    </main>
+
+      <section className="mt-16">
+        <div className="max-w-2xl">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-orange-400">The platform loop</p>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight text-amber-50 sm:text-4xl">From experiment to personal intelligence.</h2>
+          <p className="mt-4 text-base leading-relaxed text-amber-200/60">Piro keeps the research loop and the serving loop connected. You can inspect what a model learned, benchmark the claim, and put the latest validated checkpoint behind an endpoint.</p>
+        </div>
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          {pillars.map(([eyebrow, title, body]) => (
+            <article key={eyebrow} className="rounded-2xl border border-amber-900/30 bg-[#13100c] p-6">
+              <p className="text-4xl font-black text-orange-400/80">{eyebrow[0]}</p>
+              <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-orange-400">{eyebrow}</p>
+              <h3 className="mt-2 text-xl font-bold text-amber-50">{title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-amber-300/55">{body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-16 grid gap-5 lg:grid-cols-2">
+        <div className="rounded-2xl border border-amber-900/30 bg-[#0f0c09] p-6 sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400/60">The end state</p>
+          <h2 className="mt-4 text-2xl font-bold text-amber-50">96 independent models. One H100.</h2>
+          <p className="mt-4 text-sm leading-relaxed text-amber-300/60">Our planning target is 96 fully independent, continuously mutable 256M-parameter models resident on a single H100 80GB. The number is a memory-and-cost constraint first; throughput and update synchronization are benchmark questions.</p>
+        </div>
+        <div className="rounded-2xl border border-amber-900/30 bg-[#0f0c09] p-6 sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400/60">Docs-driven development</p>
+          <h2 className="mt-4 text-2xl font-bold text-amber-50">The interface comes first.</h2>
+          <p className="mt-4 text-sm leading-relaxed text-amber-300/60">The API and deployment language here describe the product we are building toward. Backend availability should not block the contract: write against the future you want to make real.</p>
+        </div>
+      </section>
+    </DocsShell>
   );
 }
