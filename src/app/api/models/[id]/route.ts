@@ -93,6 +93,8 @@ export async function GET(
           finalValLoss: run.finalValLoss,
           finalValAccuracy: run.finalValAccuracy,
           stepHistoryJson: run.stepHistoryJson,
+          currentStep: run.currentStep,
+          progressJson: run.progressJson,
           checkpointStep: run.checkpointStep,
           checkpointAt: run.checkpointAt?.toISOString() ?? null,
           queuedAt: run.queuedAt.toISOString(),

@@ -34,6 +34,7 @@ export function serializeTrainingRun(run: typeof trainingRun.$inferSelect) {
     finalValAccuracy: run.finalValAccuracy,
     stepHistoryJson: run.stepHistoryJson,
     currentStep: run.currentStep,
+    progressJson: run.progressJson,
     error: run.error,
     heartbeatAt: run.heartbeatAt?.toISOString() ?? null,
     timeoutAt: run.timeoutAt?.toISOString() ?? null,

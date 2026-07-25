@@ -29,6 +29,13 @@
       "when": 1784895079992,
       "tag": "0003_training_steps_checkpoints",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785004540344,
+      "tag": "0004_training_progress_observability",
+      "breakpoints": true
     }
   ]
 }

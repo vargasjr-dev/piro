@@ -132,6 +132,7 @@ export async function GET(
       maxSteps: r.maxSteps,
       finalValAccuracy: r.finalValAccuracy,
       currentStep: r.currentStep,
+      progressJson: r.progressJson,
       heartbeatAt: r.heartbeatAt?.toISOString() ?? null,
       timeoutAt: r.timeoutAt?.toISOString() ?? null,
       runtimeMs: r.runtimeMs,

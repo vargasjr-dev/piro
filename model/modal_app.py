@@ -58,9 +58,11 @@ TRAINING_CPU = 1.0
 TRAINING_MEMORY_MB = 4096
 TRAINING_TIMEOUT_SECONDS = 3300
 TRAINING_DEADLINE_SECONDS = 3000
-CHECKPOINT_INTERVAL_STEPS = 250
+CHECKPOINT_INTERVAL_STEPS = 10
+EVAL_INTERVAL_STEPS = 250
 CHECKPOINT_SAFETY_SECONDS = 120
 HEARTBEAT_INTERVAL_SECONDS = 30
+LIVE_PROGRESS_INTERVAL_SECONDS = 10
 GPU_RATE_USD_PER_SECOND = 0.000164
 CPU_RATE_USD_PER_CORE_SECOND = 0.0000131
 MEMORY_RATE_USD_PER_GIB_SECOND = 0.00000222
@@ -209,10 +211,12 @@ class Trainer:
         import os
         import random
         import threading
+        import time
         import uuid as _uuid
         from datetime import datetime, timedelta, timezone
 
         import psycopg2
+        from model.training_progress import update_progress
         from model.weight_serialization import round_nested_numbers
 
         torch = self._torch
@@ -358,6 +362,28 @@ class Trainer:
             if lease_lost.is_set():
                 raise RuntimeError("training run lease was lost while the worker was running")
 
+        last_progress_publish_at = 0.0
+
+        def _publish_progress(progress: dict, *, force: bool = False) -> None:
+            nonlocal last_progress_publish_at
+            now_monotonic = time.monotonic()
+            if not force and now_monotonic - last_progress_publish_at < LIVE_PROGRESS_INTERVAL_SECONDS:
+                return
+            try:
+                if not update_progress(
+                    psycopg2.connect,
+                    os.environ["DATABASE_URL"],
+                    run_id,
+                    progress,
+                ):
+                    lease_lost.set()
+                    raise RuntimeError("training run lease was lost while publishing progress")
+                last_progress_publish_at = now_monotonic
+            except RuntimeError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - progress is observability, not training state
+                print(f"[piro] run {run_id} progress update failed: {exc}")
+
         try:
             # ── Build model ───────────────────────────────────────────────────
             random.seed(seed)
@@ -405,6 +431,7 @@ class Trainer:
             # Persist architecture and training-budget config immediately.
             config_dict["maxSteps"] = max_steps
             config_dict["checkpointIntervalSteps"] = CHECKPOINT_INTERVAL_STEPS
+            config_dict["evalIntervalSteps"] = EVAL_INTERVAL_STEPS
             config_json = json.dumps(config_dict)
             cur.execute(
                 'UPDATE training_run SET "configJson" = %s WHERE id = %s',
@@ -420,7 +447,7 @@ class Trainer:
             trainer_cfg = self._TrainerConfig(
                 max_steps=max_steps,
                 seed=seed,
-                eval_interval=CHECKPOINT_INTERVAL_STEPS,
+                eval_interval=EVAL_INTERVAL_STEPS,
             )
             trainer = self._Trainer(model, trainer_cfg)
             history: list[dict] = []
@@ -506,7 +533,10 @@ class Trainer:
                     torch.cuda.set_rng_state_all(payload["cudaRandomState"])
                 print(f"[piro] resumed run {run_id} from checkpoint step {start_step}")
 
+            last_checkpoint_step = checkpoint_step
+
             def _save_checkpoint(step: int) -> None:
+                nonlocal last_checkpoint_step
                 if device.type == "cuda":
                     torch.cuda.synchronize(device)
                 payload = {
@@ -564,6 +594,7 @@ class Trainer:
                     conn.rollback()
                     raise RuntimeError("training run became terminal while checkpointing")
                 conn.commit()
+                last_checkpoint_step = step
 
             def _next_batch() -> list:
                 nonlocal cursor
@@ -576,35 +607,95 @@ class Trainer:
                 cursor = (cursor + size) % len(order)
                 return [train_data[index] for index in indices]
 
-            def _memory_step(batch: list) -> float:
+            def _memory_step(batch: list, *, step: int) -> float:
                 model.train()
                 trainer.optimizer.zero_grad()
                 losses = []
-                for episode in batch:
+                for episode_index, episode in enumerate(batch, start=1):
                     _, _, loss = _memory_prediction(episode, train_mode=True)
                     losses.append(loss)
                     model.reset()
+                    _publish_progress(
+                        {
+                            "phase": "train",
+                            "optimizerStep": step,
+                            "maxSteps": max_steps,
+                            "episodeIndex": episode_index,
+                            "episodeCount": len(batch),
+                            "unit": "episodes",
+                            "checkpointStep": last_checkpoint_step,
+                        }
+                    )
                 loss = torch.stack(losses).mean()
                 loss.backward()
                 trainer.optimizer.step()
+                _publish_progress(
+                    {
+                        "phase": "train",
+                        "optimizerStep": step,
+                        "maxSteps": max_steps,
+                        "episodeIndex": len(batch),
+                        "episodeCount": len(batch),
+                        "unit": "episodes",
+                        "stepCompleted": True,
+                        "checkpointStep": last_checkpoint_step,
+                    },
+                    force=True,
+                )
                 return float(loss.detach())
 
-            def _memory_evaluate(data: list) -> tuple[float, float]:
+            def _memory_evaluate(data: list, *, step: int) -> tuple[float, float]:
                 total_loss = 0.0
                 correct = 0
                 model.eval()
-                for episode in data:
+                for episode_index, episode in enumerate(data, start=1):
                     with torch.no_grad():
                         logits, target, loss = _memory_prediction(episode, train_mode=False)
                     total_loss += float(loss.detach())
                     correct += int(int(logits.argmax().item()) == target)
                     model.reset()
+                    _publish_progress(
+                        {
+                            "phase": "validation",
+                            "optimizerStep": step,
+                            "maxSteps": max_steps,
+                            "episodeIndex": episode_index,
+                            "episodeCount": len(data),
+                            "unit": "episodes",
+                            "checkpointStep": last_checkpoint_step,
+                        }
+                    )
                 count = max(1, len(data))
+                _publish_progress(
+                    {
+                        "phase": "validation",
+                        "optimizerStep": step,
+                        "maxSteps": max_steps,
+                        "episodeIndex": len(data),
+                        "episodeCount": len(data),
+                        "unit": "episodes",
+                        "phaseCompleted": True,
+                        "checkpointStep": last_checkpoint_step,
+                    },
+                    force=True,
+                )
                 return total_loss / count, correct / count
 
             _load_checkpoint()
             if not checkpoint_key and start_step == 0:
                 _save_checkpoint(0)
+                _publish_progress(
+                    {
+                        "phase": "train",
+                        "optimizerStep": 0,
+                        "maxSteps": max_steps,
+                        "episodeIndex": 0,
+                        "episodeCount": trainer_cfg.batch_size,
+                        "unit": "episodes",
+                        "checkpointStep": 0,
+                    },
+                    force=True,
+                )
                 print(f"[piro] run {run_id} initialized checkpoint at step 0")
 
             for step in range(start_step + 1, max_steps + 1):
@@ -640,34 +731,34 @@ class Trainer:
 
                 batch = _next_batch()
                 if data_source == "associative-recall":
-                    train_loss = _memory_step(batch)
+                    train_loss = _memory_step(batch, step=step)
                 else:
                     train_loss = trainer._train_step(batch)
                 _ensure_lease()
 
-                if step % CHECKPOINT_INTERVAL_STEPS != 0 and step != max_steps:
-                    continue
+                should_evaluate = step % EVAL_INTERVAL_STEPS == 0 or step == max_steps
+                if should_evaluate:
+                    if data_source == "associative-recall":
+                        val_loss, val_acc = _memory_evaluate(val_data, step=step)
+                    else:
+                        val_loss, val_acc = trainer._evaluate(val_data)
+                    history.append(
+                        {
+                            "step": step,
+                            "trainLoss": train_loss,
+                            "valLoss": val_loss,
+                            "valAccuracy": val_acc,
+                        }
+                    )
+                    print(
+                        f"[piro] run {run_id} step {step}/{max_steps} — "
+                        f"train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  "
+                        f"val_acc={val_acc:.3f}"
+                    )
+                if step % CHECKPOINT_INTERVAL_STEPS == 0 or step == max_steps:
+                    _save_checkpoint(step)
 
-                if data_source == "associative-recall":
-                    val_loss, val_acc = _memory_evaluate(val_data)
-                else:
-                    val_loss, val_acc = trainer._evaluate(val_data)
-                history.append(
-                    {
-                        "step": step,
-                        "trainLoss": train_loss,
-                        "valLoss": val_loss,
-                        "valAccuracy": val_acc,
-                    }
-                )
-                print(
-                    f"[piro] run {run_id} step {step}/{max_steps} — "
-                    f"train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  "
-                    f"val_acc={val_acc:.3f}"
-                )
-                _save_checkpoint(step)
-
-            # ── Serialize + upload model weights to R2 ───────────────────────
+            # ── Serialize + upload model weights to R2
             # Allocate the model ID before deriving its R2 prefix.
             model_id = str(_uuid.uuid4())
             state = {key: value.detach().cpu() for key, value in model.state_dict().items()}
