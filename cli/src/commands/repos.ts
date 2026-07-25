@@ -19,7 +19,7 @@ type RepoSummary = z.infer<typeof repoSummarySchema>;
  *   piro repos use <id>     — sets active repo in .piro/config
  *
  * The active repo is stored in .piro/config as { "repoId": "<id>" }.
- * Other commands (sources, classes, benchmarks) will read this to scope
+ * Other commands (sources and benchmarks) will read this to scope
  * operations to the active repo.
  */
 

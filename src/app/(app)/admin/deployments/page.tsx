@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { auth } from "~/lib/auth.server";
 import { isAdmin } from "~/lib/admin";
 import { db } from "../../../../../data/db";
@@ -26,12 +26,26 @@ export default async function AdminDeploymentsPage() {
       weightsR2Key: model.weightsR2Key,
       creatorName: user.name,
       creatorEmail: user.email,
+      targetUserId: deployment.targetUserId,
     })
     .from(deployment)
     .innerJoin(model, eq(deployment.modelId, model.id))
     .innerJoin(user, eq(deployment.createdByUserId, user.id))
     .where(and(eq(deployment.isAdmin, true)))
     .orderBy(desc(deployment.createdAt));
+
+  const targetUserIds = deployments.flatMap((item) =>
+    item.targetUserId ? [item.targetUserId] : [],
+  );
+  const targetUsers = targetUserIds.length
+    ? await db
+        .select({ id: user.id, name: user.name, email: user.email })
+        .from(user)
+        .where(inArray(user.id, targetUserIds))
+    : [];
+  const targetUsersById = new Map(
+    targetUsers.map((target) => [target.id, target]),
+  );
 
   return (
     <AdminShell current="Deployments">
@@ -74,6 +88,11 @@ export default async function AdminDeploymentsPage() {
                       {item.inferenceEndpoint && item.weightsR2Key
                         ? "Stateful inference ready"
                         : "Deployment preparing"}
+                    </span>
+                    <span>
+                      {item.targetUserId
+                        ? `Assigned to ${targetUsersById.get(item.targetUserId)?.name ?? targetUsersById.get(item.targetUserId)?.email ?? item.targetUserId}`
+                        : "Global deployment"}
                     </span>
                     <span>
                       Created by {item.creatorName} ({item.creatorEmail})

@@ -404,6 +404,9 @@ export const deployment = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     isAdmin: boolean("isAdmin").notNull().default(false),
+    targetUserId: text("targetUserId").references(() => user.id, {
+      onDelete: "cascade",
+    }),
     enabled: boolean("enabled").notNull().default(true),
     nodeId: text("nodeId").references(() => inferenceNode.id, {
       onDelete: "set null",
@@ -414,6 +417,7 @@ export const deployment = pgTable(
   (t) => [
     index("deployment_creator_enabled").on(t.createdByUserId, t.enabled),
     index("deployment_admin_enabled").on(t.isAdmin, t.enabled),
+    index("deployment_target_enabled").on(t.targetUserId, t.enabled),
     index("deployment_node").on(t.nodeId),
   ],
 );
