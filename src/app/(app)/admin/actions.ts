@@ -100,7 +100,7 @@ export async function setDeploymentEnabled(formData: FormData) {
       enabled: enabledValue === "true",
       updatedAt: new Date(),
     })
-    .where(and(eq(deployment.id, deploymentId), eq(deployment.isAdmin, true)));
+    .where(eq(deployment.id, deploymentId));
 
   revalidatePath("/admin/deployments");
   revalidatePath("/models");

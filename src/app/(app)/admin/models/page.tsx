@@ -64,7 +64,7 @@ export default async function AdminModelsPage() {
           Models
         </h1>
         <p className="mt-3 text-sm text-amber-200/55">
-          Piro models available for global or user-specific deployment.
+          Pretrained Piro models available for deployment.
         </p>
       </div>
       {models.length === 0 ? (
