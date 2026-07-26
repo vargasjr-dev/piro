@@ -6,12 +6,10 @@ Piro is a stateful model that learns as you use it, featuring weight updating du
 
 ```text
 architectures/  Our model implementations and shared architecture contracts
-benchmarks/     Evaluation protocols and local research runners
 sources/        Training/evaluation source generators
 platform/       Modal deployment and platform orchestration
 ```
 
-Modal workloads deploy as independent Apps: `piro-training`, `piro-inference`, `piro-source`, and `piro-gemma-vllm`.
 
 Hurricane-style names identify model architecture tracks. Shared architecture
 development code lives under `architectures/_common`; it is internal to this

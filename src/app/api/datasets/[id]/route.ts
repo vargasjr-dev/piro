@@ -44,6 +44,7 @@ export async function GET(
       id: row.dataset.id,
       name: row.dataset.name,
       sourcePath: row.dataset.sourcePath,
+      evaluationConfig: row.dataset.evaluationConfig,
       r2Prefix: row.dataset.r2Prefix,
       sampleCount: row.dataset.sampleCount,
       generatedAt: row.dataset.generatedAt?.toISOString() ?? null,

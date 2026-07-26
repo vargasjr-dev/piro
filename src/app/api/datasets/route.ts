@@ -24,6 +24,7 @@ export async function GET(request: Request) {
       id: dataset.id,
       name: dataset.name,
       sourcePath: dataset.sourcePath,
+      evaluationConfig: dataset.evaluationConfig,
       sampleCount: dataset.sampleCount,
       generatedAt: dataset.generatedAt,
       createdAt: dataset.createdAt,

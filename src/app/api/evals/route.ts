@@ -6,7 +6,7 @@ import {
   dataset,
 } from "../../../../data/schema";
 import { resolveRequestUserId } from "~/lib/evals/auth";
-import { runSuite } from "~/lib/benchmarks/runner";
+import { runEvaluation } from "~/lib/benchmarks/runner";
 import { waitUntil } from "@vercel/functions";
 
 export async function GET(request: Request) {
@@ -77,62 +77,46 @@ export async function POST(request: Request) {
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = (await request.json().catch(() => ({}))) as {
-    name?: string;
     targets?: string[];
     datasetId?: string;
     episodes?: number;
   };
-  const name = body.name?.trim() ?? "";
-  if (name.toLowerCase() !== "associative recall") {
+  const datasetId = body.datasetId?.trim();
+  if (!datasetId) {
+    return Response.json({ error: "datasetId is required" }, { status: 400 });
+  }
+  if (!body.targets?.length) {
     return Response.json(
-      { error: "Only the Associative Recall benchmark is currently available" },
+      { error: "targets must contain at least one model target" },
       { status: 400 },
     );
   }
 
   const [datasetRow] = await db
-    .select({ id: dataset.id, r2Prefix: dataset.r2Prefix })
+    .select({ id: dataset.id })
     .from(dataset)
-    .where(
-      and(
-        eq(
-          dataset.id,
-          body.datasetId ?? "6c572406-7cd8-4692-94ff-2af04b2d46df",
-        ),
-        eq(dataset.userId, userId),
-      ),
-    )
+    .where(and(eq(dataset.id, datasetId), eq(dataset.userId, userId)))
     .limit(1);
-  if (!datasetRow)
-    return Response.json(
-      { error: "Associative Recall dataset not found" },
-      { status: 404 },
-    );
-
-  if (!body.targets?.length) {
-    return Response.json(
-      { error: "targets must contain at least one benchmark target" },
-      { status: 400 },
-    );
+  if (!datasetRow) {
+    return Response.json({ error: "Evaluation dataset not found" }, { status: 404 });
   }
+
   const requestedTargets = body.targets;
   const suiteRunId = crypto.randomUUID();
   await db.insert(benchmarkSuiteRun).values({
     id: suiteRunId,
     userId,
+    datasetId,
     status: "queued",
-    benchmarks: JSON.stringify(["Associative Recall"]),
+    benchmarks: null,
     targets: JSON.stringify(requestedTargets),
   });
   waitUntil(
-    runSuite(suiteRunId, userId, ["Associative Recall"], requestedTargets, {
-      datasetR2Prefix: datasetRow.r2Prefix,
-      episodes: body.episodes,
-    }),
+    runEvaluation(suiteRunId, userId, datasetId, requestedTargets, body.episodes),
   );
 
   return Response.json(
-    { id: suiteRunId, status: "queued", benchmark: "Associative Recall" },
+    { id: suiteRunId, status: "queued", datasetId },
     { status: 202 },
   );
 }

@@ -28,7 +28,8 @@ test("Gemma benchmark target uses the configured Modal OpenAI-compatible endpoin
     assert.equal(requests[0]?.body.model, "google/gemma-3-270m");
     assert.equal(result.inputTokens, 11);
     assert.equal(result.outputTokens, 2);
-    assert.equal(result.tokenAccounting, "provider_usage");
+    assert.equal(result.tokenAccounting, "not_applicable");
+    assert.equal(result.costAccounting, "modal_runtime");
   } finally {
     globalThis.fetch = originalFetch;
   }

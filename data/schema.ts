@@ -119,9 +119,41 @@ export const mentor = pgTable("mentor", {
 });
 
 /**
- * One row per (benchmark × target) result from a run_benchmarks.py invocation.
- * Multiple rows with the same suiteRunId form one "suite run".
- * The Python script POSTs these via /api/benchmark-runs after finishing.
+ * A generated dataset — the output of running a source script in a Piro
+ * workspace.
+ *
+ * The source script lives at `sourcePath` in the workspace (convention:
+ * `sources/<name>/main.py`). When the user triggers generation, the platform
+ * runs the script and stores the output in R2 under `r2Prefix`.
+ *
+ * Piro manages dataset generation and storage for you.
+ */
+export const dataset = pgTable(
+  "dataset",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** Display name — derived from the source directory (e.g. "associative-recall"). */
+    name: text("name").notNull(),
+    /** Path in the workspace to the source script (e.g. "sources/associative-recall/main.py"). */
+    sourcePath: text("sourcePath").notNull(),
+    /** R2 prefix for generated data (e.g. "users/{userId}/datasets/{name}/"). */
+    r2Prefix: text("r2Prefix").notNull(),
+    /** JSON-encoded evaluator protocol owned by this dataset. */
+    evaluationConfig: text("evaluationConfig"),
+    sampleCount: integer("sampleCount"),
+    generatedAt: timestamp("generatedAt"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => [index("ds_user_created").on(t.userId, t.createdAt)],
+);
+
+/**
+ * One row per (dataset × target) result from an evaluation invocation.
+ * Multiple rows with the same suiteRunId form one evaluation run.
  */
 export const benchmarkRun = pgTable(
   "benchmark_run",
@@ -130,9 +162,12 @@ export const benchmarkRun = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    suiteRunId: text("suiteRunId").notNull(), // groups all rows from one script invocation
-    benchmarkName: text("benchmarkName").notNull(), // e.g. "OODGeneralization"
-    target: text("target").notNull(), // "gpt-4o-mini" | "gpt-4o" | "piro-student"
+    suiteRunId: text("suiteRunId").notNull(), // groups all rows from one evaluation invocation
+    datasetId: text("datasetId").references(() => dataset.id, {
+      onDelete: "set null",
+    }),
+    benchmarkName: text("benchmarkName").notNull(), // Derived evaluator identity for existing result views
+    target: text("target").notNull(), // configured target key or user model ID
     score: real("score").notNull(), // 0.0 → 1.0
     costUsd: real("costUsd"), // total API cost for this benchmark × target
     durationMs: integer("durationMs"),
@@ -160,44 +195,16 @@ export const benchmarkSuiteRun = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     status: text("status").notNull().default("queued"), // 'queued' | 'complete' | 'error'
-    benchmarks: text("benchmarks"), // JSON string[] | null = all
+    datasetId: text("datasetId").references(() => dataset.id, {
+      onDelete: "set null",
+    }),
+    benchmarks: text("benchmarks"), // Legacy display field; derived from the dataset.
     targets: text("targets"), // JSON string[] | null = all
     queuedAt: timestamp("queuedAt").notNull().defaultNow(),
     completedAt: timestamp("completedAt"),
     error: text("error"),
   },
   (t) => [index("bsr_user_queued").on(t.userId, t.queuedAt)],
-);
-
-/**
- * A generated dataset — the output of running a source script in a Piro
- * workspace.
- *
- * The source script lives at `sourcePath` in the workspace (convention:
- * `sources/<name>/main.py`). When the user triggers generation, the platform
- * runs the script and stores the output in R2 under `r2Prefix`.
- *
- * Piro manages dataset generation and storage for you.
- */
-export const dataset = pgTable(
-  "dataset",
-  {
-    id: text("id").primaryKey(),
-    userId: text("userId")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    /** Display name — derived from the source directory (e.g. "associative-recall"). */
-    name: text("name").notNull(),
-    /** Path in the workspace to the source script (e.g. "sources/associative-recall/main.py"). */
-    sourcePath: text("sourcePath").notNull(),
-    /** R2 prefix for generated data (e.g. "users/{userId}/datasets/{name}/"). */
-    r2Prefix: text("r2Prefix").notNull(),
-    sampleCount: integer("sampleCount"),
-    generatedAt: timestamp("generatedAt"),
-    createdAt: timestamp("createdAt").notNull().defaultNow(),
-    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
-  },
-  (t) => [index("ds_user_created").on(t.userId, t.createdAt)],
 );
 
 /**
