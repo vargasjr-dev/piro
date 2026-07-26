@@ -57,14 +57,16 @@ async function getLatestGlobalModel() {
 
 export default async function GettingStartedPage() {
   const latestGlobalModel = await getLatestGlobalModel();
-  const globalModelId = latestGlobalModel?.id ?? "your-global-model-id";
-  const globalCurlExample = `export PIRO_MODEL="${globalModelId}"
+  const globalModelId = latestGlobalModel?.id;
+  const globalCurlExample = globalModelId
+    ? `export PIRO_MODEL="${globalModelId}"
 export PIRO_API_KEY="piro_..."
 
 curl "https://trainpiro.app/api/models/$PIRO_MODEL/invoke" \\
   -H "Authorization: Bearer $PIRO_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '${requestBody}'`;
+  -d '${requestBody}'`
+    : "A shared model is not ready yet. Check back soon for a copy-paste request.";
   const privateCurlExample = `export PIRO_MODEL="your-private-model-id"
 export PIRO_API_KEY="piro_..."
 

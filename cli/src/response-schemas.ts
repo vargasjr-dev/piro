@@ -16,6 +16,13 @@ export const datasetSummarySchema = z.object({
   createdAt: z.string(),
 });
 
+export const sourceSummarySchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  entrypoint: z.string().nullable(),
+  experiment: z.string().nullable().optional(),
+});
+
 export const evaluationResultSchema = z
   .object({
     target: z.string(),

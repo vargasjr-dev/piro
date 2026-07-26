@@ -10,7 +10,8 @@
  *   PIRO_BASE_URL=<url> (optional, defaults to https://trainpiro.app)
  */
 
-import { datasetHead, datasetsGet } from "./commands/datasets.js";
+import { datasetHead, datasetsGet, datasetsList } from "./commands/datasets.js";
+import { sourcesGet, sourcesList } from "./commands/sources.js";
 import { architectureTrain } from "./commands/architectures.js";
 import { benchmarksEval } from "./commands/benchmarks.js";
 import { evalsGet, evalsList } from "./commands/evals.js";
@@ -37,6 +38,9 @@ function opt(args: string[], name: string): string | undefined {
 function usage(msg?: string): never {
   if (msg) console.error(`Error: ${msg}\n`);
   console.error("Usage:");
+  console.error("  piro sources list");
+  console.error("  piro sources get <name>");
+  console.error("  piro datasets list");
   console.error("  piro datasets get <id>");
   console.error("  piro dataset head <id>");
   console.error(
@@ -57,6 +61,22 @@ function usage(msg?: string): never {
 if (!subject || !verb) usage();
 
 switch (subject) {
+  case "sources":
+    switch (verb) {
+      case "list":
+        await sourcesList();
+        break;
+      case "get": {
+        const name = arg(rest, 0);
+        if (!name) usage("source name is required");
+        await sourcesGet(name);
+        break;
+      }
+      default:
+        usage(`unknown sources verb: ${verb}`);
+    }
+    break;
+
   case "dataset":
     switch (verb) {
       case "head": {
@@ -72,6 +92,9 @@ switch (subject) {
 
   case "datasets":
     switch (verb) {
+      case "list":
+        await datasetsList();
+        break;
       case "get": {
         const id = arg(rest, 0);
         if (!id) usage("dataset id is required");
