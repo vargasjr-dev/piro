@@ -6,7 +6,7 @@ Borealis is intentionally smaller than the deferred CTM experiment.  It follows
 * durable parameters embed tokens and predict the next token;
 * a run-local fast output-bias state adapts from causal prediction error;
 * each prediction is made with durable weights bound to the current fast state;
-* the updated fast state is returned as a value;
+* fast adaptation updates run-local state during the invocation;
 * consolidation runs at the end of every invocation and produces the next durable revision.
 
 The model is token-id based for the first experiment.  Tokenization belongs at the
@@ -38,7 +38,7 @@ class BorealisConfig:
 
 @dataclass
 class BorealisFastState:
-    """Run-local mutable state returned by every Borealis episode."""
+    """Run-local mutable state used during a Borealis episode."""
 
     output_bias: torch.Tensor
     updates: int = 0
@@ -56,18 +56,6 @@ class BorealisFastState:
 class BorealisRuntimeWeights:
     """Durable weights bound to one run-local fast state."""
 
-    fast_state: BorealisFastState
-
-
-@dataclass
-class BorealisOutput:
-    """Result of one causal episode, including the next fast state."""
-
-    logits: torch.Tensor
-    logits_sequence: torch.Tensor
-    probabilities: torch.Tensor
-    loss: torch.Tensor
-    adaptation_loss: torch.Tensor
     fast_state: BorealisFastState
 
 
@@ -298,32 +286,26 @@ class Borealis(ArchitectureModel):
         fast_state: BorealisFastState | None = None,
         *,
         adapt: bool = True,
-    ) -> BorealisOutput:
-        """Adapt on the input context, then predict its final target.
+    ) -> torch.Tensor:
+        """Adapt on the input context, then return its final output logits.
 
-        The final response is produced by the output head after the adaptation
-        scan. Its loss is the differentiable outer-learning signal for durable
-        Borealis parameters; chunk losses supervise fast adaptation.
+        Losses supervise fast adaptation and durable learning internally; the
+        serving boundary exposes only the completed output.
         """
         tokens = self._validate_tokens(token_ids)
         context = tokens[:-1]
-        target = tokens[-1]
         state = (fast_state or self.initialize_fast_state()).clone()
         hidden = torch.zeros(
             self.config.hidden_dim,
             device=tokens.device,
             dtype=self.token_embedding.weight.dtype,
         )
-        logits_per_step: list[torch.Tensor] = []
-        adaptation_losses: list[torch.Tensor] = []
         runtime = self.bind_fast_state(self, state)
 
         for index in range(context.numel() - 1):
             logits, hidden = self.predict_next_token(context[index], hidden, runtime)
             chunk_target = context[index + 1]
             chunk_loss = F.cross_entropy(logits.unsqueeze(0), chunk_target.unsqueeze(0))
-            logits_per_step.append(logits)
-            adaptation_losses.append(chunk_loss)
             if adapt:
                 state = self.fast_adaptation(state, logits, chunk_target, chunk_loss)
                 runtime = self.bind_fast_state(self, state)
@@ -331,34 +313,18 @@ class Borealis(ArchitectureModel):
         hidden = self.advance_hidden(context[-1], hidden)
         runtime = self.bind_fast_state(self, state)
         final_logits = self.output_logits(hidden, runtime)
-        output_loss = F.cross_entropy(final_logits.unsqueeze(0), target.unsqueeze(0))
-        adaptation_loss = (
-            torch.stack(adaptation_losses).mean()
-            if adaptation_losses
-            else output_loss.new_zeros(())
-        )
-        state = self.consolidate_weights(state)
-
-        return BorealisOutput(
-            logits=final_logits,
-            logits_sequence=(
-                torch.stack(logits_per_step)
-                if logits_per_step
-                else final_logits.new_empty((0, self.config.vocab_size))
-            ),
-            probabilities=torch.softmax(final_logits, dim=-1),
-            loss=output_loss,
-            adaptation_loss=adaptation_loss,
-            fast_state=state,
-        )
+        self.consolidate_weights(state)
+        return final_logits
 
     def causal_loss(self, token_ids: torch.Tensor) -> torch.Tensor:
-        """Return differentiable causal loss without mutating fast state."""
-        return self.run(token_ids, adapt=False).loss
+        """Return differentiable causal loss without exposing training telemetry."""
+        tokens = self._validate_tokens(token_ids)
+        logits = self.run(tokens, adapt=False)
+        return F.cross_entropy(logits.unsqueeze(0), tokens[-1].unsqueeze(0))
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
         """Return the final next-token logits for Trainer-style callers."""
-        return self.run(token_ids, adapt=False).logits
+        return self.run(token_ids, adapt=False)
 
     def _validate_tokens(self, token_ids: torch.Tensor) -> torch.Tensor:
         if token_ids.ndim != 1 or token_ids.numel() < 2:
@@ -377,4 +343,3 @@ class Borealis(ArchitectureModel):
 BorealisConfig.__module__ = __name__
 BorealisFastState.__module__ = __name__
 BorealisRuntimeWeights.__module__ = __name__
-BorealisOutput.__module__ = __name__

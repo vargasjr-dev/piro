@@ -20,20 +20,14 @@ def small_model(**overrides) -> Borealis:
     return Borealis(BorealisConfig(**config))
 
 
-def test_borealis_run_returns_causal_logits_and_fast_state():
+def test_borealis_run_returns_only_final_causal_logits():
     model = small_model()
     tokens = torch.tensor([1, 2, 3, 4])
 
     result = model.run(tokens)
 
-    assert result.logits.shape == (7,)
-    assert result.logits_sequence.shape == (2, 7)
-    assert result.loss.ndim == 0
-    assert result.adaptation_loss.ndim == 0
-    assert torch.isfinite(result.loss)
-    assert torch.isfinite(result.adaptation_loss)
-    assert result.fast_state.updates == 0
-    assert result.fast_state.loss_ema is None
+    assert result.shape == (7,)
+    assert torch.isfinite(result).all()
 
 
 def test_fast_adaptation_changes_later_logits_and_updates_durable_parameters():
@@ -45,7 +39,7 @@ def test_fast_adaptation_changes_later_logits_and_updates_durable_parameters():
     adapted = model.run(tokens, initial, adapt=True)
     unadapted = model.run(tokens, initial, adapt=False)
 
-    assert not torch.equal(adapted.logits, unadapted.logits)
+    assert not torch.equal(adapted, unadapted)
     assert any(
         not torch.equal(durable_before[key], value)
         for key, value in model.state_dict().items()
@@ -62,7 +56,7 @@ def test_final_output_uses_fast_state_after_context_adaptation():
     adapted = adapted_model.run(tokens, initial, adapt=True)
     unadapted = unadapted_model.run(tokens, initial, adapt=False)
 
-    assert not torch.equal(adapted.logits, unadapted.logits)
+    assert not torch.equal(adapted, unadapted)
 
 
 def test_fast_state_snapshot_round_trips_and_preserves_predictions():
@@ -84,7 +78,7 @@ def test_fast_state_snapshot_round_trips_and_preserves_predictions():
 
     assert restored.updates == state.updates
     assert restored.loss_ema == state.loss_ema
-    assert torch.equal(original.logits, replayed.logits)
+    assert torch.equal(original, replayed)
 
 
 def test_consolidation_moves_fast_bias_to_durable_output_head_and_clears_fast_state():
@@ -120,19 +114,19 @@ def test_borealis_forward_matches_no_adaptation_final_logits():
     model = small_model()
     tokens = torch.tensor([1, 2, 3])
 
-    expected = model.run(tokens, adapt=False).logits
+    expected = model.run(tokens, adapt=False)
     actual = model(tokens)
 
     assert torch.allclose(actual, expected)
 
 
-def test_two_token_sequence_still_produces_final_output_without_adaptation_chunks():
+def test_two_token_sequence_still_produces_final_output_without_adaptation_steps():
     model = small_model()
 
     result = model.run(torch.tensor([1, 2]))
 
-    assert result.logits.shape == (7,)
-    assert result.logits_sequence.shape == (0, 7)
+    assert result.shape == (7,)
+    assert torch.isfinite(result).all()
 
 
 def test_invalid_sequences_are_rejected():
@@ -158,6 +152,6 @@ def test_causal_loss_uses_each_next_token_as_target():
     tokens = torch.tensor([1, 2, 3])
     result = model.run(tokens, adapt=False)
 
-    manual = F.cross_entropy(result.logits, tokens[-1].unsqueeze(0))
+    manual = F.cross_entropy(result.unsqueeze(0), tokens[-1].unsqueeze(0))
 
-    assert torch.allclose(result.loss, manual)
+    assert torch.allclose(model.causal_loss(tokens), manual)
