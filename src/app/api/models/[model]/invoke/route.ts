@@ -1,9 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../../../../data/db";
-import { model } from "../../../../../../data/schema";
+import {
+  model,
+  modelTrainingRun,
+  trainingRun,
+} from "../../../../../../data/schema";
 import { extractBearer, validateApiKey } from "../../../../../lib/api-auth";
 import {
+  architectureFromPath,
   modalTextToPiroOutput,
   piroInputSchema,
 } from "../../../_lib/contracts";
@@ -28,8 +33,14 @@ export async function POST(
 
   const { model: modelId } = await params;
   const [modelRow] = await db
-    .select({ id: model.id, inferenceEndpoint: model.inferenceEndpoint })
+    .select({
+      id: model.id,
+      inferenceEndpoint: model.inferenceEndpoint,
+      architecturePath: trainingRun.architecturePath,
+    })
     .from(model)
+    .leftJoin(modelTrainingRun, eq(modelTrainingRun.modelId, model.id))
+    .leftJoin(trainingRun, eq(trainingRun.id, modelTrainingRun.trainingRunId))
     .where(and(eq(model.id, modelId), eq(model.userId, auth.userId)))
     .limit(1);
 
@@ -40,6 +51,16 @@ export async function POST(
   if (!modelRow.inferenceEndpoint) {
     return Response.json(
       { error: "Model inference is not available" },
+      { status: 409 },
+    );
+  }
+
+  const architecture = modelRow.architecturePath
+    ? architectureFromPath(modelRow.architecturePath)
+    : null;
+  if (!architecture) {
+    return Response.json(
+      { error: "Model architecture is not supported for inference" },
       { status: 409 },
     );
   }
@@ -66,6 +87,7 @@ export async function POST(
     const result = await invokeModalInference(
       modelRow.inferenceEndpoint,
       modelRow.id,
+      architecture,
       parsed.data,
       process.env.MODAL_WEBHOOK_SECRET ?? "",
     );
