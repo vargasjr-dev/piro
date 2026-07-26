@@ -31,6 +31,7 @@ jobs:
           modal deploy platform/modal/training.py
           modal deploy platform/modal/inference.py
           modal deploy platform/modal/source.py
+          modal deploy platform/modal/gemma.py
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}

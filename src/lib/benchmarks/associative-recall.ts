@@ -1,16 +1,16 @@
 import { r2Get } from "~/lib/r2";
+import { computeCost } from "./cost";
 import type {
   BenchmarkContext,
   BenchmarkDef,
   BenchmarkResult,
   ModelAdapter,
 } from "./types";
-import { computeCost } from "./openai";
 
 const DEFAULT_EPISODES = 2_000;
 const MAX_FAILURES = 20;
 
-interface AshfallEpisode {
+interface AssociativeRecallEpisode {
   inputs: string[];
   answer: string;
   requestCount: number;
@@ -18,27 +18,29 @@ interface AshfallEpisode {
 
 function extractText(input: unknown): string {
   if (!input || typeof input !== "object")
-    throw new Error("Ashfall input must be an object");
+    throw new Error("Associative Recall input must be an object");
   const parts = (input as { parts?: unknown }).parts;
   if (!Array.isArray(parts) || parts.length !== 1)
-    throw new Error("Ashfall input must contain one part");
+    throw new Error("Associative Recall input must contain one part");
   const part = parts[0];
   if (
     !part ||
     typeof part !== "object" ||
     typeof (part as { text?: unknown }).text !== "string"
   ) {
-    throw new Error("Ashfall input part must contain text");
+    throw new Error("Associative Recall input part must contain text");
   }
   return (part as { text: string }).text;
 }
 
-function parseEpisode(record: unknown): AshfallEpisode {
+function parseEpisode(record: unknown): AssociativeRecallEpisode {
   if (!record || typeof record !== "object")
-    throw new Error("Ashfall record must be an object");
+    throw new Error("Associative Recall record must be an object");
   const inputs = (record as { inputs?: unknown }).inputs;
   if (!Array.isArray(inputs) || inputs.length < 2) {
-    throw new Error("Ashfall records must contain at least two inputs");
+    throw new Error(
+      "Associative Recall records must contain at least two inputs",
+    );
   }
   const texts = inputs.map(extractText);
   const query = texts.at(-1)!;
@@ -47,7 +49,7 @@ function parseEpisode(record: unknown): AshfallEpisode {
     .flatMap((text) => text.split("\n"))
     .find((line) => line.startsWith(`${query} = `));
   if (!targetLine)
-    throw new Error(`Ashfall query ${query} has no matching write`);
+    throw new Error(`Associative Recall query ${query} has no matching write`);
   return {
     inputs: inputs.map(extractText),
     answer: targetLine.slice(targetLine.indexOf("=") + 1).trim(),
@@ -57,17 +59,21 @@ function parseEpisode(record: unknown): AshfallEpisode {
 
 async function loadEpisodes(
   context: BenchmarkContext | undefined,
-): Promise<AshfallEpisode[]> {
+): Promise<AssociativeRecallEpisode[]> {
   const prefix = context?.datasetR2Prefix;
   if (!prefix)
-    throw new Error("Ashfall evaluation requires a dataset R2 prefix");
+    throw new Error(
+      "Associative Recall evaluation requires a dataset R2 prefix",
+    );
   const content = await r2Get(`${prefix.replace(/\/$/, "")}/train.jsonl`);
-  if (!content) throw new Error("Ashfall dataset train.jsonl not found");
+  if (!content)
+    throw new Error("Associative Recall dataset train.jsonl not found");
   const episodes = content
     .split("\n")
     .filter((line) => line.trim())
     .map((line) => parseEpisode(JSON.parse(line)));
-  if (episodes.length === 0) throw new Error("Ashfall dataset is empty");
+  if (episodes.length === 0)
+    throw new Error("Associative Recall dataset is empty");
   // The Modal trainer uses the first 80% for training and the remaining 20%
   // for validation. Evaluate the same holdout so the comparison is not trained
   // on the exact examples it scores.
@@ -85,15 +91,17 @@ function normalizeAnswer(text: string): string {
   return /^value_\d{3}$/.test(normalized) ? normalized : normalized;
 }
 
-export const ashfall: BenchmarkDef = {
-  name: "Ashfall",
+export const associativeRecall: BenchmarkDef = {
+  name: "Associative Recall",
   async run(
     model: ModelAdapter,
     context?: BenchmarkContext,
   ): Promise<BenchmarkResult> {
     const episodes = await loadEpisodes(context);
     if (!model.generateSequence)
-      throw new Error(`${model.name} does not support ordered Ashfall inputs`);
+      throw new Error(
+        `${model.name} does not support ordered Associative Recall inputs`,
+      );
 
     const started = performance.now();
     let correct = 0;
@@ -127,13 +135,7 @@ export const ashfall: BenchmarkDef = {
     }
 
     const durationMs = Math.round(performance.now() - started);
-    const costUsd = model.targetKey?.startsWith("openai:")
-      ? computeCost(
-          model.targetKey.slice("openai:".length),
-          inputTokens,
-          outputTokens,
-        )
-      : 0;
+    const costUsd = computeCost(model, inputTokens, outputTokens);
     return {
       score: correct / episodes.length,
       durationMs,
@@ -145,11 +147,7 @@ export const ashfall: BenchmarkDef = {
         correct,
         inputTokens,
         outputTokens,
-        tokenAccounting:
-          model.targetKey?.startsWith("openai:") ||
-          model.targetKey?.startsWith("gemma:")
-            ? "provider_usage"
-            : "not_applicable",
+        tokenAccounting: model.tokenAccounting ?? "not_applicable",
         failures,
         protocol:
           "one separate sequential invocation per ordered input; validation holdout; exact value_NNN match",
@@ -165,11 +163,6 @@ export const ashfall: BenchmarkDef = {
         averageOutputTokensPerEpisode: episodes.length
           ? outputTokens / episodes.length
           : 0,
-        stateBoundary:
-          model.targetKey?.startsWith("openai:") ||
-          model.targetKey?.startsWith("gemma:")
-            ? "conversation replayed across the ordered HTTP requests"
-            : "serialized recurrent state returned and supplied across the ordered HTTP requests",
       },
     };
   },

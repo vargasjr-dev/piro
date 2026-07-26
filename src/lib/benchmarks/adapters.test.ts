@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { makeGPTAdapter, makePiroModelAdapter } from "./openai";
+import { makeGPTAdapter, makePiroModelAdapter } from "./adapters";
 
-test("GPT Ashfall sequence uses one request per input and aggregates usage", async () => {
+test("GPT Associative Recall sequence uses one request per input and aggregates usage", async () => {
   const originalFetch = globalThis.fetch;
   const originalOpenAIKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test-openai-key";
@@ -50,7 +50,7 @@ test("GPT Ashfall sequence uses one request per input and aggregates usage", asy
   }
 });
 
-test("Piro Ashfall sequence passes returned state to the next request", async () => {
+test("Piro Associative Recall sequence passes returned state to the next request", async () => {
   const originalFetch = globalThis.fetch;
   const originalModalSecret = process.env.MODAL_WEBHOOK_SECRET;
   process.env.MODAL_WEBHOOK_SECRET = "test-modal-secret";
@@ -75,7 +75,7 @@ test("Piro Ashfall sequence passes returned state to the next request", async ()
 
     const result = await makePiroModelAdapter(
       "model-1",
-      "ashfall-ctm",
+      "piro-ctm",
       "https://modal.test/infer",
     ).generateSequence!([
       "key_017 = value_014",

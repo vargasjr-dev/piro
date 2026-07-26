@@ -2,6 +2,11 @@
 
 export type TokenAccounting = "provider_usage" | "not_applicable";
 
+export interface TokenPricing {
+  inputPerMillion: number;
+  outputPerMillion: number;
+}
+
 export interface GenerateResult {
   text: string;
   inputTokens: number;
@@ -20,8 +25,11 @@ export interface BenchmarkResult {
 export interface ModelAdapter {
   /** Human-readable model name shown in benchmark output. */
   name: string;
-  /** Stable persisted identity, such as a model UUID or provider:model. */
+  /** Stable persisted identity, such as a model UUID or configured target key. */
   targetKey?: string;
+  /** Provider/model configuration used for accounting and diagnostics. */
+  pricing?: TokenPricing;
+  tokenAccounting?: TokenAccounting;
   /** true = not a real model, results are noise */
   isStub?: boolean;
   generate(prompt: string): Promise<GenerateResult>;

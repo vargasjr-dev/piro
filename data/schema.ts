@@ -413,7 +413,11 @@ export const modelTrainingRun = pgTable("model_training_run", {
 
 /**
  * 1:1 link between a model and its hosted API config.
- * Presence of this row means the model is a hosted external API.
+ * Presence of this row means the model is an externally hosted model.
+ *
+ * The endpoint, credentials, accounting mode, and pricing live with the
+ * target configuration so benchmark code does not infer behavior from a
+ * provider-specific target string.
  */
 export const modelHostedApi = pgTable("model_hosted_api", {
   id: text("id").primaryKey(),
@@ -421,9 +425,13 @@ export const modelHostedApi = pgTable("model_hosted_api", {
     .notNull()
     .unique()
     .references(() => model.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(), // 'openai' | 'anthropic'
-  apiModelName: text("apiModelName").notNull(), // 'gpt-4o-mini' | 'gpt-4o'
-  apiKeyEnvVar: text("apiKeyEnvVar").notNull(), // 'OPENAI_API_KEY'
+  provider: text("provider").notNull(),
+  apiModelName: text("apiModelName").notNull(),
+  endpoint: text("endpoint").notNull().default("https://api.openai.com/v1"),
+  apiKeyEnvVar: text("apiKeyEnvVar"),
+  inputPricePerMillion: real("inputPricePerMillion"),
+  outputPricePerMillion: real("outputPricePerMillion"),
+  tokenAccounting: text("tokenAccounting").notNull().default("provider_usage"),
 });
 
 // fileIndex table removed (was part of knowledge base)
