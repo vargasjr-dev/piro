@@ -75,13 +75,6 @@ if (!url) {
   throw new Error("PIRO_DATABASE_URL or DATABASE_URL must be configured");
 }
 
-const parsed = new URL(url);
-if (parsed.hostname.includes("-pooler.")) {
-  throw new Error(
-    "Database schema apply requires a direct Neon endpoint, not a pooler endpoint",
-  );
-}
-
 const db = drizzle(neon(url), { schema });
 const result = await pushSchemaNoPrompt(
   schema,
