@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { getLatestPiroModel } from "~/lib/latest-experiment";
+import { getCurrentPiroArchitecture } from "~/lib/latest-architecture";
 
 const RANDOM_WORDS = [
   "badger",
@@ -31,7 +31,7 @@ function randomWord(exclude?: string) {
 }
 
 export function createSuggestedModelId() {
-  const architecture = getLatestPiroModel()
+  const architecture = getCurrentPiroArchitecture()
     .architecture.toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");

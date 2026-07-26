@@ -10,7 +10,7 @@ import {
   benchmarkRun,
 } from "../../../../data/schema";
 import { getSubscription, isActive } from "~/lib/billing";
-import { getLatestPiroModel } from "~/lib/latest-experiment";
+import { getCurrentPiroArchitecture } from "~/lib/latest-architecture";
 import { modelIdSchema } from "~/lib/model-identifiers";
 import { eq, sql } from "drizzle-orm";
 
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   }
 
   const modelId = parsed.data;
-  const latest = getLatestPiroModel();
+  const latest = getCurrentPiroArchitecture();
   let createdModel: typeof model.$inferSelect | undefined;
   try {
     [createdModel] = await db
