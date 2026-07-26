@@ -33,28 +33,31 @@ to prove the central self-updating-weights idea.
 durableWeights = LoadWeights()
 fastState = InitializeFastState(durableWeights)
 x = Embed(PiroInput)
-runtimeWeights = BindFastState(durableWeights, fastState)
-output = []
+predictions = []
 
 for each observedChunk in ChunkText(x.text):
+    runtimeWeights = BindFastState(durableWeights, fastState)
     prediction = PredictNextToken(observedChunk, runtimeWeights)
+    predictions.append(prediction)
     fastState = FastAdaptation(
         fastState,
         observedChunk,
         prediction
     )
-    runtimeWeights = BindFastState(durableWeights, fastState)
-    output.append(OutputHead(runtimeWeights))
 
+runtimeWeights = BindFastState(durableWeights, fastState)
+output = OutputHead(runtimeWeights)
 durableWeights = ConsolidateWeights(durableWeights, fastState)
 SaveWeights(durableWeights)
 
-return output, fastState
+return output, predictions, fastState
 ```
 
 The observed token or chunk is the free causal target for the next prediction.
-Fast adaptation happens inside the stream so later observations can benefit from
-what was learned earlier in the same episode. The baseline does not claim that
+Each chunk is predicted with the fast state available before that chunk’s update;
+fast adaptation then changes the state used by later chunks. The final output pass
+runs after the full adaptation scan, so the response uses the state learned from
+the complete observed stream. The baseline does not claim that
 fast weights are an exact record store; exact personal facts need an explicit
 addressable retrieval path when that capability is tested.
 

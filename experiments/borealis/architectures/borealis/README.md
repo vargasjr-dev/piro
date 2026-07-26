@@ -4,7 +4,9 @@ Borealis is a functional, text-first fast/slow self-updating model.
 
 - Durable parameters embed token IDs and predict the next token.
 - A run-local `BorealisFastState` adapts from causal prediction error.
-- Each prediction binds durable weights with the current fast state.
+- Each adaptation prediction binds durable weights with the current fast state.
+- The final output head runs after the full input adaptation scan.
+- The final output loss backpropagates into durable Borealis parameters.
 - Fast state is returned explicitly and can be snapshotted or restored.
 - Consolidation runs at every invocation boundary and produces the next durable revision.
 

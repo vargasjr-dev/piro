@@ -27,10 +27,12 @@ def test_borealis_run_returns_causal_logits_and_fast_state():
     result = model.run(tokens)
 
     assert result.logits.shape == (7,)
-    assert result.logits_sequence.shape == (3, 7)
-    assert result.predictions.shape == (3,)
+    assert result.logits_sequence.shape == (2, 7)
+    assert result.predictions.shape == (2,)
     assert result.loss.ndim == 0
+    assert result.adaptation_loss.ndim == 0
     assert torch.isfinite(result.loss)
+    assert torch.isfinite(result.adaptation_loss)
     assert result.fast_state.updates == 0
     assert result.fast_state.loss_ema is None
 
@@ -51,6 +53,19 @@ def test_fast_adaptation_changes_later_logits_and_updates_durable_parameters():
     )
 
 
+def test_final_output_uses_fast_state_after_context_adaptation():
+    tokens = torch.tensor([1, 2, 3, 4])
+    initial = BorealisFastState(output_bias=torch.zeros(7))
+    adapted_model = small_model(consolidation_rate=0.0)
+    unadapted_model = small_model(consolidation_rate=0.0)
+    unadapted_model.load_state_dict(adapted_model.state_dict())
+
+    adapted = adapted_model.run(tokens, initial, adapt=True)
+    unadapted = unadapted_model.run(tokens, initial, adapt=False)
+
+    assert not torch.equal(adapted.logits, unadapted.logits)
+
+
 def test_fast_state_snapshot_round_trips_and_preserves_predictions():
     model = small_model()
     tokens = torch.tensor([1, 2, 3, 4])
@@ -61,9 +76,12 @@ def test_fast_state_snapshot_round_trips_and_preserves_predictions():
     )
     snapshot = model.snapshot_fast_state(state)
     restored = model.load_fast_state(snapshot)
+    durable_revision = model.save_weights()
 
     original = model.run(tokens, state, adapt=False)
-    replayed = model.run(tokens, restored, adapt=False)
+    replay_model = small_model()
+    replay_model.load_state_dict(durable_revision)
+    replayed = replay_model.run(tokens, restored, adapt=False)
 
     assert restored.updates == state.updates
     assert restored.loss_ema == state.loss_ema
@@ -96,6 +114,7 @@ def test_causal_loss_backpropagates_into_durable_parameters_without_fast_updates
 
     assert model.output_head.weight.grad is not None
     assert model.output_head.bias.grad is not None
+    assert model.recurrent.weight_hh.grad is not None
 
 
 def test_borealis_forward_matches_no_adaptation_final_logits():
@@ -106,6 +125,16 @@ def test_borealis_forward_matches_no_adaptation_final_logits():
     actual = model(tokens)
 
     assert torch.allclose(actual, expected)
+
+
+def test_two_token_sequence_still_produces_final_output_without_adaptation_chunks():
+    model = small_model()
+
+    result = model.run(torch.tensor([1, 2]))
+
+    assert result.logits.shape == (7,)
+    assert result.logits_sequence.shape == (0, 7)
+    assert result.predictions.shape == (0,)
 
 
 def test_invalid_sequences_are_rejected():
@@ -131,6 +160,6 @@ def test_causal_loss_uses_each_next_token_as_target():
     tokens = torch.tensor([1, 2, 3])
     result = model.run(tokens, adapt=False)
 
-    manual = F.cross_entropy(result.logits_sequence, tokens[1:])
+    manual = F.cross_entropy(result.logits, tokens[-1].unsqueeze(0))
 
     assert torch.allclose(result.loss, manual)

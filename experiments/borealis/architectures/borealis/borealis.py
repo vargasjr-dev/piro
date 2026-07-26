@@ -26,6 +26,7 @@ import torch.nn.functional as F
 from piro import PiroModel
 from piro.schema import ArchitectureGraph, GraphEdge, GraphNode
 
+
 @dataclass
 class BorealisConfig:
     vocab_size: int = 32
@@ -66,6 +67,7 @@ class BorealisOutput:
     logits_sequence: torch.Tensor
     probabilities: torch.Tensor
     loss: torch.Tensor
+    adaptation_loss: torch.Tensor
     predictions: torch.Tensor
     fast_state: BorealisFastState
 
@@ -118,16 +120,10 @@ class Borealis(PiroModel):
                     detail="durable weights + active fast state",
                 ),
                 GraphNode(
-                    id="policy",
-                    type="confidence",
-                    label="Persistence Policy",
-                    detail="retain or consolidate",
-                ),
-                GraphNode(
                     id="output",
                     type="io",
                     label="Output Head",
-                    detail="next-token logits and probabilities",
+                    detail="final response logits after context adaptation",
                 ),
             ],
             edges=[
@@ -136,9 +132,7 @@ class Borealis(PiroModel):
                 GraphEdge(**{"from": "predict", "to": "adapt"}),
                 GraphEdge(**{"from": "adapt", "to": "bind"}),
                 GraphEdge(**{"from": "bind", "to": "predict"}),
-                GraphEdge(**{"from": "predict", "to": "output"}),
-                GraphEdge(**{"from": "adapt", "to": "policy"}),
-                GraphEdge(**{"from": "policy", "to": "output"}),
+                GraphEdge(**{"from": "bind", "to": "output"}),
             ],
         )
 
@@ -193,18 +187,43 @@ class Borealis(PiroModel):
             raise ValueError("embed expects one scalar token id")
         return self.input_projection(self.token_embedding(token.long()))
 
+    def advance_hidden(
+        self,
+        observed_token: torch.Tensor,
+        hidden: torch.Tensor,
+    ) -> torch.Tensor:
+        """Advance the recurrent representation without producing output logits."""
+        embedded = self.embed(observed_token)
+        return self.recurrent(embedded.unsqueeze(0), hidden.unsqueeze(0)).squeeze(0)
+
     def predict_next_token(
         self,
         observed_token: torch.Tensor,
         hidden: torch.Tensor,
         runtime_weights: BorealisRuntimeWeights,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Predict the next token for one observed token/chunk."""
-        embedded = self.embed(observed_token)
-        next_hidden = self.recurrent(embedded.unsqueeze(0), hidden.unsqueeze(0)).squeeze(0)
-        durable_logits = self.output_head(self.output_norm(next_hidden))
-        logits = durable_logits + runtime_weights.fast_state.output_bias
+        """Predict the next observed token for fast adaptation."""
+        next_hidden = self.advance_hidden(observed_token, hidden)
+        logits = self.predict_logits(next_hidden, runtime_weights)
         return logits, next_hidden
+
+    def predict_logits(
+        self,
+        hidden: torch.Tensor,
+        runtime_weights: BorealisRuntimeWeights,
+    ) -> torch.Tensor:
+        """Produce next-token logits used only by the adaptation scan."""
+        durable_logits = self.output_head(self.output_norm(hidden))
+        return durable_logits + runtime_weights.fast_state.output_bias
+
+    def output_logits(
+        self,
+        hidden: torch.Tensor,
+        runtime_weights: BorealisRuntimeWeights,
+    ) -> torch.Tensor:
+        """Produce the final response after the adaptation scan completes."""
+        durable_logits = self.output_head(self.output_norm(hidden))
+        return durable_logits + runtime_weights.fast_state.output_bias
 
     def fast_adaptation(
         self,
@@ -287,46 +306,63 @@ class Borealis(PiroModel):
         *,
         adapt: bool = True,
     ) -> BorealisOutput:
-        """Run a causal episode and return output plus updated fast state.
+        """Adapt on the input context, then predict its final target.
 
-        ``token_ids`` is a one-dimensional sequence. Every token except the
-        final one is observed and used to predict the following causal target.
-        Durable consolidation runs at the end of every invocation; callers can
-        persist the resulting durable revision with :meth:`save_weights`.
+        The final response is produced by the output head after the adaptation
+        scan. Its loss is the differentiable outer-learning signal for durable
+        Borealis parameters; chunk losses supervise fast adaptation.
         """
         tokens = self._validate_tokens(token_ids)
+        context = tokens[:-1]
+        target = tokens[-1]
         state = (fast_state or self.initialize_fast_state()).clone()
-        runtime = self.bind_fast_state(self, state)
         hidden = torch.zeros(
             self.config.hidden_dim,
             device=tokens.device,
             dtype=self.token_embedding.weight.dtype,
         )
         logits_per_step: list[torch.Tensor] = []
-        losses: list[torch.Tensor] = []
+        adaptation_losses: list[torch.Tensor] = []
         predictions: list[torch.Tensor] = []
+        runtime = self.bind_fast_state(self, state)
 
-        for index in range(tokens.numel() - 1):
-            logits, hidden = self.predict_next_token(tokens[index], hidden, runtime)
-            target = tokens[index + 1]
-            loss = F.cross_entropy(logits.unsqueeze(0), target.unsqueeze(0))
+        for index in range(context.numel() - 1):
+            logits, hidden = self.predict_next_token(context[index], hidden, runtime)
+            chunk_target = context[index + 1]
+            chunk_loss = F.cross_entropy(logits.unsqueeze(0), chunk_target.unsqueeze(0))
             logits_per_step.append(logits)
-            losses.append(loss)
+            adaptation_losses.append(chunk_loss)
             predictions.append(logits.argmax())
             if adapt:
-                state = self.fast_adaptation(state, logits, target, loss)
+                state = self.fast_adaptation(state, logits, chunk_target, chunk_loss)
                 runtime = self.bind_fast_state(self, state)
 
-        stacked_logits = torch.stack(logits_per_step)
-        mean_loss = torch.stack(losses).mean()
+        hidden = self.advance_hidden(context[-1], hidden)
+        runtime = self.bind_fast_state(self, state)
+        final_logits = self.output_logits(hidden, runtime)
+        output_loss = F.cross_entropy(final_logits.unsqueeze(0), target.unsqueeze(0))
+        adaptation_loss = (
+            torch.stack(adaptation_losses).mean()
+            if adaptation_losses
+            else output_loss.new_zeros(())
+        )
         state = self.consolidate_weights(state)
 
         return BorealisOutput(
-            logits=stacked_logits[-1],
-            logits_sequence=stacked_logits,
-            probabilities=torch.softmax(stacked_logits[-1], dim=-1),
-            loss=mean_loss,
-            predictions=torch.stack(predictions),
+            logits=final_logits,
+            logits_sequence=(
+                torch.stack(logits_per_step)
+                if logits_per_step
+                else final_logits.new_empty((0, self.config.vocab_size))
+            ),
+            probabilities=torch.softmax(final_logits, dim=-1),
+            loss=output_loss,
+            adaptation_loss=adaptation_loss,
+            predictions=(
+                torch.stack(predictions)
+                if predictions
+                else target.new_empty((0,))
+            ),
             fast_state=state,
         )
 
