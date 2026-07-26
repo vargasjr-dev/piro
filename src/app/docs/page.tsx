@@ -42,7 +42,7 @@ export default function DocsPage() {
         <p className="text-xs font-bold uppercase tracking-[0.22em] text-orange-400">Where to go next</p>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {[
-            ["/docs/getting-started", "Getting started", "Create your first architecture and understand the repo contract."],
+            ["/docs/getting-started", "Getting started", "Deploy a private model and make your first API request."],
             ["/docs/api", "API", "Send observations, continue state, and receive model output."],
             ["/docs/architecture", "Architecture", "Trace the state update loop from input to output."],
           ].map(([href, label, detail]) => (
