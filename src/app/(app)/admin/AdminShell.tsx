@@ -64,9 +64,17 @@ export function AdminShell({
                   {activeTab?.label ?? "Sections"}
                 </span>
               </span>
-              <span aria-hidden="true" className="text-lg text-orange-300">
-                +
-              </span>
+              <svg
+                aria-hidden="true"
+                className="h-5 w-5 text-orange-300"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
             </summary>
             <div className="pt-5 pb-2">
               <AdminNavigation current={current} />

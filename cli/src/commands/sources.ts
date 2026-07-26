@@ -1,17 +1,15 @@
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { piroFetch, resolveConfig } from "../client.js";
-import {
-  errorMessage,
-  repoSummarySchema,
-  sourceSummarySchema,
-} from "../response-schemas.js";
 import { z } from "zod";
-import { getActiveRepoId, getRepoSummary } from "./repos.js";
+import { piroFetch, resolveConfig } from "../client.js";
+import { errorMessage, sourceSummarySchema } from "../response-schemas.js";
 
-const sourcesResponseSchema = z.object({
-  sources: z.array(sourceSummarySchema).optional(),
+const sourceSelectionSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  entrypoint: z.string().nullable(),
+  experiment: z.string().nullable().optional(),
 });
 type SourceSummary = z.infer<typeof sourceSummarySchema>;
 
@@ -32,6 +30,7 @@ async function discoverLocalSources(root: string): Promise<SourceSummary[]> {
     { path: join(root, "sources"), experiment: null },
   ];
   const experimentsRoot = join(root, "experiments");
+
   if (existsSync(experimentsRoot)) {
     for (const experiment of await readdir(experimentsRoot, {
       withFileTypes: true,
@@ -44,6 +43,7 @@ async function discoverLocalSources(root: string): Promise<SourceSummary[]> {
       }
     }
   }
+
   for (const rootEntry of roots) {
     if (!existsSync(rootEntry.path)) continue;
     for (const source of await readdir(rootEntry.path, {
@@ -62,6 +62,7 @@ async function discoverLocalSources(root: string): Promise<SourceSummary[]> {
       });
     }
   }
+
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -73,88 +74,57 @@ function printSource(source: SourceSummary): void {
 }
 
 export async function sourcesList(root = process.cwd()): Promise<void> {
-  const local = await discoverLocalSources(root);
-  const seen = new Set<string>();
-  for (const source of local) {
-    seen.add(source.path);
-    printSource(source);
-  }
-  const config = resolveConfig();
-  const activeRepoId = await getActiveRepoId();
-  if (!activeRepoId) {
-    if (local.length === 0) console.log("No sources found.");
+  const sources = await discoverLocalSources(root);
+  if (sources.length === 0) {
+    console.log("No sources found.");
     return;
   }
-  const repo = await getRepoSummary(config, activeRepoId);
-  const response = await piroFetch(
-    config,
-    `/api/repos/${encodeURIComponent(repo.id)}/sources`,
-  );
-  if (response.ok) {
-    const parsed = sourcesResponseSchema.safeParse(response.body);
-    if (!parsed.success)
-      fail(502, response.body, "source listing response was invalid");
-    for (const source of parsed.data.sources ?? []) {
-      if (!seen.has(source.path))
-        printSource({ ...source, repository: repo.id });
-    }
-  }
-  if (local.length === 0 && !response.ok)
-    fail(response.status, response.body, "source listing failed");
-}
-
-export async function sourcesGet(
-  name: string,
-  root = process.cwd(),
-): Promise<void> {
-  const local = (await discoverLocalSources(root)).find(
-    (source) => source.name === name || source.path === name,
-  );
-  if (local) {
-    console.log(JSON.stringify(local, null, 2));
-    return;
-  }
-  const config = resolveConfig();
-  const repoId = await getActiveRepoId();
-  if (!repoId)
-    fail(
-      400,
-      {
-        error:
-          "source not found locally and no active repository is configured",
-      },
-      "source lookup failed",
-    );
-  const response = await piroFetch(
-    config,
-    `/api/repos/${encodeURIComponent(repoId)}/sources/${encodeURIComponent(name)}`,
-  );
-  if (!response.ok)
-    fail(response.status, response.body, "source lookup failed");
-  console.log(JSON.stringify(response.body, null, 2));
+  for (const source of sources) printSource(source);
 }
 
 export async function sourcesGenerate(
   name: string,
   root = process.cwd(),
 ): Promise<void> {
-  const local = (await discoverLocalSources(root)).find(
-    (source) => source.name === name || source.path === name,
+  const source = (await discoverLocalSources(root)).find(
+    (candidate) => candidate.name === name || candidate.path === name,
   );
-  const config = resolveConfig();
-  const repoId = await getActiveRepoId();
-  if (!repoId)
+  if (!source) {
+    fail(404, { error: `source not found in ${root}` }, "generation failed");
+  }
+  if (!source.entrypoint) {
     fail(
       400,
-      { error: "an active repository is required to generate a dataset" },
+      { error: `source ${source.path} has no supported entrypoint` },
       "generation failed",
     );
-  const sourcePath = local?.path ?? name;
-  const response = await piroFetch(
-    config,
-    `/api/repos/${encodeURIComponent(repoId)}/sources/${encodeURIComponent(sourcePath)}/generate`,
-    { method: "POST" },
-  );
+  }
+
+  const sourceFile = join(root, source.path, source.entrypoint);
+  const sourceCode = await readFile(sourceFile, "utf8");
+  const config = resolveConfig();
+  const response = await piroFetch(config, "/api/sources/generate", {
+    method: "POST",
+    body: JSON.stringify({
+      name: source.name,
+      path: source.path,
+      entrypoint: source.entrypoint,
+      source: sourceCode,
+    }),
+  });
   if (!response.ok) fail(response.status, response.body, "generation failed");
   console.log(JSON.stringify(response.body, null, 2));
+}
+
+export async function sourcesGet(
+  name: string,
+  root = process.cwd(),
+): Promise<void> {
+  const source = (await discoverLocalSources(root)).find(
+    (candidate) => candidate.name === name || candidate.path === name,
+  );
+  if (!source) {
+    fail(404, { error: `source not found in ${root}` }, "source lookup failed");
+  }
+  console.log(JSON.stringify(sourceSelectionSchema.parse(source), null, 2));
 }

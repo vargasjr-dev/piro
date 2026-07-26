@@ -46,7 +46,7 @@ export default async function ProfilePage() {
     <div className="px-6 py-8 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-amber-50 mb-1">Profile</h1>
       <p className="text-amber-400/40 text-sm mb-8">
-        Manage your account, connections, and API keys.
+        Manage your account and API keys.
       </p>
 
       {/* User info */}

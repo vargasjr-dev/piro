@@ -1,1 +1,0 @@
-export const SOURCE_GENERATION_RUN_PAGE_SIZE = 10;
