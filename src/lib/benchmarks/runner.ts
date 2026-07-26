@@ -13,6 +13,7 @@ import { oodGeneralization } from "./ood-generalization";
 import { adaptiveCompute } from "./adaptive-compute";
 import { ashfall } from "./ashfall";
 import { makeGPTAdapter, makePiroModelAdapter } from "./openai";
+import { GEMMA_TARGET, makeGemmaAdapter } from "./gemma";
 
 export const BENCHMARKS: BenchmarkDef[] = [
   sanityCheck,
@@ -25,40 +26,69 @@ async function resolveTargets(
   userId: string,
   targetIds: string[] | null,
 ): Promise<ModelAdapter[]> {
-  const requestedVirtualTargets = (targetIds ?? []).filter((id) => id.startsWith("openai:"));
-  const virtualTargets = requestedVirtualTargets.map((target) =>
-    makeGPTAdapter(target.slice("openai:".length)),
+  const requestedVirtualTargets = (targetIds ?? []).filter(
+    (id) => id.startsWith("openai:") || id === GEMMA_TARGET,
   );
-  const requestedModelIds = targetIds?.filter((id) => !id.startsWith("openai:")) ?? null;
+  const virtualTargets = requestedVirtualTargets.map((target) =>
+    target === GEMMA_TARGET
+      ? makeGemmaAdapter()
+      : makeGPTAdapter(target.slice("openai:".length)),
+  );
+  const requestedModelIds =
+    targetIds?.filter(
+      (id) => !id.startsWith("openai:") && id !== GEMMA_TARGET,
+    ) ?? null;
 
   const models = requestedModelIds
     ? requestedModelIds.length
       ? await db
-          .select({ id: model.id, name: model.name, inferenceEndpoint: model.inferenceEndpoint })
+          .select({
+            id: model.id,
+            name: model.name,
+            inferenceEndpoint: model.inferenceEndpoint,
+          })
           .from(model)
-          .where(and(eq(model.userId, userId), inArray(model.id, requestedModelIds)))
+          .where(
+            and(eq(model.userId, userId), inArray(model.id, requestedModelIds)),
+          )
       : []
     : await db
-        .select({ id: model.id, name: model.name, inferenceEndpoint: model.inferenceEndpoint })
+        .select({
+          id: model.id,
+          name: model.name,
+          inferenceEndpoint: model.inferenceEndpoint,
+        })
         .from(model)
         .where(eq(model.userId, userId));
 
   if (requestedModelIds && models.length !== requestedModelIds.length) {
     const found = new Set(models.map((item) => item.id));
     const missing = requestedModelIds.filter((id) => !found.has(id));
-    throw new Error(`Requested model target is unavailable for this user: ${missing.join(", ")}`);
+    throw new Error(
+      `Requested model target is unavailable for this user: ${missing.join(", ")}`,
+    );
   }
 
   if (models.length === 0) return virtualTargets;
 
   const ids = models.map((item) => item.id);
   const [hostedApis, trainingLinks] = await Promise.all([
-    db.select().from(modelHostedApi).where(inArray(modelHostedApi.modelId, ids)),
-    db.select().from(modelTrainingRun).where(inArray(modelTrainingRun.modelId, ids)),
+    db
+      .select()
+      .from(modelHostedApi)
+      .where(inArray(modelHostedApi.modelId, ids)),
+    db
+      .select()
+      .from(modelTrainingRun)
+      .where(inArray(modelTrainingRun.modelId, ids)),
   ]);
 
-  const hostedById = Object.fromEntries(hostedApis.map((item) => [item.modelId, item]));
-  const trainingById = Object.fromEntries(trainingLinks.map((item) => [item.modelId, item]));
+  const hostedById = Object.fromEntries(
+    hostedApis.map((item) => [item.modelId, item]),
+  );
+  const trainingById = Object.fromEntries(
+    trainingLinks.map((item) => [item.modelId, item]),
+  );
   const modelTargets = models.map((item): ModelAdapter => {
     const hosted = hostedById[item.id];
     if (hosted) {
@@ -102,7 +132,10 @@ export async function runSuite(
   const ranAt = new Date();
 
   try {
-    const targets = await resolveTargets(userId, targetFilter?.length ? targetFilter : null);
+    const targets = await resolveTargets(
+      userId,
+      targetFilter?.length ? targetFilter : null,
+    );
     await Promise.all(
       targets.map(async (target) => {
         for (const benchmark of benchmarks) {
