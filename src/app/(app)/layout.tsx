@@ -1,7 +1,10 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { auth } from "~/lib/auth.server";
-import { getSubscription, isActive } from "~/lib/billing";
+import {
+  getRequestHeaders,
+  getRequestSession,
+  getRequestSubscription,
+} from "~/lib/request-context";
+import { isActive } from "~/lib/billing";
 import { isAdmin } from "~/lib/admin";
 import AppHeader from "./AppHeader";
 
@@ -17,8 +20,8 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const headersList = await getRequestHeaders();
+  const session = await getRequestSession();
 
   if (!session) {
     const nextUrl = headersList.get("next-url") ?? "";
@@ -28,16 +31,16 @@ export default async function AppLayout({
     redirect(`/login${callbackUrl}`);
   }
 
-  const sub = await getSubscription(session.user.id);
   const pathname = headersList.get("x-pathname") ?? "";
-
   const isFree = FREE_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/"),
   );
   const isAdminPath = pathname.startsWith(ADMIN_PATH_PREFIX);
+  const sub = isFree || isAdminPath ? null : await getRequestSubscription();
 
   // Admins bypass the subscription gate entirely — they can use all app
-  // features without paying, and they need access to bootstrap billing.
+  // features without paying, and they need to bootstrap Stripe before any
+  // subscriptions exist.
   if (!isActive(sub) && !isFree && !isAdminPath && !isAdmin(session)) {
     redirect("/upgrade");
   }

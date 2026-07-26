@@ -1,10 +1,12 @@
-import { headers } from "next/headers";
 import Link from "next/link";
-import { auth } from "~/lib/auth.server";
-import { and, desc, eq, isNull, isNotNull, or } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "../../../../data/db";
-import { deployment, model, modelTrainingRun } from "../../../../data/schema";
-import { getSubscription, isActive } from "~/lib/billing";
+import { deployment, model } from "../../../../data/schema";
+import {
+  getRequestSession,
+  getRequestSubscription,
+} from "~/lib/request-context";
+import { isActive } from "~/lib/billing";
 import DeployModelButton, {
   type PretrainedModelOption,
 } from "~/components/DeployModelButton";
@@ -112,79 +114,62 @@ function EmptyState({
 
 export default async function ModelsPage() {
   const pageStarted = performance.now();
-  const requestHeaders = await headers();
-  const session = await timedModelsPhase("auth", () =>
-    auth.api.getSession({ headers: requestHeaders }),
-  );
+  const session = await timedModelsPhase("auth", getRequestSession);
   if (!session) return null;
 
-  const selectFields = {
+  const privateSelectFields = {
     id: model.id,
     name: model.name,
     parameterCount: model.parameterCount,
     createdAt: deployment.createdAt,
   };
+  const globalSelectFields = {
+    ...privateSelectFields,
+    targetUserId: deployment.targetUserId,
+    weightsR2Key: model.weightsR2Key,
+    inferenceEndpoint: model.inferenceEndpoint,
+  };
 
-  const [subscription, privateModels, globalModels, pretrainedModels] =
-    await Promise.all([
-      timedModelsPhase("subscription", () => getSubscription(session.user.id)),
-      timedModelsPhase("private-models-query", () =>
-        db
-          .select(selectFields)
-          .from(deployment)
-          .innerJoin(model, eq(deployment.modelId, model.id))
-          .where(
-            and(
-              eq(deployment.createdByUserId, session.user.id),
-              eq(deployment.isAdmin, false),
-              eq(deployment.enabled, true),
-              isNull(model.archivedAt),
-            ),
-          )
-          .orderBy(desc(deployment.createdAt)),
-      ),
-      timedModelsPhase("global-models-query", () =>
-        db
-          .select(selectFields)
-          .from(deployment)
-          .innerJoin(model, eq(deployment.modelId, model.id))
-          .where(
-            and(
-              eq(deployment.isAdmin, true),
-              eq(deployment.enabled, true),
-              or(
-                isNull(deployment.targetUserId),
-                eq(deployment.targetUserId, session.user.id),
-              ),
-              isNull(model.archivedAt),
-            ),
-          )
-          .orderBy(desc(deployment.createdAt)),
-      ),
-      timedModelsPhase("pretrained-models-query", () =>
-        db
-          .select({
-            id: model.id,
-            name: model.name,
-          })
-          .from(deployment)
-          .innerJoin(model, eq(deployment.modelId, model.id))
-          .innerJoin(modelTrainingRun, eq(modelTrainingRun.modelId, model.id))
-          .where(
-            and(
-              eq(deployment.isAdmin, true),
-              eq(deployment.enabled, true),
+  const [privateModels, globalModels] = await Promise.all([
+    timedModelsPhase("private-deployments-query", () =>
+      db
+        .select(privateSelectFields)
+        .from(deployment)
+        .innerJoin(model, eq(deployment.modelId, model.id))
+        .where(
+          and(
+            eq(deployment.createdByUserId, session.user.id),
+            eq(deployment.isAdmin, false),
+            eq(deployment.enabled, true),
+            isNull(model.archivedAt),
+          ),
+        )
+        .orderBy(desc(deployment.createdAt)),
+    ),
+    timedModelsPhase("global-deployments-query", () =>
+      db
+        .select(globalSelectFields)
+        .from(deployment)
+        .innerJoin(model, eq(deployment.modelId, model.id))
+        .where(
+          and(
+            eq(deployment.isAdmin, true),
+            eq(deployment.enabled, true),
+            or(
               isNull(deployment.targetUserId),
-              isNull(model.archivedAt),
-              isNotNull(model.weightsR2Key),
-              isNotNull(model.inferenceEndpoint),
+              eq(deployment.targetUserId, session.user.id),
             ),
-          )
-          .orderBy(desc(deployment.createdAt))
-          .limit(3),
-      ),
-    ]);
+            isNull(model.archivedAt),
+          ),
+        )
+        .orderBy(desc(deployment.createdAt)),
+    ),
+  ]);
 
+  const subscription =
+    privateModels.length === 0
+      ? await timedModelsPhase("subscription", getRequestSubscription)
+      : null;
   const totalMs = Math.round(performance.now() - pageStarted);
   console.info(
     "[models-load]",
@@ -194,17 +179,26 @@ export default async function ModelsPage() {
       durationMs: totalMs,
       privateCount: privateModels.length,
       globalCount: globalModels.length,
-      pretrainedCount: pretrainedModels.length,
     }),
   );
 
   const isSubscribed = isActive(subscription);
   const toRows = (rows: typeof privateModels): ModelRow[] =>
     rows.map((item) => ({
-      ...item,
+      id: item.id,
+      name: item.name,
+      parameterCount: item.parameterCount,
       createdAt: item.createdAt.toISOString(),
     }));
-  const pretrainedModelOptions: PretrainedModelOption[] = pretrainedModels;
+  const pretrainedModelOptions: PretrainedModelOption[] = globalModels
+    .filter(
+      (item) =>
+        item.targetUserId === null &&
+        item.weightsR2Key &&
+        item.inferenceEndpoint,
+    )
+    .slice(0, 3)
+    .map(({ id, name }) => ({ id, name }));
 
   return (
     <div className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
