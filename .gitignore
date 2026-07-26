@@ -20,7 +20,6 @@ dist/
 # Keep uv.lock committed (reproducible installs)
 # Keep pyproject.toml, *.py, README.md tracked
 # Benchmark result snapshots (generated — keep only .gitkeep)
-benchmarks/results/*.json
 node_modules
 .piro/
 .vercel

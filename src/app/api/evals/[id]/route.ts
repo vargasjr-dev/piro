@@ -47,6 +47,7 @@ export async function GET(
 
   return Response.json({
     id: suite.id,
+    datasetId: suite.datasetId,
     status: suite.status,
     benchmarks: parseJson(suite.benchmarks),
     targets: parseJson(suite.targets),
@@ -59,6 +60,7 @@ export async function GET(
         unknown
       > | null;
       return {
+        datasetId: result.datasetId,
         benchmarkName: result.benchmarkName,
         target: result.target,
         modelName: metadata?.modelName ?? result.target,

@@ -5,6 +5,7 @@ import { auth } from "~/lib/auth.server";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
 import { db } from "../../../../../data/db";
 import { dataset, generationRun } from "../../../../../data/schema";
+import { evaluationConfigForSource } from "~/lib/datasets/evaluation-config";
 
 const ENTRYPOINTS = new Set(["main.py", "model.py", "script.py"]);
 const MAX_SOURCE_BYTES = 512 * 1024;
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
     .replace(/^\/+|\/+$/g, "")
     .replace(/[^a-zA-Z0-9._-]+/g, "-");
   const r2Prefix = `users/${userId}/datasets/${sourceKey}`;
+  const evaluationConfig = evaluationConfigForSource(sourcePath);
 
   const [existingDataset] = await db
     .select({ id: dataset.id })
@@ -63,7 +65,12 @@ export async function POST(request: Request) {
   if (existingDataset) {
     await db
       .update(dataset)
-      .set({ updatedAt: new Date() })
+      .set({
+        evaluationConfig: evaluationConfig
+          ? JSON.stringify(evaluationConfig)
+          : null,
+        updatedAt: new Date(),
+      })
       .where(eq(dataset.id, datasetId));
   } else {
     await db.insert(dataset).values({
@@ -72,6 +79,9 @@ export async function POST(request: Request) {
       name,
       sourcePath,
       r2Prefix,
+      evaluationConfig: evaluationConfig
+        ? JSON.stringify(evaluationConfig)
+        : null,
     });
   }
 

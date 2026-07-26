@@ -5,33 +5,104 @@ on:
     branches: [main]
     paths:
       - "architectures/**"
-      - "benchmarks/**"
       - "sources/**"
-      - "platform/**"
+      - "platform/modal/**"
       - "pyproject.toml"
       - ".github/workflows/modal-deploy.yml"
   workflow_dispatch:
 
 jobs:
-  deploy:
-    name: Deploy to Modal
+  changes:
+    name: Detect changed Modal apps
+    runs-on: ubuntu-latest
+    outputs:
+      training: ${{ steps.filter.outputs.training }}
+      inference: ${{ steps.filter.outputs.inference }}
+      source: ${{ steps.filter.outputs.source }}
+      gemma: ${{ steps.filter.outputs.gemma }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            training:
+              - 'platform/modal/training.py'
+              - 'platform/modal/_common.py'
+              - 'architectures/**'
+              - 'sources/**'
+              - 'pyproject.toml'
+              - '.github/workflows/modal-deploy.yml'
+            inference:
+              - 'platform/modal/inference.py'
+              - 'platform/modal/_common.py'
+              - 'architectures/**'
+              - 'pyproject.toml'
+              - '.github/workflows/modal-deploy.yml'
+            source:
+              - 'platform/modal/source.py'
+              - 'platform/modal/_common.py'
+              - 'sources/**'
+              - 'pyproject.toml'
+              - '.github/workflows/modal-deploy.yml'
+            gemma:
+              - 'platform/modal/gemma.py'
+              - 'platform/modal/_common.py'
+              - 'pyproject.toml'
+              - '.github/workflows/modal-deploy.yml'
+
+  deploy-training:
+    name: Deploy training app
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.training == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv tool install modal
+      - run: modal deploy platform/modal/training.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+  deploy-inference:
+    name: Deploy inference app
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.inference == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv tool install modal
+      - run: modal deploy platform/modal/inference.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
 
-      - name: Install modal
-        run: uv tool install modal
+  deploy-source:
+    name: Deploy source app
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv tool install modal
+      - run: modal deploy platform/modal/source.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
 
-      - name: Deploy independent Modal Apps
-        run: |
-          modal deploy platform/modal/training.py
-          modal deploy platform/modal/inference.py
-          modal deploy platform/modal/source.py
-          modal deploy platform/modal/gemma.py
+  deploy-gemma:
+    name: Deploy Gemma app
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.gemma == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv tool install modal
+      - run: modal deploy platform/modal/gemma.py
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}

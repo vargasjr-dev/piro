@@ -8,10 +8,10 @@ export interface ChatTargetConfig {
   apiKeyEnvVar?: string;
   pricing?: TokenPricing;
   tokenAccounting: TokenAccounting;
+  costAccounting: "token_pricing" | "modal_runtime" | "not_applicable";
 }
 
 const GEMMA_MODAL_ENDPOINT =
-  process.env.GEMMA_MODAL_ENDPOINT ??
   "https://dvargasfuertes--piro-gemma-vllm-server.modal.run/v1";
 
 /** Explicitly configured external benchmark targets. */
@@ -24,6 +24,7 @@ export const BENCHMARK_TARGETS: Record<string, ChatTargetConfig> = {
     apiKeyEnvVar: "OPENAI_API_KEY",
     pricing: { inputPerMillion: 0.15, outputPerMillion: 0.6 },
     tokenAccounting: "provider_usage",
+    costAccounting: "token_pricing",
   },
   "openai:gpt-4o": {
     targetKey: "openai:gpt-4o",
@@ -33,6 +34,7 @@ export const BENCHMARK_TARGETS: Record<string, ChatTargetConfig> = {
     apiKeyEnvVar: "OPENAI_API_KEY",
     pricing: { inputPerMillion: 2.5, outputPerMillion: 10 },
     tokenAccounting: "provider_usage",
+    costAccounting: "token_pricing",
   },
   "openai:gpt-5-nano": {
     targetKey: "openai:gpt-5-nano",
@@ -42,6 +44,7 @@ export const BENCHMARK_TARGETS: Record<string, ChatTargetConfig> = {
     apiKeyEnvVar: "OPENAI_API_KEY",
     pricing: { inputPerMillion: 0.05, outputPerMillion: 0.4 },
     tokenAccounting: "provider_usage",
+    costAccounting: "token_pricing",
   },
   "gemma:google/gemma-3-270m": {
     targetKey: "gemma:google/gemma-3-270m",
@@ -49,7 +52,8 @@ export const BENCHMARK_TARGETS: Record<string, ChatTargetConfig> = {
     endpoint: GEMMA_MODAL_ENDPOINT,
     apiModelName: "google/gemma-3-270m",
     pricing: undefined,
-    tokenAccounting: "provider_usage",
+    tokenAccounting: "not_applicable",
+    costAccounting: "modal_runtime",
   },
 };
 
@@ -57,10 +61,4 @@ export function getBenchmarkTarget(
   targetKey: string,
 ): ChatTargetConfig | undefined {
   return BENCHMARK_TARGETS[targetKey];
-}
-
-export function getHostedTargetConfig(
-  config: ChatTargetConfig,
-): ChatTargetConfig {
-  return config;
 }

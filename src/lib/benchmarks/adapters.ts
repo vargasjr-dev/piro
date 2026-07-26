@@ -1,4 +1,4 @@
-import type { GenerateResult, ModelAdapter } from "./types";
+import type { GenerateResult, ModelAdapter, SequenceOptions } from "./types";
 import type { ChatTargetConfig } from "./targets";
 
 interface ChatMessage {
@@ -64,11 +64,9 @@ async function chatCompletion(
     inputTokens: data.usage?.prompt_tokens ?? 0,
     outputTokens: data.usage?.completion_tokens ?? 0,
     tokenAccounting: config.tokenAccounting,
+    costAccounting: config.costAccounting,
   };
 }
-
-const SEQUENCE_SYSTEM_PROMPT =
-  "You receive one associative-memory observation per invocation. Maintain facts across invocations. For writes and distractors, reply only ACK. When the user message is a key_NNN query, reply only the exact value_NNN associated with that key. Do not explain.";
 
 export function makeChatAdapter(config: ChatTargetConfig): ModelAdapter {
   return {
@@ -76,19 +74,23 @@ export function makeChatAdapter(config: ChatTargetConfig): ModelAdapter {
     targetKey: config.targetKey,
     pricing: config.pricing,
     tokenAccounting: config.tokenAccounting,
+    costAccounting: config.costAccounting,
     async generate(prompt: string): Promise<GenerateResult> {
       return chatCompletion(config, [{ role: "user", content: prompt }]);
     },
-    async generateSequence(inputs: string[]): Promise<GenerateResult> {
+    async generateSequence(
+      inputs: string[],
+      options?: SequenceOptions,
+    ): Promise<GenerateResult> {
       if (inputs.length < 2) {
         throw new Error(
-          "Associative Recall evaluation requires at least two inputs",
+          "Ordered sequence evaluation requires at least two inputs",
         );
       }
 
-      const messages: ChatMessage[] = [
-        { role: "system", content: SEQUENCE_SYSTEM_PROMPT },
-      ];
+      const messages: ChatMessage[] = options?.systemPrompt
+        ? [{ role: "system", content: options.systemPrompt }]
+        : [];
       let finalResult: GenerateResult | null = null;
       let inputTokens = 0;
       let outputTokens = 0;
@@ -105,6 +107,7 @@ export function makeChatAdapter(config: ChatTargetConfig): ModelAdapter {
         inputTokens,
         outputTokens,
         tokenAccounting: config.tokenAccounting,
+        costAccounting: config.costAccounting,
       };
     },
   };
@@ -122,6 +125,7 @@ export function makeGPTAdapter(modelName: string): ModelAdapter {
         ? { inputPerMillion: 0.05, outputPerMillion: 0.4 }
         : undefined,
     tokenAccounting: "provider_usage",
+    costAccounting: "token_pricing",
   });
 }
 
@@ -151,6 +155,7 @@ export function makePiroModelAdapter(
     name: modelName,
     targetKey: modelId,
     tokenAccounting: "not_applicable",
+    costAccounting: "not_applicable",
     async generate(prompt: string): Promise<GenerateResult> {
       const response = await requestModal({
         modelId,
@@ -164,10 +169,13 @@ export function makePiroModelAdapter(
         tokenAccounting: "not_applicable",
       };
     },
-    async generateSequence(inputs: string[]): Promise<GenerateResult> {
+    async generateSequence(
+      inputs: string[],
+      _options?: SequenceOptions,
+    ): Promise<GenerateResult> {
       if (inputs.length < 2) {
         throw new Error(
-          "Associative Recall evaluation requires at least two inputs",
+          "Ordered sequence evaluation requires at least two inputs",
         );
       }
 
@@ -193,6 +201,7 @@ export function makePiroModelAdapter(
           inputTokens: result.inputTokens,
           outputTokens: result.outputTokens,
           tokenAccounting: "not_applicable",
+          costAccounting: "not_applicable",
         };
       }
       return result;

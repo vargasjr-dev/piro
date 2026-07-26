@@ -3,24 +3,23 @@ import { db } from "../../../data/db";
 import {
   benchmarkRun,
   benchmarkSuiteRun,
+  dataset,
   model,
   modelHostedApi,
   modelTrainingRun,
 } from "../../../data/schema";
-import type { BenchmarkContext, BenchmarkDef, ModelAdapter } from "./types";
-import { sanityCheck } from "./sanity-check";
-import { oodGeneralization } from "./ood-generalization";
-import { adaptiveCompute } from "./adaptive-compute";
+import {
+  parseDatasetEvaluationConfig,
+  type DatasetEvaluationConfig,
+} from "../datasets/evaluation-config";
 import { associativeRecall } from "./associative-recall";
 import { makeChatAdapter, makePiroModelAdapter } from "./adapters";
-import { getBenchmarkTarget, getHostedTargetConfig } from "./targets";
+import { getBenchmarkTarget } from "./targets";
+import type { BenchmarkDef, ModelAdapter } from "./types";
 
-export const BENCHMARKS: BenchmarkDef[] = [
-  sanityCheck,
-  oodGeneralization,
-  adaptiveCompute,
-  associativeRecall,
-];
+const EVALUATORS: Record<DatasetEvaluationConfig["evaluator"], BenchmarkDef> = {
+  associative_recall: associativeRecall,
+};
 
 async function resolveTargets(
   userId: string,
@@ -77,26 +76,27 @@ async function resolveTargets(
   const modelTargets = models.map((item): ModelAdapter => {
     const hosted = hostedById[item.id];
     if (hosted) {
-      const config = getHostedTargetConfig({
+      const inputPrice = hosted.inputPricePerMillion;
+      const outputPrice = hosted.outputPricePerMillion;
+      const hasTokenPricing = inputPrice !== null && outputPrice !== null;
+      return makeChatAdapter({
         targetKey: item.id,
         name: item.name,
         endpoint: hosted.endpoint,
         apiModelName: hosted.apiModelName,
         apiKeyEnvVar: hosted.apiKeyEnvVar ?? undefined,
-        pricing:
-          hosted.inputPricePerMillion === null ||
-          hosted.outputPricePerMillion === null
-            ? undefined
-            : {
-                inputPerMillion: hosted.inputPricePerMillion,
-                outputPerMillion: hosted.outputPricePerMillion,
-              },
+        pricing: hasTokenPricing
+          ? {
+              inputPerMillion: inputPrice,
+              outputPerMillion: outputPrice,
+            }
+          : undefined,
         tokenAccounting:
           hosted.tokenAccounting === "not_applicable"
             ? "not_applicable"
             : "provider_usage",
+        costAccounting: hasTokenPricing ? "token_pricing" : "not_applicable",
       });
-      return makeChatAdapter(config);
     }
     if (trainingById[item.id]) {
       if (!item.inferenceEndpoint) {
@@ -122,55 +122,86 @@ async function resolveTargets(
   return [...modelTargets, ...virtualTargets];
 }
 
-export async function runSuite(
+export async function runEvaluation(
   suiteRunId: string,
   userId: string,
-  benchmarkFilter: string[] | null,
-  targetFilter: string[] | null,
-  context?: BenchmarkContext,
+  datasetId: string,
+  targetFilter: string[],
+  episodes?: number,
 ): Promise<void> {
-  const benchmarks = benchmarkFilter?.length
-    ? BENCHMARKS.filter((benchmark) => benchmarkFilter.includes(benchmark.name))
-    : BENCHMARKS;
   const ranAt = new Date();
 
   try {
-    if (!targetFilter?.length) {
-      throw new Error("Evaluation targets are required");
+    if (!targetFilter.length) throw new Error("Evaluation targets are required");
+
+    const [datasetRow] = await db
+      .select()
+      .from(dataset)
+      .where(and(eq(dataset.id, datasetId), eq(dataset.userId, userId)))
+      .limit(1);
+    if (!datasetRow) throw new Error("Evaluation dataset is unavailable");
+
+    const evaluationConfig = parseDatasetEvaluationConfig(
+      datasetRow.evaluationConfig,
+    );
+    if (!evaluationConfig) {
+      throw new Error(
+        `Dataset ${datasetRow.name} does not define a supported evaluation protocol`,
+      );
     }
+    const evaluator = EVALUATORS[evaluationConfig.evaluator];
+    if (!evaluator) {
+      throw new Error(
+        `No evaluator is registered for ${evaluationConfig.evaluator}`,
+      );
+    }
+
     const targets = await resolveTargets(userId, targetFilter);
     await Promise.all(
       targets.map(async (target) => {
-        for (const benchmark of benchmarks) {
-          let result;
-          try {
-            result = await benchmark.run(target, context);
-          } catch (error) {
-            result = {
-              score: 0,
-              costUsd: 0,
-              durationMs: 0,
-              metadata: {
-                error: String(error),
-                modelName: target.name,
-                targetKey: target.targetKey ?? target.name,
-              },
-            };
-          }
-
-          await db.insert(benchmarkRun).values({
-            id: crypto.randomUUID(),
-            userId,
-            suiteRunId,
-            benchmarkName: benchmark.name,
-            target: target.targetKey ?? target.name,
-            score: result.score,
-            costUsd: result.costUsd,
-            durationMs: result.durationMs,
-            metadata: JSON.stringify(result.metadata),
-            ranAt,
+        let result;
+        try {
+          result = await evaluator.run(target, {
+            datasetR2Prefix: datasetRow.r2Prefix,
+            evaluationConfig,
+            episodes,
           });
+        } catch (error) {
+          result = {
+            score: 0,
+            costUsd: null,
+            durationMs: 0,
+            metadata: {
+              error: String(error),
+              datasetId,
+              datasetName: datasetRow.name,
+              evaluator: evaluationConfig.evaluator,
+              modelName: target.name,
+              targetKey: target.targetKey ?? target.name,
+              costAccounting: target.costAccounting ?? "unknown",
+            },
+          };
         }
+
+        await db.insert(benchmarkRun).values({
+          id: crypto.randomUUID(),
+          userId,
+          suiteRunId,
+          datasetId,
+          benchmarkName: evaluationConfig.evaluator,
+          target: target.targetKey ?? target.name,
+          score: result.score,
+          costUsd: result.costUsd,
+          durationMs: result.durationMs,
+          metadata: JSON.stringify({
+            datasetId,
+            datasetName: datasetRow.name,
+            evaluator: evaluationConfig.evaluator,
+            costAccounting: target.costAccounting ?? "unknown",
+            ...result.metadata,
+          }),
+          ranAt,
+        });
       }),
     );
 

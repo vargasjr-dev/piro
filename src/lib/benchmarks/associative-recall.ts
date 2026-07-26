@@ -77,7 +77,8 @@ async function loadEpisodes(
   // The Modal trainer uses the first 80% for training and the remaining 20%
   // for validation. Evaluate the same holdout so the comparison is not trained
   // on the exact examples it scores.
-  const validationStart = Math.floor(episodes.length * 0.8);
+  const holdoutFraction = context.evaluationConfig.holdoutFraction;
+  const validationStart = Math.floor(episodes.length * (1 - holdoutFraction));
   const validationEpisodes = episodes.slice(validationStart);
   const limit = Math.max(
     1,
@@ -97,6 +98,7 @@ export const associativeRecall: BenchmarkDef = {
     model: ModelAdapter,
     context?: BenchmarkContext,
   ): Promise<BenchmarkResult> {
+    if (!context) throw new Error("Dataset evaluation context is required");
     const episodes = await loadEpisodes(context);
     if (!model.generateSequence)
       throw new Error(
@@ -117,7 +119,9 @@ export const associativeRecall: BenchmarkDef = {
       const batch = episodes.slice(offset, offset + concurrency);
       const results = await Promise.all(
         batch.map(async (episode) => {
-          const result = await model.generateSequence!(episode.inputs);
+          const result = await model.generateSequence!(episode.inputs, {
+            systemPrompt: context.evaluationConfig.systemPrompt,
+          });
           return { episode, result };
         }),
       );
@@ -149,8 +153,10 @@ export const associativeRecall: BenchmarkDef = {
         outputTokens,
         tokenAccounting: model.tokenAccounting ?? "not_applicable",
         failures,
-        protocol:
-          "one separate sequential invocation per ordered input; validation holdout; exact value_NNN match",
+        protocol: context.evaluationConfig.protocol,
+        inputFormat: context.evaluationConfig.inputFormat,
+        systemPrompt: context.evaluationConfig.systemPrompt,
+        holdoutFraction: context.evaluationConfig.holdoutFraction,
         requestCount,
         requestCountPerEpisode: episodes.length
           ? requestCount / episodes.length

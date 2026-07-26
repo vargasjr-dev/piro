@@ -25,7 +25,7 @@ test("GPT Associative Recall sequence uses one request per input and aggregates 
       "token_005_027",
       "token_011_003",
       "key_017",
-    ]);
+    ], { systemPrompt: "dataset-owned protocol" });
 
     assert.equal(requests.length, 4);
     assert.deepEqual(
@@ -40,6 +40,7 @@ test("GPT Associative Recall sequence uses one request per input and aggregates 
       requests.map((request) => request.messages.length),
       [2, 4, 6, 8],
     );
+    assert.equal(requests[0].messages[0].content, "dataset-owned protocol");
     assert.equal(result.text, "ACK");
     assert.equal(result.inputTokens, 100);
     assert.equal(result.outputTokens, 8);

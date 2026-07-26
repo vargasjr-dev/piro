@@ -1,6 +1,7 @@
 // ── Core types shared across all benchmarks ───────────────────────────────────
 
 export type TokenAccounting = "provider_usage" | "not_applicable";
+export type CostAccounting = "token_pricing" | "modal_runtime" | "not_applicable";
 
 export interface TokenPricing {
   inputPerMillion: number;
@@ -12,12 +13,13 @@ export interface GenerateResult {
   inputTokens: number;
   outputTokens: number;
   tokenAccounting?: TokenAccounting;
+  costAccounting?: CostAccounting;
 }
 
 export interface BenchmarkResult {
   score: number; // 0.0 → 1.0
   durationMs: number;
-  costUsd: number; // total $ spent on API calls for this benchmark × target
+  costUsd: number | null; // null when the provider bills outside the request
   metadata: Record<string, unknown>;
 }
 
@@ -30,15 +32,22 @@ export interface ModelAdapter {
   /** Provider/model configuration used for accounting and diagnostics. */
   pricing?: TokenPricing;
   tokenAccounting?: TokenAccounting;
+  costAccounting?: CostAccounting;
   /** true = not a real model, results are noise */
   isStub?: boolean;
   generate(prompt: string): Promise<GenerateResult>;
   /** Generate one response per ordered invocation, preserving each boundary. */
-  generateSequence?(inputs: string[]): Promise<GenerateResult>;
+  generateSequence?(inputs: string[], options?: SequenceOptions): Promise<GenerateResult>;
 }
 
+export interface SequenceOptions {
+  systemPrompt?: string;
+}
+
+
 export interface BenchmarkContext {
-  datasetR2Prefix?: string;
+  datasetR2Prefix: string;
+  evaluationConfig: import("../datasets/evaluation-config").DatasetEvaluationConfig;
   episodes?: number;
 }
 
