@@ -50,45 +50,11 @@ export const user = pgTable("user", {
   image: text("image"),
   /** "user" (default) | "admin" — admins use Stripe test mode for billing flows. */
   role: text("role").notNull().default("user"),
-  /** URL-friendly handle, unique across all users. Used in routes like /repos/{username}/{slug}. */
+  /** Public profile handle for the user. */
   username: text("username").unique(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
-
-/**
- * A repository — the root unit of model development in Piro.
- *
- * A Piro workspace holds the components of a research line: data sources,
- * architectures, benchmarks, training configs, runs, and models.
- *
- * R2 prefix: repos/{id}/
- *   repos/{id}/data/{sourceId}/script.py
- *   repos/{id}/architectures/{classId}/model.py
- *   repos/{id}/benchmarks/{benchmarkId}/script.py
- *   repos/{id}/training/
- *   repos/{id}/runs/
- *   repos/{id}/models/
- */
-export const repository = pgTable(
-  "repository",
-  {
-    id: text("id").primaryKey(),
-    userId: text("userId")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    slug: text("slug").notNull(), // URL-friendly id, unique per user
-    description: text("description"),
-    r2Prefix: text("r2Prefix"), // repos/{id}/
-    createdAt: timestamp("createdAt").notNull().defaultNow(),
-    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
-  },
-  (t) => [
-    index("repo_user_created").on(t.userId, t.createdAt),
-    unique("repo_user_slug").on(t.userId, t.slug),
-  ],
-);
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
@@ -220,21 +186,18 @@ export const dataset = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    repositoryId: text("repositoryId")
-      .notNull()
-      .references(() => repository.id, { onDelete: "cascade" }),
     /** Display name — derived from the source directory (e.g. "associative-recall"). */
     name: text("name").notNull(),
     /** Path in the workspace to the source script (e.g. "sources/associative-recall/main.py"). */
     sourcePath: text("sourcePath").notNull(),
-    /** R2 prefix for generated data (e.g. "repos/{repoId}/datasets/{name}/"). */
+    /** R2 prefix for generated data (e.g. "users/{userId}/datasets/{name}/"). */
     r2Prefix: text("r2Prefix").notNull(),
     sampleCount: integer("sampleCount"),
     generatedAt: timestamp("generatedAt"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
-  (t) => [index("ds_repo_created").on(t.repositoryId, t.createdAt)],
+  (t) => [index("ds_user_created").on(t.userId, t.createdAt)],
 );
 
 /**
@@ -248,9 +211,6 @@ export const generationRun = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    repositoryId: text("repositoryId")
-      .notNull()
-      .references(() => repository.id, { onDelete: "cascade" }),
     datasetId: text("datasetId").references(() => dataset.id, {
       onDelete: "set null",
     }),
@@ -265,8 +225,7 @@ export const generationRun = pgTable(
     completedAt: timestamp("completedAt"),
   },
   (t) => [
-    index("gr_repo_source_queued").on(t.repositoryId, t.sourcePath, t.queuedAt),
-    index("gr_user_queued").on(t.userId, t.queuedAt),
+    index("gr_user_source_queued").on(t.userId, t.sourcePath, t.queuedAt),
   ],
 );
 
@@ -282,7 +241,6 @@ export const trainingRun = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    repositoryId: text("repositoryId"),
     modelName: text("modelName"),
     /** Path in the workspace to the architecture (e.g. "architectures/ashfall/ctm.py"). */
     architecturePath: text("architecturePath").notNull(),

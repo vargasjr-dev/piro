@@ -11,7 +11,6 @@ function makeRun(overrides: Partial<TrainingRun> = {}): TrainingRun {
   return {
     id: "run-1",
     userId: "user-1",
-    repositoryId: null,
     modelName: "test-model",
     architecturePath: "architectures/test",
     datasetId: null,
