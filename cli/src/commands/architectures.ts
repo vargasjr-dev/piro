@@ -7,9 +7,9 @@ function fail(status: number, body: unknown, fallback: string): never {
 }
 
 /**
- * Normalize the user-facing architecture name into the repository path stored
- * on a training run. Bare names use the repository convention; full paths are
- * preserved so experiment-scoped architectures remain addressable.
+ * Normalize the user-facing architecture name into the path stored on a
+ * training run. Bare names use the standard architecture convention; full paths
+ * are preserved so experiment-scoped architectures remain addressable.
  */
 export function architecturePath(name: string): string {
   const trimmed = name.trim().replace(/^\/+|\/+$/g, "");

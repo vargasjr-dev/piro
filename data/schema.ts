@@ -59,12 +59,9 @@ export const user = pgTable("user", {
 /**
  * A repository — the root unit of model development in Piro.
  *
- * Like a GitHub repo, a Piro repo is a self-contained workspace that holds
- * all the components of a research line: data sources, architectures,
- * benchmarks, training configs, runs, and models. Everything co-evolves
- * within a repo and is version-controlled together.
+ * A Piro workspace holds the components of a research line: data sources,
+ * architectures, benchmarks, training configs, runs, and models.
  *
- * githubOwner/githubRepository identify the external source-of-truth repository.
  * R2 prefix: repos/{id}/
  *   repos/{id}/data/{sourceId}/script.py
  *   repos/{id}/architectures/{classId}/model.py
@@ -83,8 +80,6 @@ export const repository = pgTable(
     name: text("name").notNull(),
     slug: text("slug").notNull(), // URL-friendly id, unique per user
     description: text("description"),
-    githubOwner: text("githubOwner"),
-    githubRepository: text("githubRepository"),
     r2Prefix: text("r2Prefix"), // repos/{id}/
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
@@ -209,15 +204,14 @@ export const benchmarkSuiteRun = pgTable(
 );
 
 /**
- * A generated dataset — the output of running a source script from the
- * connected GitHub repo.
+ * A generated dataset — the output of running a source script in a Piro
+ * workspace.
  *
- * The source script lives at `sourcePath` in the repo (convention:
+ * The source script lives at `sourcePath` in the workspace (convention:
  * `sources/<name>/main.py`). When the user triggers generation, the platform
  * runs the script and stores the output in R2 under `r2Prefix`.
  *
- * This is one of Piro's platform advantages over a plain GitHub repo:
- * we manage dataset generation and storage for you.
+ * Piro manages dataset generation and storage for you.
  */
 export const dataset = pgTable(
   "dataset",
@@ -231,7 +225,7 @@ export const dataset = pgTable(
       .references(() => repository.id, { onDelete: "cascade" }),
     /** Display name — derived from the source directory (e.g. "associative-recall"). */
     name: text("name").notNull(),
-    /** Path in the repo to the source script (e.g. "sources/associative-recall/main.py"). */
+    /** Path in the workspace to the source script (e.g. "sources/associative-recall/main.py"). */
     sourcePath: text("sourcePath").notNull(),
     /** R2 prefix for generated data (e.g. "repos/{repoId}/datasets/{name}/"). */
     r2Prefix: text("r2Prefix").notNull(),
@@ -290,7 +284,7 @@ export const trainingRun = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     repositoryId: text("repositoryId"),
     modelName: text("modelName"),
-    /** Path in the repo to the architecture (e.g. "architectures/ashfall/ctm.py"). */
+    /** Path in the workspace to the architecture (e.g. "architectures/ashfall/ctm.py"). */
     architecturePath: text("architecturePath").notNull(),
     /** FK → dataset.id (which generated dataset to train on). */
     datasetId: text("datasetId").references(() => dataset.id, {

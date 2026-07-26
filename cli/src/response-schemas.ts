@@ -16,25 +16,6 @@ export const datasetSummarySchema = z.object({
   createdAt: z.string(),
 });
 
-export const repoSummarySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  slug: z.string(),
-  description: z.string().nullable(),
-  ownerUsername: z.string().nullable(),
-  githubOwner: z.string().nullable(),
-  githubRepository: z.string().nullable(),
-  createdAt: z.string(),
-});
-
-export const sourceSummarySchema = z.object({
-  name: z.string(),
-  path: z.string(),
-  entrypoint: z.string().nullable(),
-  repository: z.string().optional(),
-  experiment: z.string().nullable().optional(),
-});
-
 export const evaluationResultSchema = z
   .object({
     target: z.string(),

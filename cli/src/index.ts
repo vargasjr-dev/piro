@@ -10,18 +10,7 @@
  *   PIRO_BASE_URL=<url> (optional, defaults to https://trainpiro.app)
  */
 
-import {
-  reposList,
-  reposCreate,
-  reposLink,
-  reposUse,
-} from "./commands/repos.js";
-import {
-  sourcesList,
-  sourcesGet,
-  sourcesGenerate,
-} from "./commands/sources.js";
-import { datasetHead, datasetsList, datasetsGet } from "./commands/datasets.js";
+import { datasetHead, datasetsGet } from "./commands/datasets.js";
 import { architectureTrain } from "./commands/architectures.js";
 import { benchmarksEval } from "./commands/benchmarks.js";
 import { evalsGet, evalsList } from "./commands/evals.js";
@@ -33,10 +22,6 @@ import {
 import { modelsDeploy } from "./commands/models.js";
 
 const [, , subject, verb, ...rest] = process.argv;
-
-function flag(args: string[], name: string): boolean {
-  return args.includes(`--${name}`);
-}
 
 function arg(args: string[], pos: number): string | undefined {
   return args.filter((a) => !a.startsWith("--"))[pos];
@@ -52,10 +37,6 @@ function opt(args: string[], name: string): string | undefined {
 function usage(msg?: string): never {
   if (msg) console.error(`Error: ${msg}\n`);
   console.error("Usage:");
-  console.error("  piro sources list");
-  console.error("  piro sources get <name>");
-  console.error("  piro sources generate <name>");
-  console.error("  piro datasets list");
   console.error("  piro datasets get <id>");
   console.error("  piro dataset head <id>");
   console.error(
@@ -76,28 +57,6 @@ function usage(msg?: string): never {
 if (!subject || !verb) usage();
 
 switch (subject) {
-  case "sources":
-    switch (verb) {
-      case "list":
-        await sourcesList();
-        break;
-      case "get": {
-        const name = arg(rest, 0);
-        if (!name) usage("source name is required");
-        await sourcesGet(name);
-        break;
-      }
-      case "generate": {
-        const name = arg(rest, 0);
-        if (!name) usage("source name is required");
-        await sourcesGenerate(name);
-        break;
-      }
-      default:
-        usage(`unknown sources verb: ${verb}`);
-    }
-    break;
-
   case "dataset":
     switch (verb) {
       case "head": {
@@ -113,9 +72,6 @@ switch (subject) {
 
   case "datasets":
     switch (verb) {
-      case "list":
-        await datasetsList();
-        break;
       case "get": {
         const id = arg(rest, 0);
         if (!id) usage("dataset id is required");
@@ -208,48 +164,6 @@ switch (subject) {
       }
       default:
         usage(`unknown architecture verb: ${verb}`);
-    }
-    break;
-
-  case "repos":
-  case "repositories":
-    switch (verb) {
-      case "list": {
-        await reposList();
-        break;
-      }
-      case "create": {
-        const id = arg(rest, 0);
-        if (!id) usage("repo id is required");
-        const name = opt(rest, "name");
-        if (!name) usage("--name is required for create");
-        const githubRepository = opt(rest, "github-repository");
-        if (!githubRepository)
-          usage("--github-repository is required for create");
-        await reposCreate(id, {
-          name,
-          githubRepository,
-          description: opt(rest, "description"),
-        });
-        break;
-      }
-      case "link": {
-        const id = arg(rest, 0);
-        if (!id) usage("repo id is required");
-        const githubRepository = opt(rest, "github-repository");
-        if (!githubRepository)
-          usage("--github-repository is required for link");
-        await reposLink(id, githubRepository);
-        break;
-      }
-      case "use": {
-        const id = arg(rest, 0);
-        if (!id) usage("repo id is required");
-        await reposUse(id);
-        break;
-      }
-      default:
-        usage(`unknown repos verb: ${verb}`);
     }
     break;
 
