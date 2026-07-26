@@ -11,6 +11,8 @@ sources/        Training/evaluation source generators
 platform/       Modal deployment and platform orchestration
 ```
 
+Modal workloads deploy as independent Apps: `piro-training`, `piro-inference`, and `piro-source`.
+
 Hurricane-style names identify model architecture tracks. Shared architecture
 development code lives under `architectures/_common`; it is internal to this
 repository, not a general-purpose model-building framework.

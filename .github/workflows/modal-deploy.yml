@@ -26,7 +26,7 @@ jobs:
       - name: Install modal
         run: uv tool install modal
 
-      - name: Deploy
+      - name: Deploy independent Modal Apps
         run: |
           modal deploy platform/modal/training.py
           modal deploy platform/modal/inference.py

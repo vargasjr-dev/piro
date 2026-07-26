@@ -21,11 +21,13 @@ from _common import (
     TRAINING_GPU,
     TRAINING_MEMORY_MB,
     TRAINING_TIMEOUT_SECONDS,
+    TRAINING_APP,
     _r2_client,
-    app,
     image,
     piro_secrets,
 )
+
+app = modal.App(TRAINING_APP)
 
 
 @app.cls(

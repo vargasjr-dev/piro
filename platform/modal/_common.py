@@ -11,7 +11,6 @@ PLATFORM_DIR = Path(__file__).resolve().parents[1]
 if str(PLATFORM_DIR) not in sys.path:
     sys.path.insert(0, str(PLATFORM_DIR))
 
-app = modal.App("piro")
 R2_BUCKET = "piro-kb"
 TRAINING_GPU = "T4"
 TRAINING_CPU = 1.0
@@ -26,7 +25,13 @@ LIVE_PROGRESS_INTERVAL_SECONDS = 10
 GPU_RATE_USD_PER_SECOND = 0.000164
 CPU_RATE_USD_PER_CORE_SECOND = 0.0000131
 MEMORY_RATE_USD_PER_GIB_SECOND = 0.00000222
-INFER_ENDPOINT = "https://dvargasfuertes--piro-infer.modal.run"
+INFER_ENDPOINT = "https://dvargasfuertes--piro-inference-infer.modal.run"
+
+# Each entrypoint is deployed as its own Modal App so its lifecycle and hardware
+# profile can evolve independently.
+TRAINING_APP = "piro-training"
+INFERENCE_APP = "piro-inference"
+SOURCE_APP = "piro-source"
 
 
 def _r2_client(os_module):

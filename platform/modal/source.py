@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import UTC
 
 import modal
-from _common import R2_BUCKET, _r2_client, app, image, piro_secrets
+from _common import R2_BUCKET, SOURCE_APP, _r2_client, image, piro_secrets
+
+app = modal.App(SOURCE_APP)
 
 
 @app.function(image=image, secrets=[piro_secrets], timeout=3600)
