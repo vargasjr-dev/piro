@@ -13,10 +13,6 @@ const INCLUDED = [
     detail: "Keep durable state across the conversations that matter.",
   },
   {
-    title: "Two model updates each month",
-    detail: "Train on your data and keep the deployment moving forward.",
-  },
-  {
     title: "API access",
     detail: "Call your model from your own products with a Piro API key.",
   },

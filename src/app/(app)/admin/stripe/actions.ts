@@ -10,7 +10,7 @@ import type Stripe from "stripe";
 
 const PRO_PRODUCT_NAME = "Piro Pro";
 const PRO_PRODUCT_DESCRIPTION =
-  "Train your own tiny ML model on your data. 2 training runs/month, unlimited inference, Architecture Copilot (GLM 5.2), benchmark suite, model versioning.";
+  "Deploy a private model with durable state and a callable inference endpoint. Keep your intelligence useful because it remembers you.";
 const PRO_PRICE_AMOUNT = 10000; // $100.00 in cents
 const PRO_PRICE_CURRENCY = "usd";
 const PRO_PRICE_LOOKUP_KEY = "piro_pro_monthly";
@@ -40,7 +40,9 @@ export type StripeConfigStatus = {
 
 // ── Verify Config ─────────────────────────────────────────────────────────────
 
-export async function verifyStripeConfig(useTestMode = false): Promise<StripeConfigStatus> {
+export async function verifyStripeConfig(
+  useTestMode = false,
+): Promise<StripeConfigStatus> {
   const headersList = await headers();
   const session = await auth.api.getSession({ headers: headersList });
   requireAdmin(session);
@@ -60,7 +62,9 @@ export async function verifyStripeConfig(useTestMode = false): Promise<StripeCon
     result.connected = true;
 
     // Check for Piro Pro product
-    const product = products.data.find((p: Stripe.Product) => p.name === PRO_PRODUCT_NAME);
+    const product = products.data.find(
+      (p: Stripe.Product) => p.name === PRO_PRODUCT_NAME,
+    );
     if (product) {
       result.product = {
         exists: true,
@@ -80,7 +84,7 @@ export async function verifyStripeConfig(useTestMode = false): Promise<StripeCon
         (p: Stripe.Price) =>
           p.recurring?.interval === "month" &&
           p.unit_amount === PRO_PRICE_AMOUNT &&
-          p.currency === PRO_PRICE_CURRENCY
+          p.currency === PRO_PRICE_CURRENCY,
       );
 
       if (monthlyPrice) {
@@ -118,11 +122,17 @@ export async function bootstrapStripeProducts(useTestMode = false): Promise<{
 
     // Find or create product
     const products = await stripe.products.list({ active: true, limit: 100 });
-    let product = products.data.find((p: Stripe.Product) => p.name === PRO_PRODUCT_NAME);
+    let product = products.data.find(
+      (p: Stripe.Product) => p.name === PRO_PRODUCT_NAME,
+    );
 
     if (!product) {
       product = await stripe.products.create({
         name: PRO_PRODUCT_NAME,
+        description: PRO_PRODUCT_DESCRIPTION,
+      });
+    } else if (product.description !== PRO_PRODUCT_DESCRIPTION) {
+      product = await stripe.products.update(product.id, {
         description: PRO_PRODUCT_DESCRIPTION,
       });
     }
@@ -139,7 +149,7 @@ export async function bootstrapStripeProducts(useTestMode = false): Promise<{
       (p: Stripe.Price) =>
         p.recurring?.interval === "month" &&
         p.unit_amount === PRO_PRICE_AMOUNT &&
-        p.currency === PRO_PRICE_CURRENCY
+        p.currency === PRO_PRICE_CURRENCY,
     );
 
     if (!price) {
