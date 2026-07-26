@@ -18,7 +18,6 @@ type ModelMore = {
 
 type ModelSandboxProps = {
   modelId: string;
-  ready: boolean;
   more: ModelMore;
 };
 
@@ -31,11 +30,7 @@ type InferResponse = {
   error?: string;
 };
 
-export default function ModelSandbox({
-  modelId,
-  ready,
-  more,
-}: ModelSandboxProps) {
+export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
   const [prompt, setPrompt] = useState("");
   const [messages, setMessages] = useState<SandboxMessage[]>([]);
   const [state, setState] = useState<Record<string, unknown> | null>(null);
@@ -159,7 +154,7 @@ export default function ModelSandbox({
             <button
               type="button"
               onClick={() => void invoke()}
-              disabled={!ready || submitting || !prompt.trim()}
+              disabled={submitting || !prompt.trim()}
               className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-[#180d07] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? "Thinking…" : "Send"}
