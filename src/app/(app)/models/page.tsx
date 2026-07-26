@@ -12,80 +12,9 @@ import DeployModelButton, {
 type ModelRow = {
   id: string;
   name: string;
-  description: string | null;
   parameterCount: number | null;
-  inferenceEndpoint: string | null;
-  weightsR2Key: string | null;
   createdAt: string;
 };
-
-function ModelApiInfo({
-  modelId,
-  global = false,
-}: {
-  modelId: string;
-  global?: boolean;
-}) {
-  const example = `curl "https://trainpiro.app/api/models/${modelId}/invoke" \\
-  -H "Authorization: Bearer $PIRO_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "parts": [
-      { "type": "text", "text": "What should you remember?" }
-    ]
-  }'`;
-
-  return (
-    <details className="group mt-4 rounded-xl border border-amber-900/25 bg-[#0e0b09]">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-100 marker:hidden [&::-webkit-details-marker]:hidden">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-amber-600/40 font-serif text-amber-300">
-          i
-        </span>
-        <span>API example</span>
-        <span className="ml-auto text-amber-500/45 transition group-open:rotate-180">
-          ⌄
-        </span>
-      </summary>
-      <div className="border-t border-amber-900/25 p-3">
-        {global && (
-          <p className="mb-3 text-xs leading-relaxed text-orange-200/70">
-            Shared model only — not for production or sensitive data.
-          </p>
-        )}
-        <pre className="overflow-x-auto rounded-lg border border-amber-900/25 bg-[#0b0908] p-3 text-[10px] leading-relaxed text-amber-200/75">
-          <code>{example}</code>
-        </pre>
-      </div>
-    </details>
-  );
-}
-
-function ModelIcon({ global = false }: { global?: boolean }) {
-  return (
-    <div
-      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
-        global
-          ? "border-orange-500/30 bg-orange-500/10 text-orange-300"
-          : "border-amber-800/30 bg-amber-900/10 text-amber-300"
-      }`}
-    >
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M12 3 4.5 7.25v9.5L12 21l7.5-4.25v-9.5L12 3Z" />
-        <path d="m4.5 7.25 7.5 4.5 7.5-4.5M12 11.75V21" />
-      </svg>
-    </div>
-  );
-}
 
 function ModelCard({
   model: item,
@@ -94,43 +23,24 @@ function ModelCard({
   model: ModelRow;
   global?: boolean;
 }) {
-  const ready = Boolean(item.inferenceEndpoint && item.weightsR2Key);
-
   return (
     <article className="rounded-2xl border border-amber-900/25 bg-[#13100c] p-5 transition-colors hover:border-amber-700/40">
       <Link
-        href={`/models/${encodeURIComponent(item.id)}`}
+        href={`/models/${encodeURIComponent(item.name)}`}
         className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70"
       >
-        <div className="flex items-start gap-3">
-          <ModelIcon global={global} />
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate text-sm font-semibold text-amber-50">
-                {item.name}
-              </h3>
-              {global && (
-                <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-orange-300">
-                  Global
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs text-amber-300/50">
-              {item.description ||
-                (global
-                  ? "The current shared Piro model."
-                  : "Your private stateful Piro deployment.")}
-            </p>
+            <h3 className="truncate text-sm font-semibold text-amber-50">
+              {item.name}
+            </h3>
+            {item.parameterCount !== null && (
+              <p className="mt-1 text-xs text-amber-300/50">
+                {item.parameterCount.toLocaleString()} parameters
+              </p>
+            )}
           </div>
-        </div>
-        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-amber-900/20 pt-4 text-[11px] text-amber-500/50">
-          <span className={ready ? "text-emerald-300/70" : "text-amber-400/50"}>
-            {ready ? "Stateful inference ready" : "Deployment preparing"}
-          </span>
-          {item.parameterCount !== null && (
-            <span>{item.parameterCount.toLocaleString()} parameters</span>
-          )}
-          <span>
+          <span className="shrink-0 text-right text-[11px] text-amber-500/50">
             {new Date(item.createdAt).toLocaleDateString(undefined, {
               month: "short",
               day: "numeric",
@@ -145,7 +55,6 @@ function ModelCard({
           Not for production workloads or sensitive data.
         </div>
       )}
-      <ModelApiInfo modelId={item.id} global={global} />
     </article>
   );
 }
@@ -192,10 +101,7 @@ export default async function ModelsPage() {
   const selectFields = {
     id: model.id,
     name: model.name,
-    description: model.description,
     parameterCount: model.parameterCount,
-    inferenceEndpoint: model.inferenceEndpoint,
-    weightsR2Key: model.weightsR2Key,
     createdAt: deployment.createdAt,
   };
 
