@@ -1,37 +1,16 @@
 import { randomInt } from "node:crypto";
-import { getLatestPiroModel } from "~/lib/latest-experiment";
-
-const RANDOM_WORDS = [
-  "badger",
-  "canyon",
-  "cedar",
-  "comet",
-  "dawn",
-  "dune",
-  "falcon",
-  "flint",
-  "forest",
-  "harbor",
-  "meadow",
-  "orbit",
-  "pelican",
-  "quartz",
-  "raven",
-  "river",
-  "solar",
-  "summit",
-  "tundra",
-  "willow",
-] as const;
+import { getCurrentPiroArchitecture } from "~/lib/latest-architecture";
+import { MODEL_ID_WORDS } from "~/lib/model-id-words";
 
 function randomWord(exclude?: string) {
-  let word = RANDOM_WORDS[randomInt(RANDOM_WORDS.length)];
-  while (word === exclude) word = RANDOM_WORDS[randomInt(RANDOM_WORDS.length)];
+  let word = MODEL_ID_WORDS[randomInt(MODEL_ID_WORDS.length)];
+  while (word === exclude)
+    word = MODEL_ID_WORDS[randomInt(MODEL_ID_WORDS.length)];
   return word;
 }
 
 export function createSuggestedModelId() {
-  const architecture = getLatestPiroModel()
+  const architecture = getCurrentPiroArchitecture()
     .architecture.toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
