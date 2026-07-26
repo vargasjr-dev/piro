@@ -34,9 +34,9 @@ jobs:
           fi
           echo "DATABASE_URL is configured"
         env:
-          DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL || secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Apply schema
         run: bun run db:push
         env:
-          PIRO_DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL || secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
