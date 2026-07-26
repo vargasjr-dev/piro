@@ -29,14 +29,14 @@ jobs:
       - name: Check database secret
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "DATABASE_URL is not configured" >&2
+            echo "PIRO_DATABASE_URL or DATABASE_URL is not configured" >&2
             exit 1
           fi
-          echo "DATABASE_URL is configured"
+          echo "Piro database URL is configured"
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL || secrets.DATABASE_URL }}
 
       - name: Apply schema
         run: bun run db:push
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL || secrets.DATABASE_URL }}
