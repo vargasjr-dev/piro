@@ -159,8 +159,8 @@ class Trainer:
         from architectures._common.encoding import memory_embedding, policy_embedding
         from architectures._common.trainer import Trainer as _Trainer
         from architectures._common.trainer import TrainerConfig
+        from architectures.ashfall.ctm import ContinuousThoughtModel, CTMConfig
         from architectures.baseline_transformer.model import BaselineTransformer, TransformerConfig
-        from architectures.ctm.model import ContinuousThoughtModel, CTMConfig
         from sources._common.sequences import generate_sorting_dataset
 
         # Expose to run()
@@ -1002,8 +1002,8 @@ class Infer:
         self._psycopg2 = psycopg2
         self._torch = torch
         from architectures._common.encoding import memory_embedding, policy_embedding
+        from architectures.ashfall.ctm import ContinuousThoughtModel, CTMConfig
         from architectures.baseline_transformer.model import BaselineTransformer, TransformerConfig
-        from architectures.ctm.model import ContinuousThoughtModel, CTMConfig
 
         self._CTM = ContinuousThoughtModel
         self._CTMConfig = CTMConfig
@@ -1455,7 +1455,12 @@ def trigger(body: dict) -> dict:
 
     architecture_path = str(body.get("architecturePath", ""))
     dataset_prefix = str(body.get("datasetR2Prefix", ""))
-    model_template = architecture_path.rstrip("/").rsplit("/", 1)[-1] or "ctm"
+    model_template = architecture_path.rstrip("/").rsplit("/", 1)[-1]
+    if model_template.endswith(".py"):
+        model_template = model_template[:-3]
+    if model_template == "ctm_10x":
+        model_template = "ctm-10x"
+    model_template = model_template or "ctm"
     data_source = dataset_prefix.rstrip("/").rsplit("/", 1)[-1]
     if not architecture_path or not dataset_prefix:
         raise HTTPException(status_code=400, detail="architecturePath and datasetR2Prefix required")

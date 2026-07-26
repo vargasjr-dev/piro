@@ -16,7 +16,7 @@ The Trainer wraps that interface and runs:
 Usage
 -----
     from architectures._common.trainer import Trainer, TrainerConfig
-    from architectures.ctm.model import ContinuousThoughtModel, CTMConfig
+    from architectures.ashfall.ctm import ContinuousThoughtModel, CTMConfig
     from architectures.baseline_transformer.model import BaselineTransformer, TransformerConfig
 
     # Build models

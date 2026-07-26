@@ -1,12 +1,10 @@
 /**
- * scripts/seed-class-modules.ts
+ * Upload the built-in architecture modules and manifests to R2, then attach
+ * each object prefix to its matching model_class row. The operation is
+ * idempotent and safe to run again after changing a checked-in module.
  *
- * Uploads the two built-in model class Python modules to R2 and stamps
- * the model_class DB rows with moduleR2Key + manifest.json.
- *
- * Run once (idempotent — safe to re-run):
- *   DATABASE_URL=... BUCKET_ENDPOINT_URL=... BUCKET_KEY_ID=... BUCKET_APPLICATION_SECRET=... \
- *   bun run scripts/seed-class-modules.ts
+ * Required environment: DATABASE_URL, BUCKET_ENDPOINT_URL, BUCKET_KEY_ID,
+ * and BUCKET_APPLICATION_SECRET. USER_ID selects the owner when needed.
  */
 
 import { readFileSync } from "fs";
@@ -38,7 +36,7 @@ const { db } = await import("../data/db");
 const { modelClass } = await import("../data/schema");
 const { r2PutText } = await import("../src/lib/r2");
 
-// ── Module definitions ────────────────────────────────────────────────────────
+// Built-in classes are stored as source modules plus manifests under one R2 prefix per class.
 
 interface ClassManifest {
   name: string;
@@ -57,7 +55,7 @@ const MODULES: Array<{
 }> = [
   {
     slug: "ctm",
-    sourcePath: join(import.meta.dir, "../architectures/ctm/model.py"),
+    sourcePath: join(import.meta.dir, "../architectures/ashfall/ctm.py"),
     manifest: {
       name: "Continuous Thought Model",
       slug: "ctm",
@@ -80,7 +78,7 @@ const MODULES: Array<{
         confidence_threshold: 0.9,
       },
       parameterCount: 1674,
-      module: "architectures.ctm.model",
+      module: "architectures.ashfall.ctm",
       modelClass: "ContinuousThoughtModel",
     },
   },
@@ -129,7 +127,7 @@ console.log(
 // ── Upload + update ───────────────────────────────────────────────────────────
 
 for (const def of MODULES) {
-  // Find the DB row for this class
+  // Match the checked-in class definition to the owner's model_class row.
   const [cls] = await db
     .select()
     .from(modelClass)
@@ -143,7 +141,7 @@ for (const def of MODULES) {
 
   const r2Key = `classes/${cls.id}`;
 
-  // Read the Python source
+  // Upload the source and manifest used by the runtime loader.
   const source = readFileSync(def.sourcePath, "utf-8");
 
   // Upload model.py

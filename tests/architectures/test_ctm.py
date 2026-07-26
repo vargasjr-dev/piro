@@ -1,6 +1,6 @@
 import torch
 
-from architectures.ctm.model import ContinuousThoughtModel, CTMConfig
+from architectures.ashfall.ctm import ContinuousThoughtModel, CTMConfig
 
 
 def test_ctm_forward_has_expected_shape_and_persistent_state():

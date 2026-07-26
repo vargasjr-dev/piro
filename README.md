@@ -1,7 +1,6 @@
 # Piro
 
-Piro is Vargas's model research and operating repository. It defines our own
-architectures, training sources, benchmarks, and Modal platform runtime.
+Piro is a stateful model that learns as you use it, featuring weight updating during inference.
 
 ## Repository layout
 

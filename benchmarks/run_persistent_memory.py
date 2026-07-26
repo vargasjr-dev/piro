@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 
-from architectures.ctm.model import ContinuousThoughtModel, CTMConfig
+from architectures.ashfall.ctm import ContinuousThoughtModel, CTMConfig
 from benchmarks.persistent_memory import (
     CTMStatefulMemoryAdapter,
     PersistentMemoryBenchmark,
