@@ -10,9 +10,8 @@ import {
   benchmarkRun,
 } from "../../../../data/schema";
 import { getSubscription, isActive } from "~/lib/billing";
-import { getCurrentPiroArchitecture } from "~/lib/latest-architecture";
 import { modelIdSchema } from "~/lib/model-identifiers";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -41,7 +40,17 @@ export async function POST(request: Request) {
     typeof body === "object" && body !== null && "modelId" in body
       ? (body as { modelId?: unknown }).modelId
       : undefined;
+  const sourceModelId =
+    typeof body === "object" && body !== null && "sourceModelId" in body
+      ? (body as { sourceModelId?: unknown }).sourceModelId
+      : undefined;
   const parsed = modelIdSchema.safeParse(requestedId);
+  if (typeof sourceModelId !== "string" || sourceModelId.length === 0) {
+    return Response.json(
+      { error: "A pretrained model is required" },
+      { status: 400 },
+    );
+  }
   if (!parsed.success) {
     return Response.json(
       { error: parsed.error.issues[0]?.message ?? "Invalid model ID" },
@@ -50,7 +59,36 @@ export async function POST(request: Request) {
   }
 
   const modelId = parsed.data;
-  const latest = getCurrentPiroArchitecture();
+  const [sourceModel] = await db
+    .select({
+      name: model.name,
+      parameterCount: model.parameterCount,
+      weightsR2Key: model.weightsR2Key,
+      inferenceEndpoint: model.inferenceEndpoint,
+      trainingRunId: modelTrainingRun.trainingRunId,
+    })
+    .from(deployment)
+    .innerJoin(model, eq(deployment.modelId, model.id))
+    .innerJoin(modelTrainingRun, eq(modelTrainingRun.modelId, model.id))
+    .where(
+      and(
+        eq(model.id, sourceModelId),
+        eq(deployment.isAdmin, true),
+        eq(deployment.enabled, true),
+        isNull(deployment.targetUserId),
+        isNull(model.archivedAt),
+        isNotNull(model.weightsR2Key),
+        isNotNull(model.inferenceEndpoint),
+      ),
+    )
+    .limit(1);
+  if (!sourceModel) {
+    return Response.json(
+      { error: "That pretrained model is not available" },
+      { status: 400 },
+    );
+  }
+
   let createdModel: typeof model.$inferSelect | undefined;
   try {
     [createdModel] = await db
@@ -59,9 +97,18 @@ export async function POST(request: Request) {
         id: modelId,
         userId: session.user.id,
         name: modelId,
-        description: `${latest.label} private deployment`,
+        description: `${sourceModel.name} private deployment`,
+        parameterCount: sourceModel.parameterCount,
+        weightsR2Key: sourceModel.weightsR2Key,
+        inferenceEndpoint: sourceModel.inferenceEndpoint,
       })
       .returning();
+
+    await db.insert(modelTrainingRun).values({
+      id: randomUUID(),
+      modelId: createdModel.id,
+      trainingRunId: sourceModel.trainingRunId,
+    });
 
     const [createdDeployment] = await db
       .insert(deployment)

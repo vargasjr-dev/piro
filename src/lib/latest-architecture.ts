@@ -30,8 +30,16 @@ export function getCurrentPiroArchitecture(): CurrentPiroArchitecture {
     .filter((entry) => !entry.startsWith(".") && entry !== "_common")
     .filter((entry) => statSync(join(ARCHITECTURES_DIR, entry)).isDirectory())
     .sort((a, b) => a.localeCompare(b));
-  const track = tracks.at(-1);
+  const track = tracks.includes("ashfall") ? "ashfall" : tracks.at(-1);
   if (!track) return fallback;
+
+  if (track === "ashfall") {
+    return {
+      architecture: "ashfall",
+      architecturePath: "architectures/ashfall",
+      label: "Piro · Ashfall",
+    };
+  }
 
   const files = readdirSync(join(ARCHITECTURES_DIR, track))
     .filter((entry) => entry.endsWith(".py") && entry !== "__init__.py")

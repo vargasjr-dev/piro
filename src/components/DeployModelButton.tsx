@@ -4,10 +4,24 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { modelIdSchema } from "~/lib/model-identifiers";
 
-export default function DeployModelButton() {
+export type PretrainedModelOption = {
+  id: string;
+  name: string;
+};
+
+type DeployModelButtonProps = {
+  pretrainedModels: PretrainedModelOption[];
+};
+
+export default function DeployModelButton({
+  pretrainedModels,
+}: DeployModelButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [modelId, setModelId] = useState("");
+  const [sourceModelId, setSourceModelId] = useState(
+    pretrainedModels[0]?.id ?? "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
@@ -23,6 +37,7 @@ export default function DeployModelButton() {
 
   function openModal() {
     setModelId("");
+    setSourceModelId(pretrainedModels[0]?.id ?? "");
     setError(null);
     setOpen(true);
     setSuggestionLoading(true);
@@ -57,6 +72,10 @@ export default function DeployModelButton() {
       setError(parsed.error.issues[0]?.message ?? "Choose a valid model ID");
       return;
     }
+    if (!sourceModelId) {
+      setError("Choose a pretrained model to deploy");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -64,7 +83,10 @@ export default function DeployModelButton() {
       const response = await fetch("/api/models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modelId: parsed.data }),
+        body: JSON.stringify({
+          modelId: parsed.data,
+          sourceModelId,
+        }),
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -102,16 +124,13 @@ export default function DeployModelButton() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="deploy-model-title"
-            className="w-full max-w-lg rounded-3xl border border-orange-500/25 bg-[#17100b] p-6 shadow-2xl shadow-black/50 sm:p-8"
+            className="w-full max-w-lg rounded-3xl border border-orange-500/25 bg-[#17100b] p-6 text-left shadow-2xl shadow-black/50 sm:p-8"
           >
             <div className="flex items-start justify-between gap-6">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-400">
-                  Live inference
-                </p>
                 <h2
                   id="deploy-model-title"
-                  className="mt-2 text-2xl font-black text-amber-50"
+                  className="text-2xl font-black text-amber-50"
                 >
                   Name your model
                 </h2>
@@ -152,15 +171,37 @@ export default function DeployModelButton() {
               autoComplete="off"
               spellCheck={false}
               className="mt-2 min-h-12 w-full rounded-xl border border-amber-800/40 bg-[#0e0b09] px-4 font-mono text-base text-amber-50 outline-none transition placeholder:text-amber-700/50 focus:border-orange-400/70 focus:ring-2 focus:ring-orange-400/15"
-              aria-describedby={error ? "model-id-error" : "model-id-help"}
+              aria-describedby={error ? "model-id-error" : undefined}
               placeholder={
                 suggestionLoading ? "Generating a suggestion…" : undefined
               }
             />
-            <p id="model-id-help" className="mt-2 text-xs text-amber-600/55">
-              Lowercase words separated by hyphens · 8+ characters · no{" "}
-              <code>-global</code> suffix or <code>piro</code> prefix
-            </p>
+            <label
+              htmlFor="pretrained-model"
+              className="mt-5 block text-xs font-bold uppercase tracking-[0.16em] text-amber-500/70"
+            >
+              Pretrained model
+            </label>
+            <select
+              id="pretrained-model"
+              value={sourceModelId}
+              onChange={(event) => {
+                setSourceModelId(event.target.value);
+                setError(null);
+              }}
+              disabled={submitting || pretrainedModels.length === 0}
+              className="mt-2 min-h-12 w-full rounded-xl border border-amber-800/40 bg-[#0e0b09] px-4 text-base text-amber-50 outline-none transition focus:border-orange-400/70 focus:ring-2 focus:ring-orange-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {pretrainedModels.length === 0 ? (
+                <option value="">No pretrained models available</option>
+              ) : (
+                pretrainedModels.map((pretrainedModel) => (
+                  <option key={pretrainedModel.id} value={pretrainedModel.id}>
+                    {pretrainedModel.name}
+                  </option>
+                ))
+              )}
+            </select>
             {error && (
               <p
                 id="model-id-error"
@@ -182,7 +223,9 @@ export default function DeployModelButton() {
               <button
                 type="button"
                 onClick={() => void deploy()}
-                disabled={submitting || suggestionLoading || !modelId}
+                disabled={
+                  submitting || suggestionLoading || !modelId || !sourceModelId
+                }
                 className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-[#180d07] transition hover:bg-orange-400 disabled:cursor-wait disabled:opacity-60"
               >
                 {suggestionLoading
