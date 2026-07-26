@@ -106,7 +106,7 @@ curl "https://trainpiro.app/api/models/$PIRO_MODEL/invoke" \\
               </Link>
               {latestGlobalModel && (
                 <Link
-                  href={`/models/${encodeURIComponent(latestGlobalModel.id)}`}
+                  href={`/models/${encodeURIComponent(latestGlobalModel.name)}`}
                   className="rounded-xl border border-amber-700/40 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-500/60 hover:bg-amber-500/5"
                 >
                   View {latestGlobalModel.name}

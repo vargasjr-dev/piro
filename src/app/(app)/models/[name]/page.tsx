@@ -61,9 +61,9 @@ function ModelApiInfo({ modelId, global = false }: ModelApiInfoProps) {
 export default async function ModelSandboxPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ name: string }>;
 }) {
-  const { id } = await params;
+  const { name } = await params;
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
 
@@ -77,22 +77,14 @@ export default async function ModelSandboxPage({
       inferenceEndpoint: model.inferenceEndpoint,
       weightsR2Key: model.weightsR2Key,
       createdAt: model.createdAt,
+      isGlobal: deployment.isAdmin,
     })
     .from(model)
-    .where(and(eq(model.id, id), isNull(model.archivedAt)))
-    .limit(1);
-
-  if (!modelRow) notFound();
-
-  const [visibleDeployment] = await db
-    .select({
-      isGlobal: deployment.isAdmin,
-      createdAt: deployment.createdAt,
-    })
-    .from(deployment)
+    .innerJoin(deployment, eq(deployment.modelId, model.id))
     .where(
       and(
-        eq(deployment.modelId, id),
+        eq(model.name, name),
+        isNull(model.archivedAt),
         eq(deployment.enabled, true),
         or(
           and(
@@ -113,12 +105,12 @@ export default async function ModelSandboxPage({
     .orderBy(desc(deployment.isAdmin), desc(deployment.createdAt))
     .limit(1);
 
-  if (!visibleDeployment) notFound();
+  if (!modelRow) notFound();
 
   const [trainingLink] = await db
     .select({ trainingRunId: modelTrainingRun.trainingRunId })
     .from(modelTrainingRun)
-    .where(eq(modelTrainingRun.modelId, id))
+    .where(eq(modelTrainingRun.modelId, modelRow.id))
     .limit(1);
   const [run] = trainingLink
     ? await db
@@ -128,7 +120,7 @@ export default async function ModelSandboxPage({
         .limit(1)
     : [];
 
-  const isGlobal = visibleDeployment.isGlobal;
+  const isGlobal = modelRow.isGlobal;
   const architecture = run?.architecturePath
     ? architectureFromPath(run.architecturePath)
     : null;
