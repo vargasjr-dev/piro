@@ -16,13 +16,37 @@ type ModelRow = {
   createdAt: string;
 };
 
-function ModelCard({
-  model: item,
-  global = false,
-}: {
-  model: ModelRow;
-  global?: boolean;
-}) {
+async function timedModelsPhase<T>(
+  phase: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const started = performance.now();
+  try {
+    const result = await operation();
+    console.info(
+      "[models-load]",
+      JSON.stringify({
+        phase,
+        status: "ok",
+        durationMs: Math.round(performance.now() - started),
+      }),
+    );
+    return result;
+  } catch (error) {
+    console.error(
+      "[models-load]",
+      JSON.stringify({
+        phase,
+        status: "error",
+        durationMs: Math.round(performance.now() - started),
+        error: error instanceof Error ? error.name : "unknown",
+      }),
+    );
+    throw error;
+  }
+}
+
+function ModelCard({ model: item }: { model: ModelRow }) {
   return (
     <article className="rounded-2xl border border-amber-900/25 bg-[#13100c] p-5 transition-colors hover:border-amber-700/40">
       <Link
@@ -49,12 +73,6 @@ function ModelCard({
           </span>
         </div>
       </Link>
-      {global && (
-        <div className="mt-4 rounded-xl border border-orange-500/25 bg-orange-500/8 px-3 py-2.5 text-xs leading-relaxed text-orange-100/75">
-          <strong className="font-bold text-orange-200">Shared model.</strong>{" "}
-          Not for production workloads or sensitive data.
-        </div>
-      )}
     </article>
   );
 }
@@ -93,11 +111,13 @@ function EmptyState({
 }
 
 export default async function ModelsPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const pageStarted = performance.now();
+  const requestHeaders = await headers();
+  const session = await timedModelsPhase("auth", () =>
+    auth.api.getSession({ headers: requestHeaders }),
+  );
   if (!session) return null;
 
-  const subscription = await getSubscription(session.user.id);
-  const isSubscribed = isActive(subscription);
   const selectFields = {
     id: model.id,
     name: model.name,
@@ -105,58 +125,80 @@ export default async function ModelsPage() {
     createdAt: deployment.createdAt,
   };
 
-  const [privateModels, globalModels, pretrainedModels] = await Promise.all([
-    db
-      .select(selectFields)
-      .from(deployment)
-      .innerJoin(model, eq(deployment.modelId, model.id))
-      .where(
-        and(
-          eq(deployment.createdByUserId, session.user.id),
-          eq(deployment.isAdmin, false),
-          eq(deployment.enabled, true),
-          isNull(model.archivedAt),
-        ),
-      )
-      .orderBy(desc(deployment.createdAt)),
-    db
-      .select(selectFields)
-      .from(deployment)
-      .innerJoin(model, eq(deployment.modelId, model.id))
-      .where(
-        and(
-          eq(deployment.isAdmin, true),
-          eq(deployment.enabled, true),
-          or(
-            isNull(deployment.targetUserId),
-            eq(deployment.targetUserId, session.user.id),
-          ),
-          isNull(model.archivedAt),
-        ),
-      )
-      .orderBy(desc(deployment.createdAt)),
-    db
-      .select({
-        id: model.id,
-        name: model.name,
-      })
-      .from(deployment)
-      .innerJoin(model, eq(deployment.modelId, model.id))
-      .innerJoin(modelTrainingRun, eq(modelTrainingRun.modelId, model.id))
-      .where(
-        and(
-          eq(deployment.isAdmin, true),
-          eq(deployment.enabled, true),
-          isNull(deployment.targetUserId),
-          isNull(model.archivedAt),
-          isNotNull(model.weightsR2Key),
-          isNotNull(model.inferenceEndpoint),
-        ),
-      )
-      .orderBy(desc(deployment.createdAt))
-      .limit(3),
-  ]);
+  const [subscription, privateModels, globalModels, pretrainedModels] =
+    await Promise.all([
+      timedModelsPhase("subscription", () => getSubscription(session.user.id)),
+      timedModelsPhase("private-models-query", () =>
+        db
+          .select(selectFields)
+          .from(deployment)
+          .innerJoin(model, eq(deployment.modelId, model.id))
+          .where(
+            and(
+              eq(deployment.createdByUserId, session.user.id),
+              eq(deployment.isAdmin, false),
+              eq(deployment.enabled, true),
+              isNull(model.archivedAt),
+            ),
+          )
+          .orderBy(desc(deployment.createdAt)),
+      ),
+      timedModelsPhase("global-models-query", () =>
+        db
+          .select(selectFields)
+          .from(deployment)
+          .innerJoin(model, eq(deployment.modelId, model.id))
+          .where(
+            and(
+              eq(deployment.isAdmin, true),
+              eq(deployment.enabled, true),
+              or(
+                isNull(deployment.targetUserId),
+                eq(deployment.targetUserId, session.user.id),
+              ),
+              isNull(model.archivedAt),
+            ),
+          )
+          .orderBy(desc(deployment.createdAt)),
+      ),
+      timedModelsPhase("pretrained-models-query", () =>
+        db
+          .select({
+            id: model.id,
+            name: model.name,
+          })
+          .from(deployment)
+          .innerJoin(model, eq(deployment.modelId, model.id))
+          .innerJoin(modelTrainingRun, eq(modelTrainingRun.modelId, model.id))
+          .where(
+            and(
+              eq(deployment.isAdmin, true),
+              eq(deployment.enabled, true),
+              isNull(deployment.targetUserId),
+              isNull(model.archivedAt),
+              isNotNull(model.weightsR2Key),
+              isNotNull(model.inferenceEndpoint),
+            ),
+          )
+          .orderBy(desc(deployment.createdAt))
+          .limit(3),
+      ),
+    ]);
 
+  const totalMs = Math.round(performance.now() - pageStarted);
+  console.info(
+    "[models-load]",
+    JSON.stringify({
+      phase: "complete",
+      status: "ok",
+      durationMs: totalMs,
+      privateCount: privateModels.length,
+      globalCount: globalModels.length,
+      pretrainedCount: pretrainedModels.length,
+    }),
+  );
+
+  const isSubscribed = isActive(subscription);
   const toRows = (rows: typeof privateModels): ModelRow[] =>
     rows.map((item) => ({
       ...item,
@@ -230,7 +272,7 @@ export default async function ModelsPage() {
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {toRows(globalModels).map((item) => (
-                <ModelCard key={item.id} model={item} global />
+                <ModelCard key={item.id} model={item} />
               ))}
             </div>
           )}

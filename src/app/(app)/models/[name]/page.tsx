@@ -15,10 +15,9 @@ import ModelSandbox from "../ModelSandbox";
 
 type ModelApiInfoProps = {
   modelId: string;
-  global?: boolean;
 };
 
-function ModelApiInfo({ modelId, global = false }: ModelApiInfoProps) {
+function ModelApiInfo({ modelId }: ModelApiInfoProps) {
   const example = `curl "https://trainpiro.app/api/models/${modelId}/invoke" \\
   -H "Authorization: Bearer $PIRO_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -30,22 +29,13 @@ function ModelApiInfo({ modelId, global = false }: ModelApiInfoProps) {
 
   return (
     <details className="group rounded-2xl border border-amber-900/30 bg-[#13100c]">
-      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm font-semibold text-amber-100 marker:hidden [&::-webkit-details-marker]:hidden">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-600/40 text-xs font-serif text-amber-300">
-          i
-        </span>
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm font-semibold text-amber-100 marker:hidden [&::-webkit-details-marker]:hidden">
         <span>API example</span>
         <span className="ml-auto text-xs text-amber-500/50 transition group-open:rotate-180">
           ⌄
         </span>
       </summary>
       <div className="border-t border-amber-900/25 p-4">
-        {global && (
-          <p className="mb-3 text-xs leading-relaxed text-orange-200/70">
-            This endpoint targets a shared model. Do not use it for production
-            workloads or sensitive data.
-          </p>
-        )}
         <pre className="overflow-x-auto rounded-xl border border-amber-900/25 bg-[#0b0908] p-4 text-[11px] leading-relaxed text-amber-200/80">
           <code>{example}</code>
         </pre>
@@ -70,9 +60,7 @@ export default async function ModelSandboxPage({
   const [modelRow] = await db
     .select({
       id: model.id,
-      userId: model.userId,
       name: model.name,
-      description: model.description,
       parameterCount: model.parameterCount,
       inferenceEndpoint: model.inferenceEndpoint,
       weightsR2Key: model.weightsR2Key,
@@ -120,7 +108,6 @@ export default async function ModelSandboxPage({
         .limit(1)
     : [];
 
-  const isGlobal = modelRow.isGlobal;
   const architecture = run?.architecturePath
     ? architectureFromPath(run.architecturePath)
     : null;
@@ -129,96 +116,81 @@ export default async function ModelSandboxPage({
   );
 
   return (
-    <div className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
+    <div className="min-h-screen px-3 py-4 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-3xl">
         <Link
           href="/models"
           className="text-sm font-semibold text-amber-400/65 transition hover:text-amber-200"
         >
-          ← Back to models
+          ← Models
         </Link>
 
-        <header className="mt-8 flex flex-col gap-5 border-b border-amber-900/25 pb-8 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-black tracking-tight text-amber-50 sm:text-4xl">
-                {modelRow.name}
-              </h1>
-              {isGlobal && (
-                <span className="rounded-full border border-orange-500/35 bg-orange-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-orange-300">
-                  Shared model
-                </span>
-              )}
-            </div>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-amber-200/55">
-              {modelRow.description ||
-                (isGlobal
-                  ? "A shared Piro model available to the community."
-                  : "Your private stateful Piro deployment.")}
-            </p>
-          </div>
-          <span
-            className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-              ready
-                ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
-                : "border-amber-700/30 bg-amber-900/15 text-amber-400/65"
-            }`}
-          >
-            {ready ? "Stateful inference ready" : "Deployment preparing"}
-          </span>
-        </header>
+        <h1 className="mt-5 truncate text-2xl font-black tracking-tight text-amber-50 sm:text-3xl">
+          {modelRow.name}
+        </h1>
 
-        {isGlobal && (
-          <div
-            role="alert"
-            className="mt-6 rounded-2xl border border-orange-500/35 bg-orange-500/10 px-5 py-4 text-sm leading-relaxed text-orange-100/80"
-          >
-            <strong className="font-bold text-orange-200">Shared model:</strong>{" "}
-            this model is available to everyone and is not a production or
-            privacy boundary. Do not send sensitive data. Deploy a private model
-            before using Piro with real production data.
-          </div>
-        )}
-
-        <div className="mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="mt-4">
           <ModelSandbox
             modelId={modelRow.id}
             modelName={modelRow.name}
             ready={ready}
           />
-          <aside className="space-y-5">
-            <ModelApiInfo modelId={modelRow.id} global={isGlobal} />
-            <section className="rounded-2xl border border-amber-900/30 bg-[#13100c] p-5">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-500/60">
-                Model details
-              </p>
-              <dl className="mt-4 space-y-3 text-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-amber-400/50">Parameters</dt>
-                  <dd className="text-right text-amber-100/80">
-                    {modelRow.parameterCount?.toLocaleString() ?? "—"}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-amber-400/50">Created</dt>
-                  <dd className="text-right text-amber-100/80">
-                    {modelRow.createdAt.toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-amber-400/50">Access</dt>
-                  <dd className="text-right text-amber-100/80">
-                    {isGlobal ? "Shared" : "Private"}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-          </aside>
         </div>
+
+        <details className="group mt-4 rounded-2xl border border-amber-900/30 bg-[#13100c]">
+          <summary className="flex cursor-pointer list-none items-center px-4 py-3 text-sm font-semibold text-amber-100 marker:hidden [&::-webkit-details-marker]:hidden">
+            <span>More</span>
+            <span className="ml-auto text-xs text-amber-500/50 transition group-open:rotate-180">
+              ⌄
+            </span>
+          </summary>
+          <div className="space-y-4 border-t border-amber-900/25 p-4">
+            {modelRow.isGlobal && (
+              <div
+                role="alert"
+                className="rounded-2xl border border-orange-500/35 bg-orange-500/10 px-4 py-3 text-sm leading-relaxed text-orange-100/80"
+              >
+                <strong className="font-bold text-orange-200">
+                  Shared model:
+                </strong>{" "}
+                Not for production workloads or sensitive data.
+              </div>
+            )}
+
+            <ModelApiInfo modelId={modelRow.id} />
+
+            <dl className="space-y-3 rounded-2xl border border-amber-900/30 bg-[#0e0b09] p-4 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-amber-400/50">Status</dt>
+                <dd className="text-right text-amber-100/80">
+                  {ready ? "Ready" : "Preparing"}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-amber-400/50">Parameters</dt>
+                <dd className="text-right text-amber-100/80">
+                  {modelRow.parameterCount?.toLocaleString() ?? "—"}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-amber-400/50">Deployed</dt>
+                <dd className="text-right text-amber-100/80">
+                  {modelRow.createdAt.toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-amber-400/50">Access</dt>
+                <dd className="text-right text-amber-100/80">
+                  {modelRow.isGlobal ? "Shared" : "Private"}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </details>
       </div>
     </div>
   );
