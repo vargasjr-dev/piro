@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, exists, isNull } from "drizzle-orm";
 import { auth } from "~/lib/auth.server";
 import { isAdmin } from "~/lib/admin";
 import { db } from "../../../../../data/db";
@@ -36,7 +36,23 @@ export default async function AdminModelsPage() {
       .from(model)
       .innerJoin(user, eq(model.userId, user.id))
       .leftJoin(modelHostedApi, eq(modelHostedApi.modelId, model.id))
-      .where(isNull(modelHostedApi.id))
+      .where(
+        and(
+          isNull(modelHostedApi.id),
+          exists(
+            db
+              .select({ id: deployment.id })
+              .from(deployment)
+              .where(
+                and(
+                  eq(deployment.modelId, model.id),
+                  eq(deployment.isAdmin, true),
+                  isNull(deployment.targetUserId),
+                ),
+              ),
+          ),
+        ),
+      )
       .orderBy(desc(model.createdAt)),
     db
       .select({ id: user.id, name: user.name, email: user.email })
@@ -64,7 +80,7 @@ export default async function AdminModelsPage() {
           Models
         </h1>
         <p className="mt-3 text-sm text-amber-200/55">
-          Piro models available for global or user-specific deployment.
+          Pretrained Piro models available for deployment.
         </p>
       </div>
       {models.length === 0 ? (

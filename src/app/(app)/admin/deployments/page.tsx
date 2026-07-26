@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { auth } from "~/lib/auth.server";
 import { isAdmin } from "~/lib/admin";
 import { db } from "../../../../../data/db";
@@ -27,11 +27,11 @@ export default async function AdminDeploymentsPage() {
       creatorName: user.name,
       creatorEmail: user.email,
       targetUserId: deployment.targetUserId,
+      isAdmin: deployment.isAdmin,
     })
     .from(deployment)
     .innerJoin(model, eq(deployment.modelId, model.id))
     .innerJoin(user, eq(deployment.createdByUserId, user.id))
-    .where(and(eq(deployment.isAdmin, true)))
     .orderBy(desc(deployment.createdAt));
 
   const targetUserIds = deployments.flatMap((item) =>
@@ -54,12 +54,12 @@ export default async function AdminDeploymentsPage() {
           Deployments
         </h1>
         <p className="mt-3 text-sm text-amber-200/55">
-          Manage the shared deployments available to users.
+          Manage global and private deployments across Piro.
         </p>
       </div>
       {deployments.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-amber-900/25 bg-amber-900/5 px-5 py-12 text-center text-sm text-amber-200/55">
-          No admin deployments yet.
+          No deployments yet.
         </div>
       ) : (
         <div className="space-y-3">
@@ -90,12 +90,16 @@ export default async function AdminDeploymentsPage() {
                         : "Deployment preparing"}
                     </span>
                     <span>
-                      {item.targetUserId
-                        ? `Assigned to ${targetUsersById.get(item.targetUserId)?.name ?? targetUsersById.get(item.targetUserId)?.email ?? item.targetUserId}`
-                        : "Global deployment"}
+                      {item.isAdmin
+                        ? item.targetUserId
+                          ? `Admin deployment for ${targetUsersById.get(item.targetUserId)?.name ?? targetUsersById.get(item.targetUserId)?.email ?? item.targetUserId}`
+                          : "Global deployment"
+                        : "Private user deployment"}
                     </span>
                     <span>
-                      Created by {item.creatorName} ({item.creatorEmail})
+                      {item.isAdmin
+                        ? `Created by ${item.creatorName} (${item.creatorEmail})`
+                        : `Owned by ${item.creatorName} (${item.creatorEmail})`}
                     </span>
                     <span>{item.createdAt.toLocaleDateString()}</span>
                   </div>
