@@ -98,16 +98,14 @@ export default async function ModelsPage() {
 
   const subscription = await getSubscription(session.user.id);
   const isSubscribed = isActive(subscription);
-  const selectFields = {
-    id: model.id,
-    name: model.name,
-    parameterCount: model.parameterCount,
-    createdAt: deployment.createdAt,
-  };
-
   const [privateModels, globalModels, pretrainedModels] = await Promise.all([
     db
-      .select(selectFields)
+      .select({
+        id: deployment.id,
+        name: deployment.id,
+        parameterCount: model.parameterCount,
+        createdAt: deployment.createdAt,
+      })
       .from(deployment)
       .innerJoin(model, eq(deployment.modelId, model.id))
       .where(
@@ -120,7 +118,12 @@ export default async function ModelsPage() {
       )
       .orderBy(desc(deployment.createdAt)),
     db
-      .select(selectFields)
+      .select({
+        id: model.id,
+        name: model.name,
+        parameterCount: model.parameterCount,
+        createdAt: deployment.createdAt,
+      })
       .from(deployment)
       .innerJoin(model, eq(deployment.modelId, model.id))
       .where(

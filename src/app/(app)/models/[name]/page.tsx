@@ -69,9 +69,9 @@ export default async function ModelSandboxPage({
 
   const [modelRow] = await db
     .select({
-      id: model.id,
-      userId: model.userId,
-      name: model.name,
+      id: deployment.id,
+      sourceModelId: model.id,
+      sourceName: model.name,
       description: model.description,
       parameterCount: model.parameterCount,
       inferenceEndpoint: model.inferenceEndpoint,
@@ -79,20 +79,20 @@ export default async function ModelSandboxPage({
       createdAt: model.createdAt,
       isGlobal: deployment.isAdmin,
     })
-    .from(model)
-    .innerJoin(deployment, eq(deployment.modelId, model.id))
+    .from(deployment)
+    .innerJoin(model, eq(deployment.modelId, model.id))
     .where(
       and(
-        eq(model.name, name),
         isNull(model.archivedAt),
         eq(deployment.enabled, true),
         or(
           and(
+            eq(deployment.id, name),
             eq(deployment.isAdmin, false),
             eq(deployment.createdByUserId, session.user.id),
-            eq(model.userId, session.user.id),
           ),
           and(
+            eq(model.name, name),
             eq(deployment.isAdmin, true),
             or(
               isNull(deployment.targetUserId),
@@ -110,7 +110,7 @@ export default async function ModelSandboxPage({
   const [trainingLink] = await db
     .select({ trainingRunId: modelTrainingRun.trainingRunId })
     .from(modelTrainingRun)
-    .where(eq(modelTrainingRun.modelId, modelRow.id))
+    .where(eq(modelTrainingRun.modelId, modelRow.sourceModelId))
     .limit(1);
   const [run] = trainingLink
     ? await db
@@ -121,6 +121,7 @@ export default async function ModelSandboxPage({
     : [];
 
   const isGlobal = modelRow.isGlobal;
+  const displayName = isGlobal ? modelRow.sourceName : modelRow.id;
   const architecture = run?.architecturePath
     ? architectureFromPath(run.architecturePath)
     : null;
@@ -142,7 +143,7 @@ export default async function ModelSandboxPage({
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-3xl font-black tracking-tight text-amber-50 sm:text-4xl">
-                {modelRow.name}
+                {displayName}
               </h1>
               {isGlobal && (
                 <span className="rounded-full border border-orange-500/35 bg-orange-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-orange-300">
@@ -154,7 +155,7 @@ export default async function ModelSandboxPage({
               {modelRow.description ||
                 (isGlobal
                   ? "A shared Piro model available to the community."
-                  : "Your private stateful Piro deployment.")}
+                  : "Your private stateful deployment.")}
             </p>
           </div>
           <span
@@ -182,12 +183,15 @@ export default async function ModelSandboxPage({
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <ModelSandbox
-            modelId={modelRow.id}
-            modelName={modelRow.name}
+            modelId={isGlobal ? modelRow.sourceModelId : modelRow.id}
+            modelName={displayName}
             ready={ready}
           />
           <aside className="space-y-5">
-            <ModelApiInfo modelId={modelRow.id} global={isGlobal} />
+            <ModelApiInfo
+              modelId={isGlobal ? modelRow.sourceModelId : modelRow.id}
+              global={isGlobal}
+            />
             <section className="rounded-2xl border border-amber-900/30 bg-[#13100c] p-5">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-500/60">
                 Model details

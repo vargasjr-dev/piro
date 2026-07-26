@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { getSubscription, isActive } from "~/lib/billing";
-import { model } from "../../../../../data/schema";
+import { deployment, model } from "../../../../../data/schema";
 import { db } from "../../../../../data/db";
 import { eq } from "drizzle-orm";
 import { createSuggestedModelId } from "~/lib/model-id-suggestion";
@@ -21,13 +21,22 @@ export async function GET() {
 
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const modelId = createSuggestedModelId();
-    const [existing] = await db
-      .select({ id: model.id })
-      .from(model)
-      .where(eq(model.id, modelId))
-      .limit(1);
+    const [existingModel, existingDeployment] = await Promise.all([
+      db
+        .select({ id: model.id })
+        .from(model)
+        .where(eq(model.id, modelId))
+        .limit(1),
+      db
+        .select({ id: deployment.id })
+        .from(deployment)
+        .where(eq(deployment.id, modelId))
+        .limit(1),
+    ]);
 
-    if (!existing) return Response.json({ modelId });
+    if (!existingModel[0] && !existingDeployment[0]) {
+      return Response.json({ modelId });
+    }
   }
 
   return Response.json(

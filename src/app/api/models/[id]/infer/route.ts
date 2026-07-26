@@ -35,31 +35,23 @@ export async function POST(
 
   const [modelRow] = await db
     .select({
-      id: model.id,
+      deploymentId: deployment.id,
+      modelId: model.id,
       userId: model.userId,
       inferenceEndpoint: model.inferenceEndpoint,
       weightsR2Key: model.weightsR2Key,
     })
-    .from(model)
-    .where(and(eq(model.id, id), isNull(model.archivedAt)))
-    .limit(1);
-
-  if (!modelRow) {
-    return Response.json({ error: "Model not found" }, { status: 404 });
-  }
-
-  const [visibleDeployment] = await db
-    .select({ id: deployment.id })
     .from(deployment)
+    .innerJoin(model, eq(deployment.modelId, model.id))
     .where(
       and(
-        eq(deployment.modelId, id),
+        isNull(model.archivedAt),
+        eq(deployment.id, id),
         eq(deployment.enabled, true),
         or(
           and(
             eq(deployment.isAdmin, false),
             eq(deployment.createdByUserId, session.user.id),
-            eq(model.userId, session.user.id),
           ),
           and(
             eq(deployment.isAdmin, true),
@@ -73,13 +65,13 @@ export async function POST(
     )
     .limit(1);
 
-  if (!visibleDeployment) {
-    return Response.json({ error: "Model not found" }, { status: 404 });
+  if (!modelRow) {
+    return Response.json({ error: "Deployment not found" }, { status: 404 });
   }
 
   if (!modelRow.inferenceEndpoint || !modelRow.weightsR2Key) {
     return Response.json(
-      { error: "This model is not ready for inference yet." },
+      { error: "This deployment is not ready for inference yet." },
       { status: 409 },
     );
   }
@@ -87,7 +79,7 @@ export async function POST(
   const [trainingLink] = await db
     .select({ trainingRunId: modelTrainingRun.trainingRunId })
     .from(modelTrainingRun)
-    .where(eq(modelTrainingRun.modelId, id))
+    .where(eq(modelTrainingRun.modelId, modelRow.modelId))
     .limit(1);
   const [run] = trainingLink
     ? await db
@@ -128,7 +120,7 @@ export async function POST(
   try {
     const result = await invokeModalInference(
       modelRow.inferenceEndpoint,
-      modelRow.id,
+      modelRow.deploymentId,
       architecture,
       { parts: parsed.data.parts },
       process.env.MODAL_WEBHOOK_SECRET ?? "",

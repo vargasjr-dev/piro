@@ -132,7 +132,7 @@ export default function DeployModelButton({
                   id="deploy-model-title"
                   className="text-2xl font-black text-amber-50"
                 >
-                  Name your model
+                  Name your deployment
                 </h2>
               </div>
               <button
@@ -147,14 +147,14 @@ export default function DeployModelButton({
               </button>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-amber-200/60">
-              Choose a globally unique model ID. Your private deployment will
-              start preparing as soon as it is created.
+              Choose a globally unique deployment ID. It names your private
+              stateful deployment of the selected pretrained model.
             </p>
             <label
               htmlFor="model-id"
               className="mt-6 block text-xs font-bold uppercase tracking-[0.16em] text-amber-500/70"
             >
-              Model ID
+              Deployment ID
             </label>
             <input
               id="model-id"
@@ -232,7 +232,7 @@ export default function DeployModelButton({
                   ? "Generating suggestion…"
                   : submitting
                     ? "Creating deployment…"
-                    : "Deploy model"}
+                    : "Create deployment"}
               </button>
             </div>
           </div>
