@@ -1,33 +1,34 @@
 # Borealis
 
-Borealis is Piro's small fast/slow causal language model. It is intentionally
+Borealis is Piro's small durable/adaptation causal language model. It is intentionally
 smaller than a Transformer: the current sequence-processing backbone is an
-`nn.GRUCell`, while the output head maps the recurrent representation to
-vocabulary logits.
+`nn.GRUCell`, while the output head maps the context representation to vocabulary
+logits.
 
-## Hidden state
+## Context state
 
-`hidden` is the model's run-local representation of the sequence seen so far.
-It has shape `(hidden_dim,)` and is updated one token at a time:
+`context_state` is Borealis's run-local representation of the sequence seen so far.
+It has shape `(context_dim,)` and is updated one token at a time:
 
 ```text
 token id
   -> token embedding
   -> input projection
-  -> GRUCell(previous hidden)
-  -> next hidden
+  -> GRUCell(previous context_state)
+  -> next context_state
 ```
 
-The hidden state is not a copy of the prompt and it is not the model's durable
+The context state is not a copy of the prompt and is not the model's durable
 weights. It is a compressed working representation that lets generation consume
-one new token and continue from the previous context without replaying the
-entire prompt.
+one new token and continue from the previous context without replaying the entire
+prompt.
 
-Borealis also carries `BorealisFastState`, which is separate from `hidden`:
+Borealis also carries `BorealisAdaptationState`, which is separate from
+`context_state`:
 
-- `hidden` represents sequence context for the recurrent backbone;
-- `fast_state` contains run-local output-bias adaptation state;
-- durable module parameters are the slower learned model revision.
+- `context_state` represents sequence context for the recurrent backbone;
+- `adaptation_state` contains run-local output-bias adaptation state;
+- durable module parameters are the persistent learned model revision.
 
 Together they form `BorealisGenerationState` for an in-progress generation
 invocation.
@@ -39,16 +40,16 @@ invocation.
 `prefill(prompt_token_ids)` reads the known prompt and returns a
 `BorealisGenerationState`. For every known prompt transition, Borealis can:
 
-1. advance the hidden state;
+1. advance the context state;
 2. predict the next observed token;
 3. calculate causal cross-entropy;
-4. update the fast output-bias state.
+4. update the adaptation output-bias state.
 
-The final prompt token is then consumed to produce the hidden state used for the
+The final prompt token is then consumed to produce the context state used for the
 first generated token.
 
-Generated tokens are not fast-adapted by default because the model does not know
-the correct future target after it emits a token. Adapting from a model's own
+Generated tokens are not adapted by default because the model does not know the
+correct future target after it emits a token. Adapting from a model's own
 unverified output would be self-training, not ordinary next-token supervision.
 
 ### Output head
@@ -56,10 +57,10 @@ unverified output would be self-training, not ordinary next-token supervision.
 `next_token_logits(state)` applies the final readout:
 
 ```text
-hidden
+context_state
   -> LayerNorm
   -> durable output_head
-  -> fast output-bias overlay
+  -> adaptation output-bias overlay
   -> vocabulary logits
 ```
 
@@ -72,26 +73,33 @@ string and it is not the full Transformer-like reasoning stack.
 
 ```text
 state = Prefill(prompt)
-repeat up to max_new_tokens times:
-    logits = OutputHead(state.hidden, state.fast_state)
-    token = argmax(logits)
+for step in range(max_new_tokens):
+    logits = OutputHead(state.context_state, state.adaptation_state)
+    token = Argmax(logits)
+    Emit(token)
+    if token == eos_token:
+        break
     state = AdvanceGeneration(state, token)
 return generated tokens
 ```
 
-`eos_token_id`, when provided, is included in the returned tokens and stops the
-loop. Ties use the lowest token ID because generation uses `torch.argmax`.
+The configured `eos_token_id` is the normal completion signal when present; a
+per-call `eos_token_id` can override it. The EOS token is included in the returned
+sequence. If no EOS token is configured, `max_new_tokens` is the hard cap and the
+caller accepts cap-only termination. Ties use the lowest token ID because
+generation uses `torch.argmax`.
+
 
 `generate_with_state()` returns both the generated token IDs and the
-post-invocation `BorealisGenerationState`. Its fast state has been consolidated
-and cleared at the invocation boundary, while its hidden state is detached and
-safe to carry as an internal value. This state-returning method is intended for
-model-level continuation and testing; it is not yet an HTTP serialization
-contract.
+post-invocation `BorealisGenerationState`. Its adaptation state has been
+consolidated and cleared at the invocation boundary, while its context state is
+detached and safe to carry as an internal value. This state-returning method is
+intended for model-level continuation and testing; it is not yet an HTTP
+serialization contract.
 
 ## Existing model APIs
 
-- `prefill(prompt_token_ids, fast_state=None, adapt=True)` returns generation state.
+- `prefill(prompt_token_ids, adaptation_state=None, adapt=True)` returns generation state.
 - `next_token_logits(generation_state)` returns one vocabulary-logit vector.
 - `advance_generation(generation_state, token)` consumes one generated token.
 - `generate(prompt_token_ids, max_new_tokens, ...)` returns only newly generated token IDs.
@@ -101,5 +109,5 @@ contract.
 - `forward(token_ids)` remains equivalent to `run(token_ids, adapt=False)`.
 
 The model is token-ID based for this experiment. Tokenization and text decoding
-belong outside the core architecture so synthetic tasks can use tiny
-vocabularies and the recurrent state behavior remains measurable.
+belong outside the core architecture so synthetic tasks can use tiny vocabularies
+and the recurrent state behavior remains measurable.

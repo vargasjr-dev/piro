@@ -2,8 +2,8 @@
 
 from .model import (
     Borealis,
+    BorealisAdaptationState,
     BorealisConfig,
-    BorealisFastState,
     BorealisGenerationState,
     BorealisRuntimeWeights,
 )
@@ -11,7 +11,7 @@ from .model import (
 __all__ = [
     "Borealis",
     "BorealisConfig",
-    "BorealisFastState",
+    "BorealisAdaptationState",
     "BorealisGenerationState",
     "BorealisRuntimeWeights",
 ]

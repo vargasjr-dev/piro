@@ -1,12 +1,12 @@
-"""Borealis: a functional fast/slow self-updating language model.
+"""Borealis: a functional durable/adaptation self-updating language model.
 
 Borealis is intentionally smaller than the deferred CTM experiment.  It follows
 ``docs/architecture/stateful-rl-first-model-v0.1.md`` directly:
 
 * durable parameters embed tokens and predict the next token;
-* a run-local fast output-bias state adapts from causal prediction error;
-* each prediction is made with durable weights bound to the current fast state;
-* fast adaptation updates run-local state during the invocation;
+* a run-local adaptation output-bias state adapts from causal prediction error;
+* each prediction is made with durable weights bound to the current adaptation state;
+* adaptation updates run-local state during the invocation;
 * consolidation runs at the end of every invocation and produces the next durable revision.
 
 The model is token-id based for the first experiment.  Tokenization belongs at the
@@ -30,21 +30,22 @@ from architectures._common import ArchitectureModel
 class BorealisConfig:
     vocab_size: int = 32
     embed_dim: int = 32
-    hidden_dim: int = 64
-    fast_learning_rate: float = 0.1
+    context_dim: int = 64
+    adaptation_learning_rate: float = 0.1
     consolidation_rate: float = 0.25
+    eos_token_id: int | None = None
 
 
 @dataclass
-class BorealisFastState:
+class BorealisAdaptationState:
     """Run-local mutable state used during a Borealis episode."""
 
     output_bias: torch.Tensor
     updates: int = 0
     loss_ema: float | None = None
 
-    def clone(self) -> BorealisFastState:
-        return BorealisFastState(
+    def clone(self) -> BorealisAdaptationState:
+        return BorealisAdaptationState(
             output_bias=self.output_bias.detach().clone(),
             updates=self.updates,
             loss_ema=self.loss_ema,
@@ -53,26 +54,26 @@ class BorealisFastState:
 
 @dataclass
 class BorealisRuntimeWeights:
-    """Durable weights bound to one run-local fast state."""
+    """Durable weights bound to one run-local adaptation state."""
 
-    fast_state: BorealisFastState
+    adaptation_state: BorealisAdaptationState
 
 
 @dataclass
 class BorealisGenerationState:
-    """Recurrent representation and fast state carried across generation steps."""
+    """Context representation and adaptation state carried across generation steps."""
 
-    hidden: torch.Tensor
-    fast_state: BorealisFastState
+    context_state: torch.Tensor
+    adaptation_state: BorealisAdaptationState
 
 
 class Borealis(ArchitectureModel):
-    """Small causal model with explicit fast adaptation and consolidation."""
+    """Small causal model with explicit adaptation and consolidation."""
 
     name = "Borealis"
     slug = "borealis"
     description = (
-        "Text-first causal model with run-local fast weights, durable weights, "
+        "Text-first causal model with run-local adaptation overlay, durable weights, "
         "and explicit replay-safe consolidation."
     )
     module = "borealis"
@@ -83,25 +84,27 @@ class Borealis(ArchitectureModel):
         cfg = config or BorealisConfig(**kwargs)
         if cfg.vocab_size < 2:
             raise ValueError("vocab_size must be at least 2")
-        if cfg.embed_dim <= 0 or cfg.hidden_dim <= 0:
-            raise ValueError("embed_dim and hidden_dim must be positive")
-        if cfg.fast_learning_rate < 0:
-            raise ValueError("fast_learning_rate must be non-negative")
+        if cfg.embed_dim <= 0 or cfg.context_dim <= 0:
+            raise ValueError("embed_dim and context_dim must be positive")
+        if cfg.adaptation_learning_rate < 0:
+            raise ValueError("adaptation_learning_rate must be non-negative")
         if not 0 <= cfg.consolidation_rate <= 1:
             raise ValueError("consolidation_rate must be in [0, 1]")
+        if cfg.eos_token_id is not None and not 0 <= cfg.eos_token_id < cfg.vocab_size:
+            raise ValueError("eos_token_id must be within the configured vocabulary")
 
         self.config = cfg
         self.token_embedding = nn.Embedding(cfg.vocab_size, cfg.embed_dim)
-        self.input_projection = nn.Linear(cfg.embed_dim, cfg.hidden_dim)
-        self.recurrent = nn.GRUCell(cfg.hidden_dim, cfg.hidden_dim)
-        self.output_norm = nn.LayerNorm(cfg.hidden_dim)
-        self.output_head = nn.Linear(cfg.hidden_dim, cfg.vocab_size)
+        self.input_projection = nn.Linear(cfg.embed_dim, cfg.context_dim)
+        self.recurrent = nn.GRUCell(cfg.context_dim, cfg.context_dim)
+        self.output_norm = nn.LayerNorm(cfg.context_dim)
+        self.output_head = nn.Linear(cfg.context_dim, cfg.vocab_size)
 
     # ── Pseudocode contract ────────────────────────────────────────────────────
 
-    def initialize_fast_state(self) -> BorealisFastState:
-        """Initialize run-local fast state from the durable model shape."""
-        return BorealisFastState(
+    def initialize_adaptation_state(self) -> BorealisAdaptationState:
+        """Initialize run-local adaptation state from the durable model shape."""
+        return BorealisAdaptationState(
             output_bias=torch.zeros(
                 self.config.vocab_size,
                 device=self.output_head.weight.device,
@@ -109,19 +112,19 @@ class Borealis(ArchitectureModel):
             )
         )
 
-    def bind_fast_state(
+    def bind_adaptation_state(
         self,
         durable_weights: Any,
-        fast_state: BorealisFastState,
+        adaptation_state: BorealisAdaptationState,
     ) -> BorealisRuntimeWeights:
-        """Bind a fast state to the current durable model revision.
+        """Bind an adaptation state to the current durable model revision.
 
         ``durable_weights`` is intentionally an explicit boundary in the API;
         this implementation stores the durable substrate in the module itself.
         """
         del durable_weights
-        self._validate_fast_state(fast_state)
-        return BorealisRuntimeWeights(fast_state=fast_state)
+        self._validate_adaptation_state(adaptation_state)
+        return BorealisRuntimeWeights(adaptation_state=adaptation_state)
 
     def embed(self, token: torch.Tensor) -> torch.Tensor:
         """Map one observed token id into the shared representation."""
@@ -129,72 +132,72 @@ class Borealis(ArchitectureModel):
             raise ValueError("embed expects one scalar token id")
         return self.input_projection(self.token_embedding(token.long()))
 
-    def initialize_hidden_state(self) -> torch.Tensor:
-        """Create the zero recurrent representation for a new sequence."""
+    def initialize_context_state(self) -> torch.Tensor:
+        """Create the zero context representation for a new sequence."""
         return torch.zeros(
-            self.config.hidden_dim,
+            self.config.context_dim,
             device=self.token_embedding.weight.device,
             dtype=self.token_embedding.weight.dtype,
         )
 
-    def advance_hidden(
+    def advance_context_state(
         self,
         observed_token: torch.Tensor,
-        hidden: torch.Tensor,
+        context_state: torch.Tensor,
     ) -> torch.Tensor:
-        """Advance the recurrent representation without producing output logits."""
+        """Advance the context representation without producing output logits."""
         embedded = self.embed(observed_token)
-        return self.recurrent(embedded.unsqueeze(0), hidden.unsqueeze(0)).squeeze(0)
+        return self.recurrent(embedded.unsqueeze(0), context_state.unsqueeze(0)).squeeze(0)
 
     def predict_next_token(
         self,
         observed_token: torch.Tensor,
-        hidden: torch.Tensor,
+        context_state: torch.Tensor,
         runtime_weights: BorealisRuntimeWeights,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Predict the next observed token for fast adaptation."""
-        next_hidden = self.advance_hidden(observed_token, hidden)
-        logits = self.predict_logits(next_hidden, runtime_weights)
-        return logits, next_hidden
+        """Predict the next token for the adaptation scan."""
+        next_context_state = self.advance_context_state(observed_token, context_state)
+        logits = self.predict_logits(next_context_state, runtime_weights)
+        return logits, next_context_state
 
     def predict_logits(
         self,
-        hidden: torch.Tensor,
+        context_state: torch.Tensor,
         runtime_weights: BorealisRuntimeWeights,
     ) -> torch.Tensor:
         """Produce next-token logits used only by the adaptation scan."""
-        durable_logits = self.output_head(self.output_norm(hidden))
-        return durable_logits + runtime_weights.fast_state.output_bias
+        durable_logits = self.output_head(self.output_norm(context_state))
+        return durable_logits + runtime_weights.adaptation_state.output_bias
 
     def output_logits(
         self,
-        hidden: torch.Tensor,
+        context_state: torch.Tensor,
         runtime_weights: BorealisRuntimeWeights,
     ) -> torch.Tensor:
         """Produce the final response after the adaptation scan completes."""
-        durable_logits = self.output_head(self.output_norm(hidden))
-        return durable_logits + runtime_weights.fast_state.output_bias
+        durable_logits = self.output_head(self.output_norm(context_state))
+        return durable_logits + runtime_weights.adaptation_state.output_bias
 
-    def fast_adaptation(
+    def adaptation_step(
         self,
-        fast_state: BorealisFastState,
+        adaptation_state: BorealisAdaptationState,
         logits: torch.Tensor,
         target: torch.Tensor,
         loss: torch.Tensor,
-    ) -> BorealisFastState:
+    ) -> BorealisAdaptationState:
         """Apply the exact output-bias gradient of causal cross-entropy.
 
         The update is computed from detached probabilities so it mutates only
         run-local state.  The returned training loss still retains its graph for
         ordinary backpropagation into durable parameters.
         """
-        next_state = fast_state.clone()
-        if self.config.fast_learning_rate == 0:
+        next_state = adaptation_state.clone()
+        if self.config.adaptation_learning_rate == 0:
             return next_state
         with torch.no_grad():
             gradient = torch.softmax(logits.detach(), dim=-1)
             gradient[target.long()] -= 1.0
-            next_state.output_bias.sub_(self.config.fast_learning_rate * gradient)
+            next_state.output_bias.sub_(self.config.adaptation_learning_rate * gradient)
             next_state.updates += 1
             value = float(loss.detach())
             next_state.loss_ema = (
@@ -202,12 +205,12 @@ class Borealis(ArchitectureModel):
             )
         return next_state
 
-    def consolidate_weights(self, fast_state: BorealisFastState) -> BorealisFastState:
-        """Propose a durable output-bias update and clear consumed fast state."""
-        self._validate_fast_state(fast_state)
+    def consolidate_weights(self, adaptation_state: BorealisAdaptationState) -> BorealisAdaptationState:
+        """Propose a durable output-bias update and clear consumed adaptation state."""
+        self._validate_adaptation_state(adaptation_state)
         with torch.no_grad():
-            self.output_head.bias.add_(self.config.consolidation_rate * fast_state.output_bias)
-        next_state = fast_state.clone()
+            self.output_head.bias.add_(self.config.consolidation_rate * adaptation_state.output_bias)
+        next_state = adaptation_state.clone()
         next_state.output_bias.zero_()
         next_state.updates = 0
         next_state.loss_ema = None
@@ -217,28 +220,28 @@ class Borealis(ArchitectureModel):
         """Return the updated durable revision for the next invocation."""
         return {key: value.detach().clone() for key, value in self.state_dict().items()}
 
-    def snapshot_fast_state(self, fast_state: BorealisFastState) -> dict[str, Any]:
+    def snapshot_adaptation_state(self, adaptation_state: BorealisAdaptationState) -> dict[str, Any]:
         """Serialize run-local state without coupling the model to storage."""
-        self._validate_fast_state(fast_state)
+        self._validate_adaptation_state(adaptation_state)
         return {
-            "output_bias": fast_state.output_bias.detach().clone(),
-            "updates": fast_state.updates,
-            "loss_ema": fast_state.loss_ema,
+            "output_bias": adaptation_state.output_bias.detach().clone(),
+            "updates": adaptation_state.updates,
+            "loss_ema": adaptation_state.loss_ema,
         }
 
-    def load_fast_state(self, snapshot: dict[str, Any]) -> BorealisFastState:
-        """Restore a previously returned fast state."""
+    def load_adaptation_state(self, snapshot: dict[str, Any]) -> BorealisAdaptationState:
+        """Restore a previously returned adaptation state."""
         output_bias = torch.as_tensor(
             snapshot["output_bias"],
             device=self.output_head.weight.device,
         ).clone()
         loss_ema = float(snapshot["loss_ema"]) if snapshot.get("loss_ema") is not None else None
-        state = BorealisFastState(
+        state = BorealisAdaptationState(
             output_bias=output_bias,
             updates=int(snapshot.get("updates", 0)),
             loss_ema=loss_ema,
         )
-        self._validate_fast_state(state)
+        self._validate_adaptation_state(state)
         return state
 
     # ── Functional model execution ────────────────────────────────────────────
@@ -246,38 +249,38 @@ class Borealis(ArchitectureModel):
     def prefill(
         self,
         token_ids: torch.Tensor,
-        fast_state: BorealisFastState | None = None,
+        adaptation_state: BorealisAdaptationState | None = None,
         *,
         adapt: bool = True,
     ) -> BorealisGenerationState:
         """Read a prompt and return the recurrent state for its next token.
 
-        Known prompt transitions can supervise fast adaptation. The returned
-        hidden state is the model's compressed representation of the complete
+        Known prompt transitions can supervise adaptation. The returned
+        context state is the model's compressed representation of the complete
         prompt; it is carried forward instead of replaying the prompt at each
         generation step.
         """
         tokens = self._validate_prompt_tokens(token_ids)
-        state = (fast_state or self.initialize_fast_state()).clone()
-        hidden = self.initialize_hidden_state().to(device=tokens.device)
-        runtime = self.bind_fast_state(self, state)
+        state = (adaptation_state or self.initialize_adaptation_state()).clone()
+        context_state = self.initialize_context_state().to(device=tokens.device)
+        runtime = self.bind_adaptation_state(self, state)
 
         for index in range(tokens.numel() - 1):
-            logits, hidden = self.predict_next_token(tokens[index], hidden, runtime)
+            logits, context_state = self.predict_next_token(tokens[index], context_state, runtime)
             target = tokens[index + 1]
             loss = F.cross_entropy(logits.unsqueeze(0), target.unsqueeze(0))
             if adapt:
-                state = self.fast_adaptation(state, logits, target, loss)
-                runtime = self.bind_fast_state(self, state)
+                state = self.adaptation_step(state, logits, target, loss)
+                runtime = self.bind_adaptation_state(self, state)
 
-        hidden = self.advance_hidden(tokens[-1], hidden)
-        return BorealisGenerationState(hidden=hidden, fast_state=state)
+        context_state = self.advance_context_state(tokens[-1], context_state)
+        return BorealisGenerationState(context_state=context_state, adaptation_state=state)
 
     def next_token_logits(self, generation_state: BorealisGenerationState) -> torch.Tensor:
         """Read next-token logits from a prefetched generation state."""
         self._validate_generation_state(generation_state)
-        runtime = self.bind_fast_state(self, generation_state.fast_state)
-        return self.output_logits(generation_state.hidden, runtime)
+        runtime = self.bind_adaptation_state(self, generation_state.adaptation_state)
+        return self.output_logits(generation_state.context_state, runtime)
 
     def advance_generation(
         self,
@@ -287,17 +290,17 @@ class Borealis(ArchitectureModel):
         """Consume one generated token and carry its representation forward."""
         self._validate_generation_state(generation_state)
         token = self._validate_single_token(token)
-        hidden = self.advance_hidden(token, generation_state.hidden)
+        context_state = self.advance_context_state(token, generation_state.context_state)
         return BorealisGenerationState(
-            hidden=hidden,
-            fast_state=generation_state.fast_state.clone(),
+            context_state=context_state,
+            adaptation_state=generation_state.adaptation_state.clone(),
         )
 
     def generate_with_state(
         self,
         prompt_token_ids: torch.Tensor,
         max_new_tokens: int,
-        fast_state: BorealisFastState | None = None,
+        adaptation_state: BorealisAdaptationState | None = None,
         *,
         adapt: bool = True,
         eos_token_id: int | None = None,
@@ -307,22 +310,23 @@ class Borealis(ArchitectureModel):
             raise ValueError("max_new_tokens must be non-negative")
         if eos_token_id is not None and not 0 <= eos_token_id < self.config.vocab_size:
             raise ValueError("eos_token_id must be within the configured vocabulary")
+        stop_token_id = self.config.eos_token_id if eos_token_id is None else eos_token_id
 
         prompt = self._validate_prompt_tokens(prompt_token_ids)
-        state = self.prefill(prompt, fast_state, adapt=adapt)
+        state = self.prefill(prompt, adaptation_state, adapt=adapt)
         generated: list[torch.Tensor] = []
         for _ in range(max_new_tokens):
             logits = self.next_token_logits(state)
             token = torch.argmax(logits, dim=-1)
             generated.append(token)
-            state = self.advance_generation(state, token)
-            if eos_token_id is not None and int(token) == eos_token_id:
+            if stop_token_id is not None and int(token) == stop_token_id:
                 break
+            state = self.advance_generation(state, token)
 
-        next_fast_state = self.consolidate_weights(state.fast_state)
+        next_adaptation_state = self.consolidate_weights(state.adaptation_state)
         state = BorealisGenerationState(
-            hidden=state.hidden.detach().clone(),
-            fast_state=next_fast_state,
+            context_state=state.context_state.detach().clone(),
+            adaptation_state=next_adaptation_state,
         )
         if not generated:
             return prompt.new_empty((0,), dtype=torch.long), state
@@ -332,16 +336,16 @@ class Borealis(ArchitectureModel):
         self,
         prompt_token_ids: torch.Tensor,
         max_new_tokens: int,
-        fast_state: BorealisFastState | None = None,
+        adaptation_state: BorealisAdaptationState | None = None,
         *,
         adapt: bool = True,
         eos_token_id: int | None = None,
     ) -> torch.Tensor:
-        """Greedily generate a continuation while carrying hidden state forward."""
+        """Greedily generate a continuation while carrying context state forward."""
         generated, _ = self.generate_with_state(
             prompt_token_ids,
             max_new_tokens,
-            fast_state,
+            adaptation_state,
             adapt=adapt,
             eos_token_id=eos_token_id,
         )
@@ -350,19 +354,19 @@ class Borealis(ArchitectureModel):
     def run(
         self,
         token_ids: torch.Tensor,
-        fast_state: BorealisFastState | None = None,
+        adaptation_state: BorealisAdaptationState | None = None,
         *,
         adapt: bool = True,
     ) -> torch.Tensor:
         """Adapt on the input context, then return its final output logits.
 
-        Losses supervise fast adaptation and durable learning internally; the
+        Losses supervise adaptation and durable learning internally; the
         serving boundary exposes only the completed output.
         """
         tokens = self._validate_tokens(token_ids)
-        state = self.prefill(tokens[:-1], fast_state, adapt=adapt)
+        state = self.prefill(tokens[:-1], adaptation_state, adapt=adapt)
         final_logits = self.next_token_logits(state)
-        self.consolidate_weights(state.fast_state)
+        self.consolidate_weights(state.adaptation_state)
         return final_logits
 
     def causal_loss(self, token_ids: torch.Tensor) -> torch.Tensor:
@@ -397,17 +401,17 @@ class Borealis(ArchitectureModel):
         return token
 
     def _validate_generation_state(self, state: BorealisGenerationState) -> None:
-        if tuple(state.hidden.shape) != (self.config.hidden_dim,):
-            raise ValueError(f"hidden state must have shape {(self.config.hidden_dim,)}")
-        self._validate_fast_state(state.fast_state)
+        if tuple(state.context_state.shape) != (self.config.context_dim,):
+            raise ValueError(f"context state must have shape {(self.config.context_dim,)}")
+        self._validate_adaptation_state(state.adaptation_state)
 
-    def _validate_fast_state(self, fast_state: BorealisFastState) -> None:
+    def _validate_adaptation_state(self, adaptation_state: BorealisAdaptationState) -> None:
         expected = (self.config.vocab_size,)
-        if tuple(fast_state.output_bias.shape) != expected:
-            raise ValueError(f"fast output bias must have shape {expected}")
+        if tuple(adaptation_state.output_bias.shape) != expected:
+            raise ValueError(f"adaptation output bias must have shape {expected}")
 
 
 BorealisConfig.__module__ = __name__
-BorealisFastState.__module__ = __name__
+BorealisAdaptationState.__module__ = __name__
 BorealisGenerationState.__module__ = __name__
 BorealisRuntimeWeights.__module__ = __name__
