@@ -93,7 +93,7 @@ export default async function ProfilePage() {
       </section>
 
       {/* API Keys */}
-      <div className="mt-6">
+      <div id="api-keys" className="mt-6">
         <h2 className="text-sm font-semibold text-amber-300/70 uppercase tracking-wide mb-4">
           API Keys
         </h2>
