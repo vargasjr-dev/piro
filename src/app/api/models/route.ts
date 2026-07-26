@@ -1,17 +1,18 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { randomUUID } from "node:crypto";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../data/db";
 import {
-  benchmarkRun,
   deployment,
   model,
   modelHostedApi,
   modelTrainingRun,
+  benchmarkRun,
 } from "../../../../data/schema";
 import { getSubscription, isActive } from "~/lib/billing";
 import { modelIdSchema } from "~/lib/model-identifiers";
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -53,15 +54,14 @@ export async function POST(request: Request) {
   }
   if (!parsed.success) {
     return Response.json(
-      { error: parsed.error.issues[0]?.message ?? "Invalid deployment ID" },
+      { error: parsed.error.issues[0]?.message ?? "Invalid model ID" },
       { status: 400 },
     );
   }
 
-  const deploymentId = parsed.data;
+  const modelId = parsed.data;
   const [sourceModel] = await db
     .select({
-      id: model.id,
       name: model.name,
       parameterCount: model.parameterCount,
       weightsR2Key: model.weightsR2Key,
@@ -90,31 +90,32 @@ export async function POST(request: Request) {
     );
   }
 
-  const [conflictingModel, conflictingDeployment] = await Promise.all([
-    db
-      .select({ id: model.id })
-      .from(model)
-      .where(eq(model.id, deploymentId))
-      .limit(1),
-    db
-      .select({ id: deployment.id })
-      .from(deployment)
-      .where(eq(deployment.id, deploymentId))
-      .limit(1),
-  ]);
-  if (conflictingModel[0] || conflictingDeployment[0]) {
-    return Response.json(
-      { error: "That deployment ID is already in use. Choose another one." },
-      { status: 409 },
-    );
-  }
-
+  let createdModel: typeof model.$inferSelect | undefined;
   try {
+    [createdModel] = await db
+      .insert(model)
+      .values({
+        id: modelId,
+        userId: session.user.id,
+        name: modelId,
+        description: `${sourceModel.name} private deployment`,
+        parameterCount: sourceModel.parameterCount,
+        weightsR2Key: sourceModel.weightsR2Key,
+        inferenceEndpoint: sourceModel.inferenceEndpoint,
+      })
+      .returning();
+
+    await db.insert(modelTrainingRun).values({
+      id: randomUUID(),
+      modelId: createdModel.id,
+      trainingRunId: sourceModel.trainingRunId,
+    });
+
     const [createdDeployment] = await db
       .insert(deployment)
       .values({
-        id: deploymentId,
-        modelId: sourceModel.id,
+        id: randomUUID(),
+        modelId: createdModel.id,
         createdByUserId: session.user.id,
         isAdmin: false,
         enabled: true,
@@ -124,13 +125,23 @@ export async function POST(request: Request) {
     revalidatePath("/models");
 
     return Response.json(
-      { model: sourceModel, deployment: createdDeployment },
+      { model: createdModel, deployment: createdDeployment },
       { status: 201 },
     );
   } catch (error) {
+    if (createdModel) {
+      try {
+        await db.delete(model).where(eq(model.id, createdModel.id));
+      } catch (cleanupError) {
+        console.error(
+          "Failed to clean up an incomplete model deployment",
+          cleanupError,
+        );
+      }
+    }
     if (isUniqueViolation(error)) {
       return Response.json(
-        { error: "That deployment ID is already in use. Choose another one." },
+        { error: "That model ID is already in use. Choose another one." },
         { status: 409 },
       );
     }
@@ -152,40 +163,41 @@ export async function GET() {
   if (!session)
     return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const deployments = await db
-    .select({
-      id: deployment.id,
-      modelId: model.id,
-      name: deployment.id,
-      description: model.description,
-      parameterCount: model.parameterCount,
-      createdAt: deployment.createdAt,
-    })
-    .from(deployment)
-    .innerJoin(model, eq(deployment.modelId, model.id))
+  const models = await db
+    .select()
+    .from(model)
+    .where(eq(model.userId, session.user.id))
+    .orderBy(model.createdAt);
+
+  // Fetch hosted API info for all models
+  const hostedApis = await db
+    .select()
+    .from(modelHostedApi)
     .where(
-      and(
-        eq(deployment.createdByUserId, session.user.id),
-        eq(deployment.isAdmin, false),
-        isNull(model.archivedAt),
+      eq(
+        modelHostedApi.modelId,
+        sql`ANY(ARRAY[${sql.join(
+          models.map((m) => sql`${m.id}`),
+          sql`, `,
+        )}])`,
       ),
-    )
-    .orderBy(desc(deployment.createdAt));
+    );
 
-  const modelIds = deployments.map((item) => item.modelId);
-  const hostedApis = modelIds.length
-    ? await db
-        .select()
-        .from(modelHostedApi)
-        .where(inArray(modelHostedApi.modelId, modelIds))
-    : [];
-  const trainingLinks = modelIds.length
-    ? await db
-        .select()
-        .from(modelTrainingRun)
-        .where(inArray(modelTrainingRun.modelId, modelIds))
-    : [];
+  // Fetch training run links
+  const trainingLinks = await db
+    .select()
+    .from(modelTrainingRun)
+    .where(
+      eq(
+        modelTrainingRun.modelId,
+        sql`ANY(ARRAY[${sql.join(
+          models.map((m) => sql`${m.id}`),
+          sql`, `,
+        )}])`,
+      ),
+    );
 
+  // Benchmark run counts per model (target = model.id)
   const counts = await db
     .select({
       target: benchmarkRun.target,
@@ -196,30 +208,30 @@ export async function GET() {
     .groupBy(benchmarkRun.target);
 
   const countByTarget = Object.fromEntries(
-    counts.map((item) => [item.target, item.count]),
+    counts.map((c) => [c.target, c.count]),
   );
   const hostedByModelId = Object.fromEntries(
-    hostedApis.map((item) => [item.modelId, item]),
+    hostedApis.map((h) => [h.modelId, h]),
   );
   const trainingByModelId = Object.fromEntries(
-    trainingLinks.map((item) => [item.modelId, item]),
+    trainingLinks.map((t) => [t.modelId, t]),
   );
 
   return Response.json({
-    models: deployments.map((item) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      parameterCount: item.parameterCount,
-      createdAt: item.createdAt.toISOString(),
-      hostedApi: hostedByModelId[item.modelId]
+    models: models.map((m) => ({
+      id: m.id,
+      name: m.name,
+      description: m.description,
+      parameterCount: m.parameterCount,
+      createdAt: m.createdAt.toISOString(),
+      hostedApi: hostedByModelId[m.id]
         ? {
-            provider: hostedByModelId[item.modelId].provider,
-            apiModelName: hostedByModelId[item.modelId].apiModelName,
+            provider: hostedByModelId[m.id].provider,
+            apiModelName: hostedByModelId[m.id].apiModelName,
           }
         : null,
-      trainingRunId: trainingByModelId[item.modelId]?.trainingRunId ?? null,
-      benchmarkRunCount: countByTarget[item.modelId] ?? 0,
+      trainingRunId: trainingByModelId[m.id]?.trainingRunId ?? null,
+      benchmarkRunCount: countByTarget[m.id] ?? 0,
     })),
   });
 }

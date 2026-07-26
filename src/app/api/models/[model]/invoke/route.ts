@@ -29,31 +29,30 @@ export async function POST(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { model: requestedId } = await params;
+  const { model: modelId } = await params;
   const [visibleModel] = await db
     .select({
-      deploymentId: deployment.id,
-      modelId: model.id,
+      id: model.id,
       inferenceEndpoint: model.inferenceEndpoint,
       weightsR2Key: model.weightsR2Key,
       architecturePath: trainingRun.architecturePath,
     })
-    .from(deployment)
-    .innerJoin(model, eq(deployment.modelId, model.id))
+    .from(model)
+    .innerJoin(deployment, eq(deployment.modelId, model.id))
     .leftJoin(modelTrainingRun, eq(modelTrainingRun.modelId, model.id))
     .leftJoin(trainingRun, eq(trainingRun.id, modelTrainingRun.trainingRunId))
     .where(
       and(
+        eq(model.id, modelId),
         isNull(model.archivedAt),
         eq(deployment.enabled, true),
         or(
           and(
-            eq(deployment.id, requestedId),
             eq(deployment.isAdmin, false),
             eq(deployment.createdByUserId, auth.userId),
+            eq(model.userId, auth.userId),
           ),
           and(
-            eq(model.id, requestedId),
             eq(deployment.isAdmin, true),
             or(
               isNull(deployment.targetUserId),
@@ -66,7 +65,7 @@ export async function POST(
     .limit(1);
 
   if (!visibleModel) {
-    return Response.json({ error: "Deployment not found" }, { status: 404 });
+    return Response.json({ error: "Model not found" }, { status: 404 });
   }
 
   if (!visibleModel.inferenceEndpoint || !visibleModel.weightsR2Key) {
@@ -107,7 +106,7 @@ export async function POST(
   try {
     const result = await invokeModalInference(
       visibleModel.inferenceEndpoint,
-      visibleModel.deploymentId,
+      visibleModel.id,
       architecture,
       parsed.data,
       process.env.MODAL_WEBHOOK_SECRET ?? "",

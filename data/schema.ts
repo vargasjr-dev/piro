@@ -286,9 +286,8 @@ export const trainingRun = pgTable(
 );
 
 /**
- * A source model — either a Piro-trained model or a hosted API model.
+ * A model — either a Piro-trained model or a hosted API model.
  * Discriminated by presence of a model_training_run or model_hosted_api row.
- * User-owned deployment identity belongs on deployment, not in a cloned model row.
  */
 export const model = pgTable(
   "model",
@@ -341,8 +340,7 @@ export const inferenceNode = pgTable(
 
 /**
  * A hosted model deployment. Deployments are the user-visible stateful
- * inference targets and own deployment identity/ownership; the model row holds
- * the underlying source-model metadata.
+ * inference targets; the model row holds the underlying model metadata.
  *
  * isAdmin marks a deployment as part of the shared/global Piro fleet.
  * enabled controls whether the deployment is available in the model picker.
