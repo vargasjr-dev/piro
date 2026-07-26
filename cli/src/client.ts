@@ -1,19 +1,67 @@
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+
 /**
  * Thin API client that wraps fetch calls to the Piro platform.
  *
- * Config is read from environment variables:
- *   PIRO_API_KEY   — required: Bearer token
- *   PIRO_BASE_URL  — optional: defaults to https://trainpiro.app
+ * Configuration is read from the process environment and, when present, the
+ * nearest `.env` file in the current directory or one of its parents.
+ * Explicit process environment variables always win over `.env` values.
  */
 
 export const DEFAULT_BASE_URL = "https://trainpiro.app";
 
 export interface PiroClientConfig {
   apiKey: string;
-  baseUrl?: string;
+  baseUrl: string;
+}
+
+let dotenvLoaded = false;
+
+function loadDotenv(): void {
+  if (dotenvLoaded) return;
+  dotenvLoaded = true;
+
+  let directory = process.cwd();
+  while (true) {
+    const path = join(directory, ".env");
+    if (existsSync(path)) {
+      loadDotenvFile(path);
+      return;
+    }
+    const parent = dirname(directory);
+    if (parent === directory) return;
+    directory = parent;
+  }
+}
+
+function loadDotenvFile(path: string): void {
+  for (const rawLine of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const assignment = line.replace(/^export\s+/, "").match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!assignment) continue;
+
+    const [, key, rawValue] = assignment;
+    if (process.env[key] !== undefined) continue;
+    process.env[key] = parseDotenvValue(rawValue);
+  }
+}
+
+function parseDotenvValue(rawValue: string): string {
+  if (rawValue.length >= 2) {
+    const first = rawValue[0];
+    const last = rawValue[rawValue.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return rawValue.slice(1, -1);
+    }
+  }
+  return rawValue.replace(/\s+#.*$/, "").trim();
 }
 
 export function resolveConfig(): PiroClientConfig {
+  loadDotenv();
   const apiKey = process.env.PIRO_API_KEY ?? "";
   if (!apiKey) {
     console.error("Error: PIRO_API_KEY environment variable is not set.");
