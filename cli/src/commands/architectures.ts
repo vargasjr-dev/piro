@@ -15,8 +15,7 @@ export function architecturePath(name: string): string {
   const trimmed = name.trim().replace(/^\/+|\/+$/g, "");
   if (!trimmed) throw new Error("architecture name is required");
   if (
-    trimmed.startsWith("architectures/") ||
-    trimmed.startsWith("experiments/")
+    trimmed.startsWith("architectures/")
   ) {
     return trimmed;
   }

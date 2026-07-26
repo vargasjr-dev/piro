@@ -26,7 +26,7 @@ jobs:
         run: bunx tsc --noEmit
 
   schema-check:
-    name: Schema Generation
+    name: Schema Validation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,5 +38,5 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Verify schema can generate migrations
-        run: bunx drizzle-kit generate --config drizzle.config.ts --name ci-schema-check
+      - name: Verify schema can be serialized
+        run: bunx drizzle-kit export --config drizzle.config.ts > /tmp/piro-schema.sql

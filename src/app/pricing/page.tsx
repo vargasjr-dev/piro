@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
-import { getLatestPiroModel } from "~/lib/latest-experiment";
+import { getCurrentPiroArchitecture } from "~/lib/latest-architecture";
 import PricingClient from "./PricingClient";
 
 export default async function PricingPage() {
-  const latestModel = getLatestPiroModel();
+  const latestModel = getCurrentPiroArchitecture();
   const cookieStore = await cookies();
   const isLoggedIn =
     cookieStore.has("better-auth.session_token") ||

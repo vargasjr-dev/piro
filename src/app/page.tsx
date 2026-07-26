@@ -2,14 +2,14 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import FlameLogo from "~/components/FlameLogo";
 import PublicNavbar from "~/components/PublicNavbar";
-import { getLatestPiroModel } from "~/lib/latest-experiment";
+import { getCurrentPiroArchitecture } from "~/lib/latest-architecture";
 
 export default async function HomePage() {
   const cookieStore = await cookies();
   const isLoggedIn =
     cookieStore.has("better-auth.session_token") ||
     cookieStore.has("__Secure-better-auth.session_token");
-  const latestModel = getLatestPiroModel();
+  const latestModel = getCurrentPiroArchitecture();
 
   return (
     <main className="min-h-screen bg-[#0d0a08] text-amber-100">
@@ -66,7 +66,7 @@ export default async function HomePage() {
             {[
               ["01", "Start with a working state", "Every invocation begins with the state your model has already accumulated — your context, your patterns, your history."],
               ["02", "Let it adapt", "Piro updates its state as it works. The model can carry forward what it learned instead of re-reading the same world from scratch."],
-              ["03", "Keep the deployment", "Your dedicated model is versioned and addressable. Move from experiment to useful personal intelligence without rebuilding the relationship each time."],
+              ["03", "Keep the deployment", "Your dedicated model is versioned and addressable. Move from prototype to useful personal intelligence without rebuilding the relationship each time."],
             ].map(([number, title, body]) => (
               <article key={number} className="group rounded-2xl border border-amber-900/35 bg-[#13100c] p-7 transition-colors hover:border-orange-500/40">
                 <p className="text-4xl font-black text-orange-400/80 transition-colors group-hover:text-orange-300">{number}</p>
@@ -83,9 +83,9 @@ export default async function HomePage() {
           <div>
             <p className="mb-4 text-sm font-semibold uppercase tracking-[0.22em] text-orange-400">Always current</p>
             <h2 className="max-w-xl text-3xl font-bold leading-tight text-amber-50 sm:text-5xl">Your deployment follows the frontier.</h2>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-amber-200/65">Piro’s research moves through named experiments. When a new architecture becomes the latest validated model, the hosted starting point changes with it — no stale model name hardcoded into the promise.</p>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-amber-200/65">Piro’s research evolves through owned architecture tracks. When a new architecture becomes the current validated model, the hosted starting point changes with it — no stale model name hardcoded into the promise.</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-sm text-orange-200">Latest experiment: {latestModel.experiment}</span>
+              <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-sm text-orange-200">Current architecture</span>
               <span className="rounded-full border border-amber-700/40 px-4 py-2 font-mono text-sm text-amber-300/80">{latestModel.architecture}</span>
             </div>
           </div>
@@ -111,11 +111,11 @@ export default async function HomePage() {
           </div>
           <div className="rounded-3xl border border-orange-500/35 bg-gradient-to-b from-orange-500/10 to-transparent p-8 sm:p-12">
             <div className="grid gap-10 md:grid-cols-[0.8fr_1fr] md:items-center">
-              <div><div className="flex items-end gap-2"><span className="text-6xl font-black text-amber-50">$100</span><span className="mb-3 text-amber-400/60">/month</span></div><p className="mt-4 text-sm leading-relaxed text-amber-300/60">Inference access to <span className="font-semibold text-orange-200">{latestModel.label}</span>, resolved from the latest experiment.</p></div>
+              <div><div className="flex items-end gap-2"><span className="text-6xl font-black text-amber-50">$100</span><span className="mb-3 text-amber-400/60">/month</span></div><p className="mt-4 text-sm leading-relaxed text-amber-300/60">Inference access to <span className="font-semibold text-orange-200">{latestModel.label}</span>, resolved from the current architecture.</p></div>
               <ul className="grid gap-4 sm:grid-cols-2">
                 {[
                   ["Dedicated state", "Your model’s working state persists between calls."],
-                  ["Latest model track", "Automatically points at the newest validated experiment."],
+                  ["Current architecture", "Automatically points at the newest validated architecture."],
                   ["Unlimited inference", "Use the model without a per-token meter."],
                   ["Versioned checkpoints", "Inspect and recover the state that powers your deployment."],
                   ["API access", "Connect your model to the tools and workflows you already use."],
@@ -130,7 +130,7 @@ export default async function HomePage() {
       </section>
 
       <section className="border-t border-amber-900/20 px-4 py-24 text-center sm:px-6 sm:py-32">
-        <div className="mx-auto max-w-2xl"><h2 className="text-3xl font-bold leading-tight text-amber-50 sm:text-5xl">Give your intelligence<br /><span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">somewhere to grow.</span></h2><p className="mt-6 text-lg leading-relaxed text-amber-200/65">Deploy a stateful Piro model built on the latest experiment — and stop starting from zero.</p><Link href={isLoggedIn ? "/models" : "/signup"} className="ember-glow mt-10 inline-block rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-10 py-4 text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500">{isLoggedIn ? "Open your model →" : "Deploy your model →"}</Link><div className="mt-12 flex justify-center"><FlameLogo size={40} /></div></div>
+        <div className="mx-auto max-w-2xl"><h2 className="text-3xl font-bold leading-tight text-amber-50 sm:text-5xl">Give your intelligence<br /><span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent ember-text-glow">somewhere to grow.</span></h2><p className="mt-6 text-lg leading-relaxed text-amber-200/65">Deploy a stateful Piro model built on the current architecture — and stop starting from zero.</p><Link href={isLoggedIn ? "/models" : "/signup"} className="ember-glow mt-10 inline-block rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-10 py-4 text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500">{isLoggedIn ? "Open your model →" : "Deploy your model →"}</Link><div className="mt-12 flex justify-center"><FlameLogo size={40} /></div></div>
       </section>
 
       <footer className="border-t border-amber-900/20 px-4 py-10 text-center text-xs text-amber-400/40"><p>Piro — stateful intelligence, deployed for you. © 2026.</p><p className="mt-1">© 2026 VargasJR LLC. All rights reserved.</p></footer>

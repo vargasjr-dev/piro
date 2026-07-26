@@ -2,10 +2,10 @@ import DocsShell from "~/components/DocsShell";
 
 export const metadata = {
   title: "Getting started — Piro Docs",
-  description: "Create your first Piro experiment and connect it to the model loop.",
+  description: "Create your first Piro architecture and connect it to the model loop.",
 };
 
-const repoTree = `my-piro-experiment/
+const repoTree = `my-piro-architecture/
 ├── sources/
 │   └── associative-recall/
 │       └── main.py
@@ -21,7 +21,7 @@ export default function GettingStartedPage() {
   return (
     <DocsShell
       active="/docs/getting-started"
-      title="Start with an experiment."
+      title="Start with an architecture."
       description="A Piro project is a small, inspectable repo: generate the experiences, define the architecture, run the training loop, and measure whether the model is actually becoming more capable."
     >
       <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">

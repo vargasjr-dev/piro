@@ -44,11 +44,9 @@ export default function ArchitecturePage() {
               <div className="whitespace-pre"><Variable>durableWeights</Variable> = <MethodLink href="/docs/architecture/loadWeights">LoadWeights</MethodLink>()</div>
               <div className="whitespace-pre"><Variable>fastState</Variable> = <MethodLink href="/docs/architecture/initializeFastState">InitializeFastState</MethodLink>(<Variable>durableWeights</Variable>)</div>
               <div className="whitespace-pre"><Variable>x</Variable> = <MethodLink href="/docs/architecture/embedding">Embed</MethodLink>(<Link href="/docs/architecture/observation" className="text-violet-300 underline decoration-violet-500/40 underline-offset-4 transition hover:text-violet-100">PiroInput</Link>)</div>
-              <div className="whitespace-pre"><Variable>predictions</Variable> = []</div>
               <div className="whitespace-pre"><Keyword>for</Keyword> each observedChunk in <MethodLink href="/docs/architecture/chunkText">ChunkText</MethodLink>(<Variable>x</Variable>.text):</div>
               <div className="whitespace-pre">    <Variable>runtimeWeights</Variable> = <MethodLink href="/docs/architecture/bindFastState">BindFastState</MethodLink>(<Variable>durableWeights</Variable>, <Variable>fastState</Variable>)</div>
               <div className="whitespace-pre">    <Variable>prediction</Variable> = <MethodLink href="/docs/architecture/predictNext">PredictNextToken</MethodLink>(observedChunk, <Variable>runtimeWeights</Variable>)</div>
-              <div className="whitespace-pre">    <Variable>predictions</Variable>.append(<Variable>prediction</Variable>)</div>
               <div className="whitespace-pre">    <Variable>fastState</Variable> = <MethodLink href="/docs/architecture/fastAdaptation">FastAdaptation</MethodLink>(</div>
               <div className="whitespace-pre">        <Variable>fastState</Variable>,</div>
               <div className="whitespace-pre">        observedChunk,</div>
@@ -58,7 +56,7 @@ export default function ArchitecturePage() {
               <div className="whitespace-pre"><Variable>output</Variable> = <MethodLink href="/docs/architecture/output">OutputHead</MethodLink>(<Variable>runtimeWeights</Variable>)</div>
               <div className="whitespace-pre"><Variable>durableWeights</Variable> = <MethodLink href="/docs/architecture/consolidate">ConsolidateWeights</MethodLink>(<Variable>durableWeights</Variable>, <Variable>fastState</Variable>)</div>
               <div className="whitespace-pre"><MethodLink href="/docs/architecture/saveWeights">SaveWeights</MethodLink>(<Variable>durableWeights</Variable>)</div>
-              <div className="whitespace-pre"><Keyword>return</Keyword> <Variable>output</Variable>, <Variable>predictions</Variable>, <Variable>fastState</Variable></div>
+              <div className="whitespace-pre"><Keyword>return</Keyword> <Variable>output</Variable></div>
             </code>
           </div>
         </section>
