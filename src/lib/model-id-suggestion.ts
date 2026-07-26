@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { getCurrentPiroArchitecture } from "~/lib/latest-architecture";
-import { MODEL_ID_WORDS } from "~/lib/model-id-words";
+
 
 function randomWord(exclude?: string) {
   let word = MODEL_ID_WORDS[randomInt(MODEL_ID_WORDS.length)];
