@@ -8,6 +8,7 @@ on:
       - "drizzle.config.ts"
       - "package.json"
       - "bun.lock"
+      - "scripts/db-push.ts"
       - ".github/workflows/db-migrate.yml"
   workflow_dispatch:
 
@@ -36,6 +37,6 @@ jobs:
           DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL || secrets.DATABASE_URL }}
 
       - name: Apply schema
-        run: bunx drizzle-kit push --config drizzle.config.ts
+        run: bun run db:push
         env:
-          DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL || secrets.DATABASE_URL }}
+          PIRO_DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL || secrets.DATABASE_URL }}
