@@ -1,6 +1,6 @@
 import type { BenchmarkDef, BenchmarkResult, ModelAdapter } from "./types";
 import { SeededRng, childSeed } from "./rng";
-import { computeCost } from "./openai";
+import { computeCost } from "./cost";
 
 // ── Data generation ───────────────────────────────────────────────────────────
 
@@ -99,7 +99,7 @@ export function makeOODGeneralization(opts?: {
       return {
         score: nCorrect / testSamples.length,
         durationMs: Date.now() - start,
-        costUsd: computeCost(model.name, totalInputTokens, totalOutputTokens),
+        costUsd: computeCost(model, totalInputTokens, totalOutputTokens),
         metadata: {
           n_tests: testSamples.length,
           n_correct: nCorrect,

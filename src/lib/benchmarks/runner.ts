@@ -11,57 +11,42 @@ import type { BenchmarkContext, BenchmarkDef, ModelAdapter } from "./types";
 import { sanityCheck } from "./sanity-check";
 import { oodGeneralization } from "./ood-generalization";
 import { adaptiveCompute } from "./adaptive-compute";
-import { ashfall } from "./ashfall";
-import { makeGPTAdapter, makePiroModelAdapter } from "./openai";
-import { GEMMA_TARGET, makeGemmaAdapter } from "./gemma";
+import { associativeRecall } from "./associative-recall";
+import { makeChatAdapter, makePiroModelAdapter } from "./adapters";
+import { getBenchmarkTarget, getHostedTargetConfig } from "./targets";
 
 export const BENCHMARKS: BenchmarkDef[] = [
   sanityCheck,
   oodGeneralization,
   adaptiveCompute,
-  ashfall,
+  associativeRecall,
 ];
 
 async function resolveTargets(
   userId: string,
-  targetIds: string[] | null,
+  targetIds: string[],
 ): Promise<ModelAdapter[]> {
-  const requestedVirtualTargets = (targetIds ?? []).filter(
-    (id) => id.startsWith("openai:") || id === GEMMA_TARGET,
+  const virtualTargets = targetIds
+    .filter((target) => getBenchmarkTarget(target))
+    .map((target) => makeChatAdapter(getBenchmarkTarget(target)!));
+  const requestedModelIds = targetIds.filter(
+    (target) => !getBenchmarkTarget(target),
   );
-  const virtualTargets = requestedVirtualTargets.map((target) =>
-    target === GEMMA_TARGET
-      ? makeGemmaAdapter()
-      : makeGPTAdapter(target.slice("openai:".length)),
-  );
-  const requestedModelIds =
-    targetIds?.filter(
-      (id) => !id.startsWith("openai:") && id !== GEMMA_TARGET,
-    ) ?? null;
 
-  const models = requestedModelIds
-    ? requestedModelIds.length
-      ? await db
-          .select({
-            id: model.id,
-            name: model.name,
-            inferenceEndpoint: model.inferenceEndpoint,
-          })
-          .from(model)
-          .where(
-            and(eq(model.userId, userId), inArray(model.id, requestedModelIds)),
-          )
-      : []
-    : await db
+  const models = requestedModelIds.length
+    ? await db
         .select({
           id: model.id,
           name: model.name,
           inferenceEndpoint: model.inferenceEndpoint,
         })
         .from(model)
-        .where(eq(model.userId, userId));
+        .where(
+          and(eq(model.userId, userId), inArray(model.id, requestedModelIds)),
+        )
+    : [];
 
-  if (requestedModelIds && models.length !== requestedModelIds.length) {
+  if (models.length !== requestedModelIds.length) {
     const found = new Set(models.map((item) => item.id));
     const missing = requestedModelIds.filter((id) => !found.has(id));
     throw new Error(
@@ -82,18 +67,36 @@ async function resolveTargets(
       .from(modelTrainingRun)
       .where(inArray(modelTrainingRun.modelId, ids)),
   ]);
-
   const hostedById = Object.fromEntries(
     hostedApis.map((item) => [item.modelId, item]),
   );
   const trainingById = Object.fromEntries(
     trainingLinks.map((item) => [item.modelId, item]),
   );
+
   const modelTargets = models.map((item): ModelAdapter => {
     const hosted = hostedById[item.id];
     if (hosted) {
-      const adapter = makeGPTAdapter(hosted.apiModelName);
-      return { ...adapter, name: item.name };
+      const config = getHostedTargetConfig({
+        targetKey: item.id,
+        name: item.name,
+        endpoint: hosted.endpoint,
+        apiModelName: hosted.apiModelName,
+        apiKeyEnvVar: hosted.apiKeyEnvVar ?? undefined,
+        pricing:
+          hosted.inputPricePerMillion === null ||
+          hosted.outputPricePerMillion === null
+            ? undefined
+            : {
+                inputPerMillion: hosted.inputPricePerMillion,
+                outputPerMillion: hosted.outputPricePerMillion,
+              },
+        tokenAccounting:
+          hosted.tokenAccounting === "not_applicable"
+            ? "not_applicable"
+            : "provider_usage",
+      });
+      return makeChatAdapter(config);
     }
     if (trainingById[item.id]) {
       if (!item.inferenceEndpoint) {
@@ -132,10 +135,10 @@ export async function runSuite(
   const ranAt = new Date();
 
   try {
-    const targets = await resolveTargets(
-      userId,
-      targetFilter?.length ? targetFilter : null,
-    );
+    if (!targetFilter?.length) {
+      throw new Error("Evaluation targets are required");
+    }
+    const targets = await resolveTargets(userId, targetFilter);
     await Promise.all(
       targets.map(async (target) => {
         for (const benchmark of benchmarks) {

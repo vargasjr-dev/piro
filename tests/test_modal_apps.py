@@ -14,6 +14,7 @@ def test_modal_entrypoints_have_distinct_apps_and_expected_web_functions():
         "training.py": ("TRAINING_APP", "def trigger"),
         "inference.py": ("INFERENCE_APP", "def infer"),
         "source.py": ("SOURCE_APP", "def source"),
+        "gemma.py": ("APP_NAME", "class Server"),
     }
     for filename, (app_name, function_name) in expected.items():
         source = (MODAL_DIR / filename).read_text()
@@ -25,6 +26,18 @@ def test_modal_entrypoints_have_distinct_apps_and_expected_web_functions():
 def test_training_persists_the_dedicated_inference_endpoint():
     source = (MODAL_DIR / "_common.py").read_text()
     assert "https://dvargasfuertes--piro-inference-infer.modal.run" in source
+
+
+def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
+    source = (MODAL_DIR / "gemma.py").read_text()
+    assert 'APP_NAME = "piro-gemma-vllm"' in source
+    assert 'MODEL_NAME = "google/gemma-3-270m"' in source
+    assert 'MODEL_REVISION = "9b0cfec892e2bc2afd938c98eabe4e4a7b1e0ca1"' in source
+    assert 'VLLM_VERSION = "0.21.0"' in source
+    assert '"/v1/chat/completions"' not in source
+    assert '"--served-model-name"' in source
+    assert 'modal.Volume.from_name("piro-gemma-huggingface-cache"' in source
+    assert 'modal.Volume.from_name("piro-gemma-vllm-cache"' in source
 
 
 def test_training_and_source_triggers_use_the_lightweight_image():

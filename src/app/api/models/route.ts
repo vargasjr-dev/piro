@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { randomUUID } from "node:crypto";
 import { auth } from "~/lib/auth.server";
@@ -120,6 +121,8 @@ export async function POST(request: Request) {
         enabled: true,
       })
       .returning();
+
+    revalidatePath("/models");
 
     return Response.json(
       { model: createdModel, deployment: createdDeployment },

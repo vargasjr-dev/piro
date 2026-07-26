@@ -11,7 +11,7 @@ sources/        Training/evaluation source generators
 platform/       Modal deployment and platform orchestration
 ```
 
-Modal workloads deploy as independent Apps: `piro-training`, `piro-inference`, and `piro-source`.
+Modal workloads deploy as independent Apps: `piro-training`, `piro-inference`, `piro-source`, and `piro-gemma-vllm`.
 
 Hurricane-style names identify model architecture tracks. Shared architecture
 development code lives under `architectures/_common`; it is internal to this

@@ -1,6 +1,6 @@
 import type { BenchmarkDef, BenchmarkResult, ModelAdapter } from "./types";
 import { SeededRng } from "./rng";
-import { computeCost } from "./openai";
+import { computeCost } from "./cost";
 
 // ── Task generation ───────────────────────────────────────────────────────────
 
@@ -162,7 +162,7 @@ export function makeAdaptiveCompute(opts?: {
       return {
         score,
         durationMs: Date.now() - start,
-        costUsd: computeCost(model.name, totalInputTokens, totalOutputTokens),
+        costUsd: computeCost(model, totalInputTokens, totalOutputTokens),
         metadata: {
           easy_correct: easyCorrect,
           easy_total: easyTasks.length,
