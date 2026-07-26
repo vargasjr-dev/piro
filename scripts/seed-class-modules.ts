@@ -82,28 +82,7 @@ const MODULES: Array<{
       modelClass: "ContinuousThoughtModel",
     },
   },
-  {
-    slug: "baseline-transformer",
-    sourcePath: join(import.meta.dir, "../architectures/baseline_transformer/model.py"),
-    manifest: {
-      name: "Baseline Transformer",
-      slug: "baseline-transformer",
-      description:
-        "2-layer pre-norm transformer with multi-head self-attention. " +
-        "Mean-pools the final layer to produce a single classification output. " +
-        "Standard baseline for sequence tasks.",
-      hyperparams: {
-        embed_dim: 8,
-        n_heads: 2,
-        ffn_dim: 6,
-        n_layers: 2,
-        n_classes: 5,
-      },
-      parameterCount: 857,
-      module: "architectures.baseline_transformer.model",
-      modelClass: "BaselineTransformer",
-    },
-  },
+
 ];
 
 // ── Find the single user (or require USER_ID) ─────────────────────────────────

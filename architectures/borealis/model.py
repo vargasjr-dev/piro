@@ -24,7 +24,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from architectures._common import ArchitectureModel
-from architectures._common.schema import ArchitectureGraph, GraphEdge, GraphNode
 
 
 @dataclass
@@ -70,58 +69,6 @@ class Borealis(ArchitectureModel):
     )
     module = "borealis"
     hyper_parameters = {**BorealisConfig().__dict__}
-
-    @classmethod
-    def serialize_graph(cls) -> ArchitectureGraph | None:
-        hp = cls.hyper_parameters
-        return ArchitectureGraph(
-            nodes=[
-                GraphNode(
-                    id="observation",
-                    type="io",
-                    label="Observation",
-                    detail=f"token ids from vocabulary {hp['vocab_size']}",
-                ),
-                GraphNode(
-                    id="embed",
-                    type="linear",
-                    label="Embed",
-                    detail=f"{hp['vocab_size']} → {hp['embed_dim']}",
-                ),
-                GraphNode(
-                    id="predict",
-                    type="ffn",
-                    label="Predict Next Token",
-                    detail=f"GRU cell → {hp['vocab_size']} logits",
-                ),
-                GraphNode(
-                    id="adapt",
-                    type="sync",
-                    label="Fast Adaptation",
-                    detail="causal loss updates run-local output bias",
-                ),
-                GraphNode(
-                    id="bind",
-                    type="residual",
-                    label="Bind Fast State",
-                    detail="durable weights + active fast state",
-                ),
-                GraphNode(
-                    id="output",
-                    type="io",
-                    label="Output Head",
-                    detail="final response logits after context adaptation",
-                ),
-            ],
-            edges=[
-                GraphEdge(**{"from": "observation", "to": "embed"}),
-                GraphEdge(**{"from": "embed", "to": "predict"}),
-                GraphEdge(**{"from": "predict", "to": "adapt"}),
-                GraphEdge(**{"from": "adapt", "to": "bind"}),
-                GraphEdge(**{"from": "bind", "to": "predict"}),
-                GraphEdge(**{"from": "bind", "to": "output"}),
-            ],
-        )
 
     def __init__(self, config: BorealisConfig | None = None, **kwargs: Any) -> None:
         super().__init__()

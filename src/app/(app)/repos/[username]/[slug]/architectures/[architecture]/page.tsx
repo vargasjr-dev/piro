@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { ArchitectureDetail } from "~/components/ArchitectureDetail";
 import { getRepositoryArchitecture } from "~/lib/github-repository";
 import { getRepositoryContext } from "~/lib/repository-context.server";
-import { createArchitectureSerializationHandoff } from "~/lib/architecture-serialization-handoff.server";
 
 export default async function ArchitecturePage({
   params,
@@ -37,14 +36,6 @@ export default async function ArchitecturePage({
 
   if (!architecture) notFound();
 
-  const serializationToken = architecture.source
-    ? createArchitectureSerializationHandoff({
-        username: ownerHandle,
-        repository: repo.slug,
-        architecture: architecture.name,
-        source: architecture.source,
-      })
-    : null;
 
   return (
     <div className="p-4 lg:p-6 max-w-4xl space-y-4">
@@ -79,11 +70,7 @@ export default async function ArchitecturePage({
         </div>
       </div>
 
-      <ArchitectureDetail
-        source={architecture.source}
-        serializeUrl={`/api/repos/${encodeURIComponent(ownerHandle)}/${encodeURIComponent(repo.slug)}/architectures/${encodeURIComponent(architecture.name)}/serialize`}
-        serializationToken={serializationToken}
-      />
+      <ArchitectureDetail source={architecture.source} />
     </div>
   );
 }

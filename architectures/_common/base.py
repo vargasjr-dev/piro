@@ -4,7 +4,7 @@ piro/base.py
 ArchitectureModel — base class for all model classes stored in R2 and run on Modal.
 
 Model authors subclass this, define class attributes, and implement one
-method.  Everything else — serialize(), count_parameters() — is inherited.
+method.  Everything else — parameter-count helpers — is inherited.
 
 The base calls cls(**cls.hyper_parameters) to instantiate a default model,
 so __init__ must accept keyword arguments matching the hyper_parameters keys.
@@ -34,19 +34,17 @@ Style 2 — typed nested class (IDE-friendly, zero extra imports):
             hp = type(self).HyperParameters(hidden_dim=hidden_dim, n_classes=n_classes)
             ...  # typed access via hp.hidden_dim etc.
 
-In either style, serialize_graph() reads from cls.hyper_parameters — the base
-ensures this dict is always populated regardless of which style is used.
+In either style, the base ensures ``hyper_parameters`` is populated.
+
 """
 
 from __future__ import annotations
 
 import dataclasses
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Any
 
 import torch.nn as nn
-
-from .schema import ArchitectureGraph, ModelManifest
 
 
 class ArchitectureModel(nn.Module, ABC):
@@ -54,9 +52,9 @@ class ArchitectureModel(nn.Module, ABC):
 
     # ── Required class attributes ──────────────────────────────────────────────
     name: str  # Display name, e.g. "Baseline Transformer"
-    slug: str  # URL-safe identifier, e.g. "baseline-transformer"
+    slug: str  # URL-safe identifier, e.g. "ashfall-ctm"
     description: str  # One-paragraph description
-    module: str  # Python module name, e.g. "baseline_transformer"
+    module: str  # Python module name, e.g. "architectures.ashfall.ctm"
     hyper_parameters: dict[
         str, Any
     ]  # Populated from dict literal OR auto-derived from HyperParameters
@@ -83,35 +81,6 @@ class ArchitectureModel(nn.Module, ABC):
 
     # ── Required implementations ───────────────────────────────────────────────
 
-    @classmethod
-    @abstractmethod
-    def serialize_graph(cls) -> ArchitectureGraph | None:
-        """Return an ArchitectureGraph describing the forward pass, or None.
-
-        Always read defaults from cls.hyper_parameters — works in both styles.
-        """
-        ...
-
-    # ── Provided by base — do not override ────────────────────────────────────
-
     def count_parameters(self) -> int:
         """Count all trainable scalar parameters."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
-
-    @classmethod
-    def serialize(cls) -> ModelManifest:
-        """Build and return a fully-populated ModelManifest.
-
-        Called by the Piro serialize endpoint.  Result is cached by source hash
-        in Modal — no need to make this fast beyond a single forward pass.
-        """
-        return ModelManifest(
-            name=cls.name,
-            slug=cls.slug,
-            description=cls.description,
-            hyperparams=cls.hyper_parameters,
-            parameterCount=cls(**cls.hyper_parameters).count_parameters(),
-            module=cls.module,
-            modelClass=cls.__name__,
-            graph=cls.serialize_graph(),
-        )
