@@ -25,3 +25,20 @@ def test_modal_entrypoints_have_distinct_apps_and_expected_web_functions():
 def test_training_persists_the_dedicated_inference_endpoint():
     source = (MODAL_DIR / "_common.py").read_text()
     assert "https://dvargasfuertes--piro-inference-infer.modal.run" in source
+
+
+def test_training_and_source_triggers_use_the_lightweight_image():
+    common = (MODAL_DIR / "_common.py").read_text()
+    training = (MODAL_DIR / "training.py").read_text()
+    source = (MODAL_DIR / "source.py").read_text()
+
+    assert "trigger_image = modal.Image.debian_slim" in common
+    assert "@app.function(image=trigger_image, secrets=[piro_secrets])\n@modal.fastapi_endpoint" in training
+    assert "@app.function(image=trigger_image, secrets=[piro_secrets])\n@modal.fastapi_endpoint" in source
+    assert "@app.cls(\n    image=image," in training
+
+
+def test_training_dispatch_has_a_bounded_timeout():
+    source = (Path(__file__).parents[1] / "src" / "app" / "api" / "training-runs" / "route.ts").read_text()
+    assert "signal: AbortSignal.timeout(30_000)" in source
+    assert 'Modal trigger timed out after 30 seconds.' in source
