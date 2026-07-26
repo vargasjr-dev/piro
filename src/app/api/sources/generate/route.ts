@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "~/lib/auth.server";
 import { extractBearer, validateApiKey } from "~/lib/api-auth";
 import { db } from "../../../../../data/db";
-import { dataset, generationRun, repository } from "../../../../../data/schema";
+import { dataset, generationRun } from "../../../../../data/schema";
 
 const ENTRYPOINTS = new Set(["main.py", "model.py", "script.py"]);
 const MAX_SOURCE_BYTES = 512 * 1024;
@@ -17,27 +17,6 @@ async function resolveUserId(request: Request): Promise<string | null> {
   }
   const session = await auth.api.getSession({ headers: await headers() });
   return session?.user.id ?? null;
-}
-
-async function getLocalRepository(userId: string) {
-  const [existing] = await db
-    .select({ id: repository.id })
-    .from(repository)
-    .where(and(eq(repository.userId, userId), eq(repository.slug, "local")))
-    .limit(1);
-  if (existing) return existing;
-
-  const [created] = await db
-    .insert(repository)
-    .values({
-      id: crypto.randomUUID(),
-      userId,
-      name: "Local workspace",
-      slug: "local",
-      r2Prefix: null,
-    })
-    .returning({ id: repository.id });
-  return created;
 }
 
 export async function POST(request: Request) {
@@ -69,21 +48,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const localRepository = await getLocalRepository(userId);
   const sourceKey = sourcePath
     .replace(/^\/+|\/+$/g, "")
     .replace(/[^a-zA-Z0-9._-]+/g, "-");
-  const r2Prefix = `repos/${localRepository.id}/datasets/${sourceKey}`;
+  const r2Prefix = `users/${userId}/datasets/${sourceKey}`;
 
   const [existingDataset] = await db
     .select({ id: dataset.id })
     .from(dataset)
-    .where(
-      and(
-        eq(dataset.repositoryId, localRepository.id),
-        eq(dataset.sourcePath, sourcePath),
-      ),
-    )
+    .where(and(eq(dataset.userId, userId), eq(dataset.sourcePath, sourcePath)))
     .limit(1);
 
   const datasetId = existingDataset?.id ?? crypto.randomUUID();
@@ -96,7 +69,6 @@ export async function POST(request: Request) {
     await db.insert(dataset).values({
       id: datasetId,
       userId,
-      repositoryId: localRepository.id,
       name,
       sourcePath,
       r2Prefix,
@@ -107,7 +79,6 @@ export async function POST(request: Request) {
   await db.insert(generationRun).values({
     id: runId,
     userId,
-    repositoryId: localRepository.id,
     datasetId,
     sourceName: name,
     sourcePath,

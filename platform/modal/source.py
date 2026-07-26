@@ -10,7 +10,7 @@ from _common import R2_BUCKET, _r2_client, app, image, piro_secrets
 
 @app.function(image=image, secrets=[piro_secrets], timeout=3600)
 def generate_source(body: dict) -> dict:
-    """Execute a repository source and persist its JSONL dataset in R2."""
+    """Execute a monorepo source and persist its JSONL dataset in R2."""
     import json
     import os
     import subprocess

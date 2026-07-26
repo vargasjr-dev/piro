@@ -136,7 +136,6 @@ export async function POST(request: Request) {
   await db.insert(trainingRun).values({
     id,
     userId: resolvedAuth.userId,
-    repositoryId: ds.repositoryId,
     modelName: modelName?.trim() || null,
     architecturePath,
     datasetId,
