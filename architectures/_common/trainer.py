@@ -1,11 +1,10 @@
 """
 architectures/_common/trainer.py
 
-Shared Trainer — trains either ContinuousThoughtModel or BaselineTransformer
-with an identical loop, optimizer, and data pipeline for fair comparison.
+Shared Trainer for Ashfall model architectures.
 
-Both models share a common interface:
-    model(embeddings: Tensor) -> Tensor   (logits, shape: n_classes)
+The trainer accepts a model whose forward pass returns an object with a
+``logits`` tensor, such as ``ContinuousThoughtModel``.
 
 The Trainer wraps that interface and runs:
     - Cross-entropy loss
@@ -17,18 +16,13 @@ Usage
 -----
     from architectures._common.trainer import Trainer, TrainerConfig
     from architectures.ashfall.ctm import ContinuousThoughtModel, CTMConfig
-    from architectures.baseline_transformer.model import BaselineTransformer, TransformerConfig
-
-    # Build models
-    ctm  = ContinuousThoughtModel(CTMConfig())
-    base = BaselineTransformer(TransformerConfig())
+    # Build the model
+    ctm = ContinuousThoughtModel(CTMConfig())
 
     # Shared trainer config
     cfg = TrainerConfig(max_steps=5000, lr=1e-3, batch_size=32, seed=42)
 
-    # Train both on the same data
-    ctm_history  = Trainer(ctm,  cfg).fit(train_data, val_data)
-    base_history = Trainer(base, cfg).fit(train_data, val_data)
+    ctm_history = Trainer(ctm, cfg).fit(train_data, val_data)
 
 Data format
 -----------
@@ -51,7 +45,7 @@ import torch.nn.functional as F
 
 
 class ModelProtocol(Protocol):
-    """Minimal interface both CTM and BaselineTransformer satisfy."""
+    """Minimal interface an Ashfall model satisfies."""
 
     def __call__(self, embeddings: torch.Tensor) -> torch.Tensor:
         """Return raw logits, shape (n_classes,)."""
@@ -99,20 +93,15 @@ Dataset = list[Sample]
 
 
 class Trainer:
-    """Trains a model (CTM or BaselineTransformer) with a fixed loop.
+    """Trains an Ashfall model with a fixed loop.
 
-    Both models are adapted to a common logit-returning interface:
-
-        CTM:                 model(emb) → CTMOutput  →  .logits extracted
-        BaselineTransformer: model(emb) → Tensor (logits directly)
-
-    The adapter is transparent — callers just pass the model as-is.
+    The model forward pass returns a CTM-style output object with a ``logits``
+    tensor.
 
     Parameters
     ----------
     model : nn.Module
-        ContinuousThoughtModel or BaselineTransformer (or any nn.Module whose
-        forward returns either a Tensor of logits or an object with .logits).
+        An Ashfall model whose forward pass returns an object with ``logits``.
     config : TrainerConfig
     """
 
@@ -211,12 +200,8 @@ class Trainer:
 
 
 def _get_logits(model: nn.Module, embeddings: torch.Tensor) -> torch.Tensor:
-    """Extract a flat logit tensor from either model type."""
-    out = model(embeddings)
-    # CTMOutput has .logits; BaselineTransformer returns Tensor directly
-    if isinstance(out, torch.Tensor):
-        return out
-    return out.logits  # type: ignore[union-attr]
+    """Extract a flat logit tensor from an Ashfall model output."""
+    return model(embeddings).logits  # type: ignore[union-attr]
 
 
 def _batch(data: Dataset, size: int):

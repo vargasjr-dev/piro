@@ -47,4 +47,4 @@ ignore = ["E501"]
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
-exclude = ["platform/modal_app.py", "**/test_*.py"]
+exclude = ["platform/modal/**/*.py", "**/test_*.py"]

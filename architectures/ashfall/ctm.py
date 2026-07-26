@@ -20,7 +20,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from architectures._common import ArchitectureModel
-from architectures._common.schema import ArchitectureGraph, GraphEdge, GraphNode
 
 ActivationName = Literal["relu", "sigmoid", "tanh"]
 
@@ -356,51 +355,6 @@ class ContinuousThoughtModel(ArchitectureModel):
     module = "ctm"
 
     hyper_parameters = {**CTMConfig().__dict__}
-
-    @classmethod
-    def serialize_graph(cls) -> ArchitectureGraph | None:
-        hp = cls.hyper_parameters
-        return ArchitectureGraph(
-            nodes=[
-                GraphNode(
-                    id="input", type="io", label="Input", detail=f"embedding × {hp['embed_dim']}"
-                ),
-                GraphNode(
-                    id="neurons",
-                    type="ffn",
-                    label="Neuron Layer",
-                    detail=f"{hp['n_neurons']} independent MLPs",
-                ),
-                GraphNode(
-                    id="history",
-                    type="sync",
-                    label="Persistent History",
-                    detail=f"rolling window {hp['window_size']}",
-                ),
-                GraphNode(
-                    id="loop",
-                    type="loop",
-                    label="Adaptive Tick Loop",
-                    detail=f"max {hp['max_ticks']} ticks",
-                ),
-                GraphNode(
-                    id="plastic",
-                    type="sync",
-                    label="Plastic Synapse",
-                    detail="optional Oja updates",
-                ),
-                GraphNode(
-                    id="output", type="io", label="Output", detail=f"{hp['n_classes']} logits"
-                ),
-            ],
-            edges=[
-                GraphEdge(**{"from": "input", "to": "neurons"}),
-                GraphEdge(**{"from": "neurons", "to": "history"}),
-                GraphEdge(**{"from": "history", "to": "loop"}),
-                GraphEdge(**{"from": "loop", "to": "plastic"}),
-                GraphEdge(**{"from": "plastic", "to": "output"}),
-            ],
-        )
 
     def __init__(self, config: CTMConfig | None = None, **kwargs: Any) -> None:
         super().__init__()
