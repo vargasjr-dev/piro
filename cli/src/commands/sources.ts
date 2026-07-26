@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { z } from "zod";
+import { piroFetch, resolveConfig } from "../client.js";
 import { errorMessage, sourceSummarySchema } from "../response-schemas.js";
 
 const sourceSelectionSchema = z.object({
@@ -79,6 +80,40 @@ export async function sourcesList(root = process.cwd()): Promise<void> {
     return;
   }
   for (const source of sources) printSource(source);
+}
+
+export async function sourcesGenerate(
+  name: string,
+  root = process.cwd(),
+): Promise<void> {
+  const source = (await discoverLocalSources(root)).find(
+    (candidate) => candidate.name === name || candidate.path === name,
+  );
+  if (!source) {
+    fail(404, { error: `source not found in ${root}` }, "generation failed");
+  }
+  if (!source.entrypoint) {
+    fail(
+      400,
+      { error: `source ${source.path} has no supported entrypoint` },
+      "generation failed",
+    );
+  }
+
+  const sourceFile = join(root, source.path, source.entrypoint);
+  const sourceCode = await readFile(sourceFile, "utf8");
+  const config = resolveConfig();
+  const response = await piroFetch(config, "/api/sources/generate", {
+    method: "POST",
+    body: JSON.stringify({
+      name: source.name,
+      path: source.path,
+      entrypoint: source.entrypoint,
+      source: sourceCode,
+    }),
+  });
+  if (!response.ok) fail(response.status, response.body, "generation failed");
+  console.log(JSON.stringify(response.body, null, 2));
 }
 
 export async function sourcesGet(

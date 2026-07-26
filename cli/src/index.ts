@@ -11,7 +11,11 @@
  */
 
 import { datasetHead, datasetsGet, datasetsList } from "./commands/datasets.js";
-import { sourcesGet, sourcesList } from "./commands/sources.js";
+import {
+  sourcesGenerate,
+  sourcesGet,
+  sourcesList,
+} from "./commands/sources.js";
 import { architectureTrain } from "./commands/architectures.js";
 import { benchmarksEval } from "./commands/benchmarks.js";
 import { evalsGet, evalsList } from "./commands/evals.js";
@@ -40,6 +44,7 @@ function usage(msg?: string): never {
   console.error("Usage:");
   console.error("  piro sources list");
   console.error("  piro sources get <name>");
+  console.error("  piro sources generate <name>");
   console.error("  piro datasets list");
   console.error("  piro datasets get <id>");
   console.error("  piro dataset head <id>");
@@ -70,6 +75,12 @@ switch (subject) {
         const name = arg(rest, 0);
         if (!name) usage("source name is required");
         await sourcesGet(name);
+        break;
+      }
+      case "generate": {
+        const name = arg(rest, 0);
+        if (!name) usage("source name is required");
+        await sourcesGenerate(name);
         break;
       }
       default:
