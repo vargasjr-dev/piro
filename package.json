@@ -10,8 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write \"**/*.tsx\"",
-    "db:generate": "drizzle-kit generate --config drizzle.config.ts",
-    "db:migrate": "drizzle-kit migrate --config drizzle.config.ts",
+    "db:push": "drizzle-kit push --config drizzle.config.ts",
     "db:studio": "drizzle-kit studio",
     "bench": "uv run python benchmarks/run.py"
   },
