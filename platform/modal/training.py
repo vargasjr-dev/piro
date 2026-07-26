@@ -25,6 +25,7 @@ from _common import (
     _r2_client,
     image,
     piro_secrets,
+    trigger_image,
 )
 
 app = modal.App(TRAINING_APP)
@@ -843,7 +844,7 @@ class Trainer:
             conn.close()
 
 
-@app.function(image=image, secrets=[piro_secrets])
+@app.function(image=trigger_image, secrets=[piro_secrets])
 @modal.fastapi_endpoint(method="POST")
 def trigger(body: dict) -> dict:
     """

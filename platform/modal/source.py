@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC
 
 import modal
-from _common import R2_BUCKET, SOURCE_APP, _r2_client, image, piro_secrets
+from _common import R2_BUCKET, SOURCE_APP, _r2_client, image, piro_secrets, trigger_image
 
 app = modal.App(SOURCE_APP)
 
@@ -125,7 +125,7 @@ def generate_source(body: dict) -> dict:
         raise
 
 
-@app.function(image=image, secrets=[piro_secrets])
+@app.function(image=trigger_image, secrets=[piro_secrets])
 @modal.fastapi_endpoint(method="POST")
 def source(body: dict) -> dict:
     """Queue execution of a source-generation request."""

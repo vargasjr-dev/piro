@@ -174,12 +174,16 @@ export async function POST(request: Request) {
           seed: 42,
           secret: process.env.MODAL_WEBHOOK_SECRET ?? "",
         }),
+        signal: AbortSignal.timeout(30_000),
       });
       if (!res.ok) {
         dispatchError = `Modal trigger returned HTTP ${res.status}.`;
       }
     } catch (err) {
-      dispatchError = `Modal trigger failed: ${err instanceof Error ? err.message : String(err)}`;
+      dispatchError =
+        err instanceof DOMException && err.name === "TimeoutError"
+          ? "Modal trigger timed out after 30 seconds."
+          : `Modal trigger failed: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
