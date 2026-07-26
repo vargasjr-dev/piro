@@ -8,10 +8,18 @@ type SandboxMessage = {
   durationMs: number | null;
 };
 
+type ModelMore = {
+  apiExample: string;
+  isGlobal: boolean;
+  parameterCount: string;
+  deployedAt: string;
+  access: string;
+};
+
 type ModelSandboxProps = {
   modelId: string;
-  modelName: string;
   ready: boolean;
+  more: ModelMore;
 };
 
 type InferResponse = {
@@ -25,8 +33,8 @@ type InferResponse = {
 
 export default function ModelSandbox({
   modelId,
-  modelName,
   ready,
+  more,
 }: ModelSandboxProps) {
   const [prompt, setPrompt] = useState("");
   const [messages, setMessages] = useState<SandboxMessage[]>([]);
@@ -78,22 +86,7 @@ export default function ModelSandbox({
 
   return (
     <section className="rounded-3xl border border-orange-500/25 bg-[#17100b] p-4 shadow-[0_0_80px_rgba(249,115,22,0.07)] sm:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="truncate text-xl font-black text-amber-50 sm:text-2xl">
-          Chat with {modelName}
-        </h2>
-        <span
-          className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
-            ready
-              ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
-              : "border-amber-700/30 bg-amber-900/15 text-amber-400/65"
-          }`}
-        >
-          {ready ? "Ready" : "Preparing"}
-        </span>
-      </div>
-
-      <div className="mt-4">
+      <div>
         <textarea
           id="chat-prompt"
           value={prompt}
@@ -107,24 +100,71 @@ export default function ModelSandbox({
               void invoke();
             }
           }}
-          disabled={!ready || submitting}
           placeholder="Message your model…"
           rows={3}
           aria-label="Message your model"
-          className="w-full resize-none rounded-2xl border border-amber-800/40 bg-[#0e0b09] px-4 py-3 text-base leading-relaxed text-amber-50 outline-none transition placeholder:text-amber-700/50 focus:border-orange-400/70 focus:ring-2 focus:ring-orange-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full resize-none rounded-2xl border border-amber-800/40 bg-[#0e0b09] px-4 py-3 text-base leading-relaxed text-amber-50 outline-none transition placeholder:text-amber-700/50 focus:border-orange-400/70 focus:ring-2 focus:ring-orange-400/15"
         />
-        <div className="mt-3 flex items-center justify-end gap-3">
-          <span className="hidden text-xs text-amber-600/50 sm:inline">
-            ⌘ / Ctrl + Enter
-          </span>
-          <button
-            type="button"
-            onClick={() => void invoke()}
-            disabled={!ready || submitting || !prompt.trim()}
-            className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-[#180d07] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? "Thinking…" : "Send"}
-          </button>
+        <div className="mt-3 flex items-start justify-between gap-3">
+          <details className="group min-w-0 flex-1">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-lg px-1 py-1 text-sm font-semibold text-amber-300/70 outline-none transition hover:text-amber-100 focus-visible:ring-2 focus-visible:ring-orange-400/70 marker:hidden [&::-webkit-details-marker]:hidden">
+              <span>More</span>
+              <span className="text-xs text-amber-500/50 transition group-open:rotate-180">
+                ⌄
+              </span>
+            </summary>
+            <div className="mt-3 space-y-4 rounded-2xl border border-amber-900/30 bg-[#13100c] p-4">
+              {more.isGlobal && (
+                <div
+                  role="alert"
+                  className="rounded-2xl border border-orange-500/35 bg-orange-500/10 px-4 py-3 text-sm leading-relaxed text-orange-100/80"
+                >
+                  <strong className="font-bold text-orange-200">
+                    Shared model:
+                  </strong>{" "}
+                  Not for production workloads or sensitive data.
+                </div>
+              )}
+
+              <pre className="overflow-x-auto rounded-xl border border-amber-900/25 bg-[#0b0908] p-4 text-[11px] leading-relaxed text-amber-200/80">
+                <code>{more.apiExample}</code>
+              </pre>
+
+              <dl className="space-y-3 rounded-2xl border border-amber-900/30 bg-[#0e0b09] p-4 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-amber-400/50">Parameters</dt>
+                  <dd className="text-right text-amber-100/80">
+                    {more.parameterCount}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-amber-400/50">Deployed</dt>
+                  <dd className="text-right text-amber-100/80">
+                    {more.deployedAt}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-amber-400/50">Access</dt>
+                  <dd className="text-right text-amber-100/80">
+                    {more.access}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </details>
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="hidden text-xs text-amber-600/50 sm:inline">
+              ⌘ / Ctrl + Enter
+            </span>
+            <button
+              type="button"
+              onClick={() => void invoke()}
+              disabled={!ready || submitting || !prompt.trim()}
+              className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-[#180d07] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? "Thinking…" : "Send"}
+            </button>
+          </div>
         </div>
         {error && (
           <p role="alert" className="mt-3 text-sm text-rose-300">
