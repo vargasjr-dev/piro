@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import FlameLogo from "~/components/FlameLogo";
 import PublicNavbar from "~/components/PublicNavbar";
+import type { PricingPlan } from "./page";
 
 const PRO_FEATURES = [
   ["🧠", "Dedicated stateful model", "Continuity between invocations"],
@@ -25,17 +26,20 @@ const SHOW_ENTERPRISE = false;
 
 type PricingClientProps = {
   latestModelLabel: string;
-  isLoggedIn: boolean;
+  currentPlan: PricingPlan | null;
 };
 
-export default function PricingClient({ latestModelLabel, isLoggedIn }: PricingClientProps) {
+export default function PricingClient({ latestModelLabel, currentPlan }: PricingClientProps) {
+  const isLoggedIn = currentPlan !== null;
+  const isFreePlan = currentPlan === "free";
+  const isProPlan = currentPlan === "pro";
   const [proLoading, setProLoading] = useState(false);
   const [enterpriseLoading, setEnterpriseLoading] = useState(false);
   const [enterpriseSent, setEnterpriseSent] = useState(false);
   const [enterpriseError, setEnterpriseError] = useState("");
   const [proError, setProError] = useState("");
 
-  async function handleProCheckout() {
+  async function handleBillingAction() {
     setProLoading(true);
     setProError("");
     try {
@@ -124,7 +128,26 @@ export default function PricingClient({ latestModelLabel, isLoggedIn }: PricingC
                 <li key={feature} className="flex gap-3"><span className="text-orange-400">✓</span><span>{feature}</span></li>
               ))}
             </ul>
-            <Link href="/signup" className="block rounded-xl border border-amber-700/40 px-5 py-3.5 text-center font-semibold text-amber-100 transition-colors hover:border-orange-500/60 hover:bg-orange-500/5">Get started free</Link>
+            {isFreePlan ? (
+              <button
+                type="button"
+                disabled
+                className="block w-full cursor-not-allowed rounded-xl border border-amber-900/30 px-5 py-3.5 text-center font-semibold text-amber-500/50"
+              >
+                Current plan
+              </button>
+            ) : isProPlan ? (
+              <button
+                type="button"
+                onClick={() => void handleBillingAction()}
+                disabled={proLoading}
+                className="block w-full rounded-xl border border-amber-700/40 px-5 py-3.5 text-center font-semibold text-amber-100 transition-colors hover:border-orange-500/60 hover:bg-orange-500/5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {proLoading ? "Opening billing…" : "Downgrade"}
+              </button>
+            ) : (
+              <Link href="/signup" className="block rounded-xl border border-amber-700/40 px-5 py-3.5 text-center font-semibold text-amber-100 transition-colors hover:border-orange-500/60 hover:bg-orange-500/5">Get started free</Link>
+            )}
           </section>
 
           <section className="relative rounded-3xl border border-orange-500/50 bg-gradient-to-b from-orange-500/12 via-[#13100c] to-[#0d0a08] p-7 shadow-[0_0_70px_rgba(234,88,12,0.12)] sm:p-9">
@@ -143,8 +166,25 @@ export default function PricingClient({ latestModelLabel, isLoggedIn }: PricingC
               ))}
             </div>
             {proError && <p className="mt-5 text-sm text-red-300">{proError}</p>}
-            <button onClick={handleProCheckout} disabled={proLoading} className="mt-7 w-full rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-6 py-4 text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500 disabled:cursor-not-allowed disabled:opacity-60 ember-glow">{proLoading ? "Redirecting…" : "Deploy Piro — $100/mo"}</button>
-            <p className="mt-4 text-center text-xs text-amber-400/35">You’ll create an account before checkout. Cancel anytime.</p>
+            <button
+              type="button"
+              onClick={() => void handleBillingAction()}
+              disabled={proLoading || isProPlan}
+              className="mt-7 w-full rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-6 py-4 text-base font-bold text-white transition-all hover:from-orange-400 hover:to-red-500 disabled:cursor-not-allowed disabled:opacity-60 ember-glow"
+            >
+              {isProPlan
+                ? "Current plan"
+                : proLoading
+                  ? "Redirecting…"
+                  : isFreePlan
+                    ? "Upgrade"
+                    : "Deploy Piro — $100/mo"}
+            </button>
+            <p className="mt-4 text-center text-xs text-amber-400/35">
+              {isProPlan
+                ? "Manage your subscription in Stripe to change or cancel your plan."
+                : "You’ll create an account before checkout. Cancel anytime."}
+            </p>
           </section>
 
           {SHOW_ENTERPRISE && <section className="rounded-3xl border border-amber-900/35 bg-[#13100c] p-7 sm:p-8">
