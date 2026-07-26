@@ -4,16 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { modelIdSchema } from "~/lib/model-identifiers";
 
-export default function DeployModelButton({
-  defaultModelId,
-}: {
-  defaultModelId: string;
-}) {
+export default function DeployModelButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [modelId, setModelId] = useState(defaultModelId);
+  const [modelId, setModelId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -25,9 +22,29 @@ export default function DeployModelButton({
   }, [open, submitting]);
 
   function openModal() {
-    setModelId(defaultModelId);
+    setModelId("");
     setError(null);
     setOpen(true);
+    setSuggestionLoading(true);
+    void fetch("/api/models/suggestion")
+      .then(async (response) => {
+        const body = (await response.json()) as {
+          modelId?: string;
+          error?: string;
+        };
+        if (!response.ok || !body.modelId) {
+          throw new Error(body.error ?? "We could not generate a model ID");
+        }
+        setModelId(body.modelId);
+      })
+      .catch((suggestionError: unknown) => {
+        setError(
+          suggestionError instanceof Error
+            ? suggestionError.message
+            : "We could not generate a model ID",
+        );
+      })
+      .finally(() => setSuggestionLoading(false));
   }
 
   function closeModal() {
@@ -123,6 +140,7 @@ export default function DeployModelButton({
             <input
               id="model-id"
               value={modelId}
+              disabled={suggestionLoading}
               onChange={(event) => {
                 setModelId(event.target.value);
                 setError(null);
@@ -135,6 +153,9 @@ export default function DeployModelButton({
               spellCheck={false}
               className="mt-2 min-h-12 w-full rounded-xl border border-amber-800/40 bg-[#0e0b09] px-4 font-mono text-base text-amber-50 outline-none transition placeholder:text-amber-700/50 focus:border-orange-400/70 focus:ring-2 focus:ring-orange-400/15"
               aria-describedby={error ? "model-id-error" : "model-id-help"}
+              placeholder={
+                suggestionLoading ? "Generating a suggestion…" : undefined
+              }
             />
             <p id="model-id-help" className="mt-2 text-xs text-amber-600/55">
               Lowercase words separated by hyphens · 8+ characters · no{" "}
@@ -161,10 +182,14 @@ export default function DeployModelButton({
               <button
                 type="button"
                 onClick={() => void deploy()}
-                disabled={submitting}
+                disabled={submitting || suggestionLoading || !modelId}
                 className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-[#180d07] transition hover:bg-orange-400 disabled:cursor-wait disabled:opacity-60"
               >
-                {submitting ? "Creating deployment…" : "Deploy model"}
+                {suggestionLoading
+                  ? "Generating suggestion…"
+                  : submitting
+                    ? "Creating deployment…"
+                    : "Deploy model"}
               </button>
             </div>
           </div>

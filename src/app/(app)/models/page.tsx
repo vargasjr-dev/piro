@@ -5,7 +5,6 @@ import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "../../../../data/db";
 import { deployment, model } from "../../../../data/schema";
 import { getSubscription, isActive } from "~/lib/billing";
-import { createSuggestedModelId } from "~/lib/model-id-suggestion";
 import DeployModelButton from "~/components/DeployModelButton";
 
 type ModelRow = {
@@ -99,11 +98,9 @@ function ModelCard({
 function EmptyState({
   global = false,
   canDeploy = false,
-  defaultModelId,
 }: {
   global?: boolean;
   canDeploy?: boolean;
-  defaultModelId?: string;
 }) {
   return (
     <div className="rounded-2xl border border-dashed border-amber-900/25 bg-amber-900/5 px-5 py-10 text-center">
@@ -115,9 +112,7 @@ function EmptyState({
           ? "The Piro team will publish the first shared model here."
           : "Your dedicated stateful deployments will appear here once they are ready."}
       </p>
-      {!global && canDeploy && defaultModelId && (
-        <DeployModelButton defaultModelId={defaultModelId} />
-      )}
+      {!global && canDeploy && <DeployModelButton />}
       {!global && !canDeploy && (
         <Link
           href="/upgrade"
@@ -136,8 +131,6 @@ export default async function ModelsPage() {
 
   const subscription = await getSubscription(session.user.id);
   const canDeploy = isActive(subscription);
-  const defaultModelId = createSuggestedModelId();
-
   const selectFields = {
     id: model.id,
     name: model.name,
@@ -218,7 +211,7 @@ export default async function ModelsPage() {
             </span>
           </div>
           {privateModels.length === 0 ? (
-            <EmptyState canDeploy={canDeploy} defaultModelId={defaultModelId} />
+            <EmptyState canDeploy={canDeploy} />
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {toRows(privateModels).map((item) => (
