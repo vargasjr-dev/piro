@@ -120,6 +120,110 @@ def test_borealis_forward_matches_no_adaptation_final_logits():
     assert torch.allclose(actual, expected)
 
 
+def test_prefill_returns_hidden_state_for_the_next_token():
+    model = small_model(consolidation_rate=0.0)
+    prompt = torch.tensor([1, 2, 3])
+
+    state = model.prefill(prompt, adapt=False)
+    expected = model.run(torch.tensor([1, 2, 3, 4]), adapt=False)
+    actual = model.next_token_logits(state)
+
+    assert state.hidden.shape == (12,)
+    assert state.fast_state.updates == 0
+    assert torch.allclose(actual, expected)
+
+
+def test_generate_reuses_state_and_returns_only_new_tokens():
+    model = small_model(consolidation_rate=0.0)
+    with torch.no_grad():
+        model.output_head.weight.zero_()
+        model.output_head.bias.zero_()
+        model.output_head.bias[5] = 10.0
+
+    generated = model.generate(torch.tensor([1, 2]), max_new_tokens=3, adapt=False)
+
+    assert torch.equal(generated, torch.tensor([5, 5, 5]))
+
+
+def test_generate_with_state_returns_cleared_fast_state_and_final_hidden_state():
+    model = small_model(consolidation_rate=0.0)
+    initial = BorealisFastState(output_bias=torch.ones(7), updates=2, loss_ema=0.5)
+
+    generated, state = model.generate_with_state(
+        torch.tensor([1, 2]),
+        max_new_tokens=2,
+        fast_state=initial,
+        adapt=False,
+    )
+
+    assert generated.shape == (2,)
+    assert state.hidden.shape == (12,)
+    assert torch.equal(state.fast_state.output_bias, torch.zeros(7))
+    assert state.fast_state.updates == 0
+    assert state.fast_state.loss_ema is None
+    assert torch.equal(initial.output_bias, torch.ones(7))
+
+
+def test_generation_state_matches_manual_prefill_and_decode():
+    model = small_model(consolidation_rate=0.0)
+    prompt = torch.tensor([1, 2])
+    expected, expected_state = model.generate_with_state(prompt, 3, adapt=False)
+
+    state = model.prefill(prompt, adapt=False)
+    manual = []
+    for _ in range(3):
+        token = torch.argmax(model.next_token_logits(state), dim=-1)
+        manual.append(token)
+        state = model.advance_generation(state, token)
+    model.consolidate_weights(state.fast_state)
+
+    assert torch.equal(expected, torch.stack(manual))
+    assert torch.allclose(expected_state.hidden, state.hidden)
+
+
+def test_greedy_ties_choose_the_lowest_token_id():
+    model = small_model(consolidation_rate=0.0)
+    with torch.no_grad():
+        model.output_head.weight.zero_()
+        model.output_head.bias.zero_()
+
+    generated = model.generate(torch.tensor([1]), max_new_tokens=2, adapt=False)
+
+    assert torch.equal(generated, torch.tensor([0, 0]))
+
+
+def test_generate_stops_at_eos_and_supports_empty_continuation():
+    model = small_model(consolidation_rate=0.0)
+    with torch.no_grad():
+        model.output_head.weight.zero_()
+        model.output_head.bias.zero_()
+        model.output_head.bias[0] = 10.0
+
+    assert torch.equal(
+        model.generate(torch.tensor([1]), max_new_tokens=4, adapt=False, eos_token_id=0),
+        torch.tensor([0]),
+    )
+    assert model.generate(torch.tensor([1]), max_new_tokens=0).numel() == 0
+
+
+def test_generate_rejects_invalid_limits_and_prompt_tokens():
+    model = small_model()
+
+    try:
+        model.generate(torch.tensor([1]), max_new_tokens=-1)
+    except ValueError as error:
+        assert "non-negative" in str(error)
+    else:
+        raise AssertionError("negative generation length should be rejected")
+
+    try:
+        model.generate(torch.tensor([1, 9]), max_new_tokens=1)
+    except ValueError as error:
+        assert "within" in str(error)
+    else:
+        raise AssertionError("out-of-range prompt token should be rejected")
+
+
 def test_two_token_sequence_still_produces_final_output_without_adaptation_steps():
     model = small_model()
 

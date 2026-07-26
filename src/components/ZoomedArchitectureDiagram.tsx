@@ -6,6 +6,9 @@ import { useState, type ReactNode } from "react";
 type DiagramKind =
   | "observation"
   | "embedding"
+  | "hiddenState"
+  | "advanceHidden"
+  | "generate"
   | "initialize"
   | "attention"
   | "buildMemorySlots"
@@ -43,6 +46,18 @@ const details: Record<DiagramKind, { title: string; subtitle: string }> = {
   embedding: {
     title: "Embed",
     subtitle: "The transformation from Observation into the model’s numerical input signal.",
+  },
+  hiddenState: {
+    title: "HiddenState",
+    subtitle: "Borealis’s compact recurrent representation of the prompt consumed so far; it is carried between token steps rather than replaying the whole prefix.",
+  },
+  advanceHidden: {
+    title: "AdvanceHidden",
+    subtitle: "Consumes one token with the previous hidden state and returns the next recurrent representation.",
+  },
+  generate: {
+    title: "Generate",
+    subtitle: "Prefills known context, reads one next-token logit vector, selects a token, advances hidden state, and repeats until the length or EOS limit.",
   },
   initialize: {
     title: "InitializeOrRetrieveState",
@@ -301,6 +316,28 @@ function EmbeddingDiagram() {
   );
 }
 
+function HiddenStateDiagram() {
+  return (
+    <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Borealis hidden state carried across token steps">
+      <defs>
+        <marker id="hidden-state-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="rgb(110 231 183 / 0.72)" /></marker>
+      </defs>
+      <text x="36" y="42" fill="rgb(251 191 36 / 0.48)" fontSize="12" letterSpacing="2">BOREALIS · RECURRENT HIDDEN STATE</text>
+      <text x="36" y="76" fill="rgb(253 230 138 / 0.72)" fontSize="15">The hidden vector compresses the observed prefix so the next token can continue without replaying it.</text>
+      <Box x={40} y={220} width={190} height={112} title="tokenₜ" detail="one observed token id" tone="violet" />
+      <path d="M230 276H350" fill="none" stroke="rgb(110 231 183 / 0.72)" strokeWidth="2" markerEnd="url(#hidden-state-arrow)" />
+      <Box x={350} y={220} width={220} height={112} title="Embed + project" detail="token → hidden input" tone="green" />
+      <path d="M570 276H690" fill="none" stroke="rgb(110 231 183 / 0.72)" strokeWidth="2" markerEnd="url(#hidden-state-arrow)" />
+      <Box x={690} y={160} width={250} height={112} title="GRUCell" detail="previous hidden + input" tone="green" />
+      <path d="M815 272V370H570" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#hidden-state-arrow)" />
+      <Box x={350} y={370} width={220} height={112} title="hiddenₜ" detail="shape: hidden_dim" tone="blue" />
+      <path d="M570 426H690" fill="none" stroke="rgb(125 211 252 / 0.72)" strokeWidth="2" markerEnd="url(#hidden-state-arrow)" />
+      <Box x={690} y={370} width={250} height={112} title="next token step" detail="OutputHead reads this state" tone="orange" />
+      <text x="40" y="550" fill="rgb(253 230 138 / 0.62)" fontSize="13">Hidden state is working context; fast state and durable weights are separate parameter state.</text>
+    </svg>
+  );
+}
+
 function OutputDiagram() {
   return (
     <svg viewBox="0 0 1100 620" className="mx-auto block h-auto w-full min-w-[720px]" role="img" aria-label="Piro output architecture">
@@ -401,7 +438,9 @@ function WeightsDiagram() {
   );
 }
 
-const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights">, { input: string; output: string; relation: string; tone: "green" | "blue" | "orange" | "violet" }> = {
+const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "hiddenState" | "output" | "weights">, { input: string; output: string; relation: string; tone: "green" | "blue" | "orange" | "violet" }> = {
+  advanceHidden: { input: "token + hidden", output: "next hidden", relation: "embeds one token and advances the recurrent representation", tone: "green" },
+  generate: { input: "prompt + maxNewTokens + EOS", output: "generated token IDs", relation: "prefills once, then repeats OutputHead → Argmax → AdvanceHidden", tone: "orange" },
   initialize: { input: "x + weights", output: "h₀", relation: "starts or retrieves the state for this input", tone: "blue" },
   attention: { input: "hₖ + historyₖ + x + k + weights", output: "contextₖ", relation: "retrieves relevant memory and gates it into the recurrent context", tone: "green" },
   buildMemorySlots: { input: "historyₖ + k", output: "memoryₖ", relation: "turns timestamped history entries into retrievable slots", tone: "green" },
@@ -430,7 +469,7 @@ const methodDetails: Record<Exclude<DiagramKind, "observation" | "embedding" | "
   chunkText: { input: "text", output: "ordered chunks", relation: "creates causal mini-batches for text adaptation", tone: "green" },
 };
 
-function MethodDiagram({ kind }: { kind: Exclude<DiagramKind, "observation" | "embedding" | "output" | "weights"> }) {
+function MethodDiagram({ kind }: { kind: Exclude<DiagramKind, "observation" | "embedding" | "hiddenState" | "output" | "weights"> }) {
   const detail = methodDetails[kind];
   return (
     <svg viewBox="0 0 1200 620" className="mx-auto block h-auto w-full min-w-[760px]" role="img" aria-label={`${details[kind].title} method architecture`}>
@@ -497,6 +536,18 @@ function PseudocodeView({ kind }: { kind: DiagramKind }) {
   const snippets: Record<DiagramKind, ReactNode> = {
     observation: line(<><span className="text-violet-300">PiroInput</span> = Observation()</>),
     embedding: line(<>{variable("x")} = {methodLink("Embed", "embedding")}(<Link href="/docs/architecture/observation" className="text-violet-300 underline decoration-violet-500/40 underline-offset-4">PiroInput</Link>)</>),
+    hiddenState: line(<>{variable("hidden")} = {methodLink("InitializeHiddenState", "hiddenState")}() → Shape(hidden_dim)</>),
+    advanceHidden: line(<>{variable("nextHidden")} = {methodLink("AdvanceHidden", "advanceHidden")}(token, {variable("hidden")})</>),
+    generate: <>
+      {line(<>{call("Generate", "generate")}prompt, maxNewTokens):</>)}
+      {line(<>    state = Prefill(prompt)</>)}
+      {line(<>    for step in range(maxNewTokens):</>)}
+      {line(<>        logits = {methodLink("OutputHead", "output")}(state.hidden, state.fastState)</>)}
+      {line(<>        token = Argmax(logits)</>)}
+      {line(<>        emit token</>)}
+      {line(<>        state.hidden = {methodLink("AdvanceHidden", "advanceHidden")}(token, state.hidden)</>)}
+      {line(<>    return generatedTokenIds</>)}
+    </>,
     initialize: line(<>{variable("h₀")} = {methodLink("InitializeOrRetrieveState", "initialize")}(x, weights)</>),
     attention: <>
       {line(<>{call("Attention", "attention")}</>)}
@@ -769,6 +820,9 @@ const explanations: Partial<Record<DiagramKind, { doing: string; why: string }>>
   delta: { doing: "Combines the current state, input, context, history, and weights into deltaₖ.", why: "Separating the candidate change from the residual update makes the state transition auditable." },
   residual: { doing: "Applies the learned gate to deltaₖ and adds it to hₖ to produce hₖ₊₁.", why: "The recurrent state needs a controlled update rather than an unconditional replacement." },
   history: { doing: "Appends the new state together with x and tick k so future retrieval can recover content and age.", why: "History is both the state trajectory and the source of Attention’s timestamped memory slots." },
+  hiddenState: { doing: "Stores the recurrent representation of the prompt consumed so far as one hidden_dim vector.", why: "Generation needs a compact context value that can be advanced with one token instead of replaying the whole prefix." },
+  advanceHidden: { doing: "Embeds one token and feeds it, together with the previous hidden vector, through the GRUCell.", why: "This is the recurrent backbone step that lets each generated token influence the next decision." },
+  generate: { doing: "Prefills known context, computes logits with OutputHead, selects the greedy token, advances hidden state, and repeats until maxNewTokens or EOS.", why: "OutputHead produces one token decision; Generate is the outer loop that turns those decisions into a sequence." },
   output: { doing: "Reads the current runtime weights into the externally returned output.", why: "The baseline needs a stable output boundary after each adapted forward pass." },
   shouldHalt: { doing: "Deferred CTM architecture: evaluates recurrent state and compute budget to decide whether another thought step is needed.", why: "Adaptive computation is a testable extension, not a requirement of the fast/slow baseline." },
   weights: { doing: "Defines a proposed 256M-parameter runtime object: about 230M INT4 base parameters, 20M BF16 fast-overlay parameters, and 6M BF16 dynamic state, with every tensor assigned to an owning method and logical object.", why: "The model needs a concrete mixed-precision storage contract so compression, online adaptation, and runtime reconstruction are reviewable rather than hidden inside one blob." },
@@ -825,7 +879,8 @@ export default function ZoomedArchitectureDiagram({ kind }: { kind: DiagramKind 
         <div className="mt-8 overflow-x-auto rounded-2xl border border-amber-900/25 bg-[#100c0a] p-3 sm:p-6">
           {kind === "observation" && <ObservationDiagram />}
           {kind === "embedding" && <EmbeddingDiagram />}
-          {kind !== "observation" && kind !== "embedding" && kind !== "output" && kind !== "weights" && kind !== "loadWeights" && kind !== "saveWeights" && kind !== "plasticity" && <MethodDiagram kind={kind} />}
+          {kind === "hiddenState" && <HiddenStateDiagram />}
+          {kind !== "observation" && kind !== "embedding" && kind !== "hiddenState" && kind !== "output" && kind !== "weights" && kind !== "loadWeights" && kind !== "saveWeights" && kind !== "plasticity" && <MethodDiagram kind={kind} />}
           {kind === "output" && <OutputDiagram />}
           {kind === "weights" && <WeightsDiagram />}
           {kind === "loadWeights" && <LoadWeightsDiagram />}

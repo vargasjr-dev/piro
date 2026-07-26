@@ -5,6 +5,9 @@ import ZoomedArchitectureDiagram from "~/components/ZoomedArchitectureDiagram";
 const supportedNodes = [
   "observation",
   "embedding",
+  "hiddenState",
+  "advanceHidden",
+  "generate",
   "initialize",
   "attention",
   "buildMemorySlots",
@@ -39,6 +42,9 @@ type SupportedNode = (typeof supportedNodes)[number];
 const titles: Record<SupportedNode, string> = {
   observation: "Observation",
   embedding: "Embed",
+  hiddenState: "HiddenState",
+  advanceHidden: "AdvanceHidden",
+  generate: "Generate",
   initialize: "InitializeOrRetrieveState",
   attention: "Attention",
   buildMemorySlots: "BuildMemorySlots",
@@ -73,11 +79,18 @@ export function generateStaticParams() {
   return supportedNodes.map((node) => ({ node }));
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ node: string }> }) {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ node: string }>;
+}) {
   const { node } = await params;
   const titles: Record<SupportedNode, string> = {
     observation: "Observation",
     embedding: "Embed",
+    hiddenState: "HiddenState",
+    advanceHidden: "AdvanceHidden",
+    generate: "Generate",
     initialize: "InitializeOrRetrieveState",
     attention: "Attention",
     buildMemorySlots: "BuildMemorySlots",
@@ -104,7 +117,7 @@ export async function generateMetadata({ params }: { params: Promise<{ node: str
     fastAdaptation: "FastAdaptation",
     bindFastState: "BindFastState",
     predictNext: "PredictNextToken",
-      consolidate: "ConsolidateWeights",
+    consolidate: "ConsolidateWeights",
     chunkText: "ChunkText",
   };
   const title = titles[node as SupportedNode] ?? "Architecture";
@@ -114,15 +127,26 @@ export async function generateMetadata({ params }: { params: Promise<{ node: str
   };
 }
 
-export default async function ArchitectureNodePage({ params }: { params: Promise<{ node: string }> }) {
+export default async function ArchitectureNodePage({
+  params,
+}: {
+  params: Promise<{ node: string }>;
+}) {
   const { node } = await params;
 
   if (!supportedNodes.includes(node as SupportedNode)) {
     return (
       <main className="min-h-screen bg-[#0d0a08] px-6 py-16 text-amber-100">
         <div className="mx-auto max-w-2xl">
-          <h1 className="text-3xl font-bold text-amber-50">Architecture node not found</h1>
-          <Link href="/docs/architecture" className="mt-6 inline-block text-orange-300 hover:text-orange-100">← Back to architecture</Link>
+          <h1 className="text-3xl font-bold text-amber-50">
+            Architecture node not found
+          </h1>
+          <Link
+            href="/docs/architecture"
+            className="mt-6 inline-block text-orange-300 hover:text-orange-100"
+          >
+            ← Back to architecture
+          </Link>
         </div>
       </main>
     );
@@ -137,7 +161,10 @@ export default async function ArchitectureNodePage({ params }: { params: Promise
       <div className="rounded-3xl border border-amber-900/30 bg-[#100c0a] p-6 shadow-2xl shadow-black/10 sm:p-8">
         <ZoomedArchitectureDiagram kind={node as SupportedNode} />
       </div>
-      <Link href="/docs/architecture" className="mt-8 inline-block text-sm text-amber-400/50 transition hover:text-amber-200">
+      <Link
+        href="/docs/architecture"
+        className="mt-8 inline-block text-sm text-amber-400/50 transition hover:text-amber-200"
+      >
         ← Back to architecture
       </Link>
     </DocsShell>

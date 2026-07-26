@@ -58,6 +58,14 @@ class BorealisRuntimeWeights:
     fast_state: BorealisFastState
 
 
+@dataclass
+class BorealisGenerationState:
+    """Recurrent representation and fast state carried across generation steps."""
+
+    hidden: torch.Tensor
+    fast_state: BorealisFastState
+
+
 class Borealis(ArchitectureModel):
     """Small causal model with explicit fast adaptation and consolidation."""
 
@@ -120,6 +128,14 @@ class Borealis(ArchitectureModel):
         if token.ndim != 0:
             raise ValueError("embed expects one scalar token id")
         return self.input_projection(self.token_embedding(token.long()))
+
+    def initialize_hidden_state(self) -> torch.Tensor:
+        """Create the zero recurrent representation for a new sequence."""
+        return torch.zeros(
+            self.config.hidden_dim,
+            device=self.token_embedding.weight.device,
+            dtype=self.token_embedding.weight.dtype,
+        )
 
     def advance_hidden(
         self,
@@ -227,6 +243,110 @@ class Borealis(ArchitectureModel):
 
     # ── Functional model execution ────────────────────────────────────────────
 
+    def prefill(
+        self,
+        token_ids: torch.Tensor,
+        fast_state: BorealisFastState | None = None,
+        *,
+        adapt: bool = True,
+    ) -> BorealisGenerationState:
+        """Read a prompt and return the recurrent state for its next token.
+
+        Known prompt transitions can supervise fast adaptation. The returned
+        hidden state is the model's compressed representation of the complete
+        prompt; it is carried forward instead of replaying the prompt at each
+        generation step.
+        """
+        tokens = self._validate_prompt_tokens(token_ids)
+        state = (fast_state or self.initialize_fast_state()).clone()
+        hidden = self.initialize_hidden_state().to(device=tokens.device)
+        runtime = self.bind_fast_state(self, state)
+
+        for index in range(tokens.numel() - 1):
+            logits, hidden = self.predict_next_token(tokens[index], hidden, runtime)
+            target = tokens[index + 1]
+            loss = F.cross_entropy(logits.unsqueeze(0), target.unsqueeze(0))
+            if adapt:
+                state = self.fast_adaptation(state, logits, target, loss)
+                runtime = self.bind_fast_state(self, state)
+
+        hidden = self.advance_hidden(tokens[-1], hidden)
+        return BorealisGenerationState(hidden=hidden, fast_state=state)
+
+    def next_token_logits(self, generation_state: BorealisGenerationState) -> torch.Tensor:
+        """Read next-token logits from a prefetched generation state."""
+        self._validate_generation_state(generation_state)
+        runtime = self.bind_fast_state(self, generation_state.fast_state)
+        return self.output_logits(generation_state.hidden, runtime)
+
+    def advance_generation(
+        self,
+        generation_state: BorealisGenerationState,
+        token: torch.Tensor,
+    ) -> BorealisGenerationState:
+        """Consume one generated token and carry its representation forward."""
+        self._validate_generation_state(generation_state)
+        token = self._validate_single_token(token)
+        hidden = self.advance_hidden(token, generation_state.hidden)
+        return BorealisGenerationState(
+            hidden=hidden,
+            fast_state=generation_state.fast_state.clone(),
+        )
+
+    def generate_with_state(
+        self,
+        prompt_token_ids: torch.Tensor,
+        max_new_tokens: int,
+        fast_state: BorealisFastState | None = None,
+        *,
+        adapt: bool = True,
+        eos_token_id: int | None = None,
+    ) -> tuple[torch.Tensor, BorealisGenerationState]:
+        """Greedily generate tokens and return the post-invocation state."""
+        if max_new_tokens < 0:
+            raise ValueError("max_new_tokens must be non-negative")
+        if eos_token_id is not None and not 0 <= eos_token_id < self.config.vocab_size:
+            raise ValueError("eos_token_id must be within the configured vocabulary")
+
+        prompt = self._validate_prompt_tokens(prompt_token_ids)
+        state = self.prefill(prompt, fast_state, adapt=adapt)
+        generated: list[torch.Tensor] = []
+        for _ in range(max_new_tokens):
+            logits = self.next_token_logits(state)
+            token = torch.argmax(logits, dim=-1)
+            generated.append(token)
+            state = self.advance_generation(state, token)
+            if eos_token_id is not None and int(token) == eos_token_id:
+                break
+
+        next_fast_state = self.consolidate_weights(state.fast_state)
+        state = BorealisGenerationState(
+            hidden=state.hidden.detach().clone(),
+            fast_state=next_fast_state,
+        )
+        if not generated:
+            return prompt.new_empty((0,), dtype=torch.long), state
+        return torch.stack(generated).to(device=prompt.device), state
+
+    def generate(
+        self,
+        prompt_token_ids: torch.Tensor,
+        max_new_tokens: int,
+        fast_state: BorealisFastState | None = None,
+        *,
+        adapt: bool = True,
+        eos_token_id: int | None = None,
+    ) -> torch.Tensor:
+        """Greedily generate a continuation while carrying hidden state forward."""
+        generated, _ = self.generate_with_state(
+            prompt_token_ids,
+            max_new_tokens,
+            fast_state,
+            adapt=adapt,
+            eos_token_id=eos_token_id,
+        )
+        return generated
+
     def run(
         self,
         token_ids: torch.Tensor,
@@ -240,27 +360,9 @@ class Borealis(ArchitectureModel):
         serving boundary exposes only the completed output.
         """
         tokens = self._validate_tokens(token_ids)
-        context = tokens[:-1]
-        state = (fast_state or self.initialize_fast_state()).clone()
-        hidden = torch.zeros(
-            self.config.hidden_dim,
-            device=tokens.device,
-            dtype=self.token_embedding.weight.dtype,
-        )
-        runtime = self.bind_fast_state(self, state)
-
-        for index in range(context.numel() - 1):
-            logits, hidden = self.predict_next_token(context[index], hidden, runtime)
-            chunk_target = context[index + 1]
-            chunk_loss = F.cross_entropy(logits.unsqueeze(0), chunk_target.unsqueeze(0))
-            if adapt:
-                state = self.fast_adaptation(state, logits, chunk_target, chunk_loss)
-                runtime = self.bind_fast_state(self, state)
-
-        hidden = self.advance_hidden(context[-1], hidden)
-        runtime = self.bind_fast_state(self, state)
-        final_logits = self.output_logits(hidden, runtime)
-        self.consolidate_weights(state)
+        state = self.prefill(tokens[:-1], fast_state, adapt=adapt)
+        final_logits = self.next_token_logits(state)
+        self.consolidate_weights(state.fast_state)
         return final_logits
 
     def causal_loss(self, token_ids: torch.Tensor) -> torch.Tensor:
@@ -273,13 +375,31 @@ class Borealis(ArchitectureModel):
         """Return the final next-token logits for Trainer-style callers."""
         return self.run(token_ids, adapt=False)
 
-    def _validate_tokens(self, token_ids: torch.Tensor) -> torch.Tensor:
-        if token_ids.ndim != 1 or token_ids.numel() < 2:
-            raise ValueError("expected a one-dimensional token sequence with at least two tokens")
+    def _validate_prompt_tokens(self, token_ids: torch.Tensor) -> torch.Tensor:
+        if token_ids.ndim != 1 or token_ids.numel() < 1:
+            raise ValueError("expected a one-dimensional prompt with at least one token")
         tokens = token_ids.to(device=self.token_embedding.weight.device, dtype=torch.long)
         if bool((tokens < 0).any()) or bool((tokens >= self.config.vocab_size).any()):
             raise ValueError("token ids must be within the configured vocabulary")
         return tokens
+
+    def _validate_tokens(self, token_ids: torch.Tensor) -> torch.Tensor:
+        if token_ids.ndim != 1 or token_ids.numel() < 2:
+            raise ValueError("expected a one-dimensional token sequence with at least two tokens")
+        return self._validate_prompt_tokens(token_ids)
+
+    def _validate_single_token(self, token: torch.Tensor) -> torch.Tensor:
+        if token.ndim != 0:
+            raise ValueError("expected one scalar token")
+        token = token.to(device=self.token_embedding.weight.device, dtype=torch.long)
+        if bool(token < 0) or bool(token >= self.config.vocab_size):
+            raise ValueError("token id must be within the configured vocabulary")
+        return token
+
+    def _validate_generation_state(self, state: BorealisGenerationState) -> None:
+        if tuple(state.hidden.shape) != (self.config.hidden_dim,):
+            raise ValueError(f"hidden state must have shape {(self.config.hidden_dim,)}")
+        self._validate_fast_state(state.fast_state)
 
     def _validate_fast_state(self, fast_state: BorealisFastState) -> None:
         expected = (self.config.vocab_size,)
@@ -289,4 +409,5 @@ class Borealis(ArchitectureModel):
 
 BorealisConfig.__module__ = __name__
 BorealisFastState.__module__ = __name__
+BorealisGenerationState.__module__ = __name__
 BorealisRuntimeWeights.__module__ = __name__
