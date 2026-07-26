@@ -97,10 +97,10 @@ function ModelCard({
 
 function EmptyState({
   global = false,
-  canDeploy = false,
+  isSubscribed = false,
 }: {
   global?: boolean;
-  canDeploy?: boolean;
+  isSubscribed?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-dashed border-amber-900/25 bg-amber-900/5 px-5 py-10 text-center">
@@ -112,15 +112,16 @@ function EmptyState({
           ? "The Piro team will publish the first shared model here."
           : "Your dedicated stateful deployments will appear here once they are ready."}
       </p>
-      {!global && canDeploy && <DeployModelButton />}
-      {!global && !canDeploy && (
+      {!global && isSubscribed ? (
+        <DeployModelButton />
+      ) : !global ? (
         <Link
           href="/upgrade"
           className="mt-6 inline-flex rounded-xl border border-orange-500/40 bg-orange-500/10 px-5 py-3 text-sm font-bold text-orange-300 transition hover:border-orange-400/70 hover:bg-orange-500/20 hover:text-orange-200"
         >
           Upgrade To Deploy
         </Link>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -130,7 +131,7 @@ export default async function ModelsPage() {
   if (!session) return null;
 
   const subscription = await getSubscription(session.user.id);
-  const canDeploy = isActive(subscription);
+  const isSubscribed = isActive(subscription);
   const selectFields = {
     id: model.id,
     name: model.name,
@@ -211,7 +212,7 @@ export default async function ModelsPage() {
             </span>
           </div>
           {privateModels.length === 0 ? (
-            <EmptyState canDeploy={canDeploy} />
+            <EmptyState isSubscribed={isSubscribed} />
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {toRows(privateModels).map((item) => (
