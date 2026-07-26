@@ -26,17 +26,17 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Check database secret
+      - name: Check Piro database secret
         run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "DATABASE_URL is not configured" >&2
+          if [ -z "$PIRO_DATABASE_URL" ]; then
+            echo "PIRO_DATABASE_URL is not configured; refusing to use the generic DATABASE_URL" >&2
             exit 1
           fi
-          echo "DATABASE_URL is configured"
+          echo "PIRO_DATABASE_URL is configured"
         env:
-          DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL || secrets.DATABASE_URL }}
+          PIRO_DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL }}
 
       - name: Apply schema
         run: bun run db:push
         env:
-          PIRO_DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL || secrets.DATABASE_URL }}
+          PIRO_DATABASE_URL: ${{ secrets.PIRO_DATABASE_URL }}

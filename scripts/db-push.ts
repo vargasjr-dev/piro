@@ -70,9 +70,9 @@ async function pushSchemaNoPrompt(
   }
 }
 
-const url = process.env.PIRO_DATABASE_URL ?? process.env.DATABASE_URL;
+const url = process.env.PIRO_DATABASE_URL;
 if (!url) {
-  throw new Error("PIRO_DATABASE_URL or DATABASE_URL must be configured");
+  throw new Error("PIRO_DATABASE_URL must be configured");
 }
 
 const db = drizzle(neon(url), { schema });
