@@ -8,9 +8,10 @@ import {
 import { resolveRequestUserId } from "~/lib/evals/auth";
 import { runSuite } from "~/lib/benchmarks/runner";
 import { waitUntil } from "@vercel/functions";
+import { GEMMA_TARGET } from "~/lib/benchmarks/gemma";
 
 const ASHFALL_MODEL_ID = "836ecce4-e53a-41b2-a95e-e2e75a98f6db";
-const ASHFALL_TARGET = "openai:gpt-5-nano";
+const ASHFALL_TARGETS = ["openai:gpt-5-nano", GEMMA_TARGET];
 
 export async function GET(request: Request) {
   const userId = await resolveRequestUserId(request);
@@ -114,7 +115,7 @@ export async function POST(request: Request) {
 
   const requestedTargets = body.targets?.length
     ? body.targets
-    : [ASHFALL_MODEL_ID, ASHFALL_TARGET];
+    : [ASHFALL_MODEL_ID, ...ASHFALL_TARGETS];
   const suiteRunId = crypto.randomUUID();
   await db.insert(benchmarkSuiteRun).values({
     id: suiteRunId,

@@ -145,9 +145,11 @@ export const ashfall: BenchmarkDef = {
         correct,
         inputTokens,
         outputTokens,
-        tokenAccounting: model.targetKey?.startsWith("openai:")
-          ? "provider_usage"
-          : "not_applicable",
+        tokenAccounting:
+          model.targetKey?.startsWith("openai:") ||
+          model.targetKey?.startsWith("gemma:")
+            ? "provider_usage"
+            : "not_applicable",
         failures,
         protocol:
           "one separate sequential invocation per ordered input; validation holdout; exact value_NNN match",
@@ -163,9 +165,11 @@ export const ashfall: BenchmarkDef = {
         averageOutputTokensPerEpisode: episodes.length
           ? outputTokens / episodes.length
           : 0,
-        stateBoundary: model.targetKey?.startsWith("openai:")
-          ? "conversation replayed across the ordered HTTP requests"
-          : "serialized recurrent state returned and supplied across the ordered HTTP requests",
+        stateBoundary:
+          model.targetKey?.startsWith("openai:") ||
+          model.targetKey?.startsWith("gemma:")
+            ? "conversation replayed across the ordered HTTP requests"
+            : "serialized recurrent state returned and supplied across the ordered HTTP requests",
       },
     };
   },
