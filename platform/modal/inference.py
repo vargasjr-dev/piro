@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import modal
-from _common import R2_BUCKET, _r2_client, app, image, piro_secrets
+from _common import INFERENCE_APP, R2_BUCKET, _r2_client, image, piro_secrets
+
+app = modal.App(INFERENCE_APP)
 
 SUPPORTED_ARCHITECTURES = frozenset({"ashfall", "borealis"})
 
