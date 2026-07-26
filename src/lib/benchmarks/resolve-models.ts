@@ -26,7 +26,12 @@ export async function resolveModelTargets(rawTargets: string[]): Promise<{
 
   const [models, trainingLinks] = await Promise.all([
     db
-      .select({ id: model.id, name: model.name, weightsR2Key: model.weightsR2Key, inferenceEndpoint: model.inferenceEndpoint })
+      .select({
+        id: model.id,
+        name: model.name,
+        weightsR2Key: model.weightsR2Key,
+        inferenceEndpoint: model.inferenceEndpoint,
+      })
       .from(model)
       .where(inArray(model.id, uuids)),
     db

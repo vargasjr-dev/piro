@@ -8,10 +8,6 @@ import {
 import { resolveRequestUserId } from "~/lib/evals/auth";
 import { runSuite } from "~/lib/benchmarks/runner";
 import { waitUntil } from "@vercel/functions";
-import { GEMMA_TARGET } from "~/lib/benchmarks/gemma";
-
-const ASHFALL_MODEL_ID = "836ecce4-e53a-41b2-a95e-e2e75a98f6db";
-const ASHFALL_TARGETS = ["openai:gpt-5-nano", GEMMA_TARGET];
 
 export async function GET(request: Request) {
   const userId = await resolveRequestUserId(request);
@@ -87,9 +83,9 @@ export async function POST(request: Request) {
     episodes?: number;
   };
   const name = body.name?.trim() ?? "";
-  if (name.toLowerCase() !== "ashfall") {
+  if (name.toLowerCase() !== "associative recall") {
     return Response.json(
-      { error: "Only the Ashfall benchmark is currently available" },
+      { error: "Only the Associative Recall benchmark is currently available" },
       { status: 400 },
     );
   }
@@ -109,30 +105,34 @@ export async function POST(request: Request) {
     .limit(1);
   if (!datasetRow)
     return Response.json(
-      { error: "Ashfall dataset not found" },
+      { error: "Associative Recall dataset not found" },
       { status: 404 },
     );
 
-  const requestedTargets = body.targets?.length
-    ? body.targets
-    : [ASHFALL_MODEL_ID, ...ASHFALL_TARGETS];
+  if (!body.targets?.length) {
+    return Response.json(
+      { error: "targets must contain at least one benchmark target" },
+      { status: 400 },
+    );
+  }
+  const requestedTargets = body.targets;
   const suiteRunId = crypto.randomUUID();
   await db.insert(benchmarkSuiteRun).values({
     id: suiteRunId,
     userId,
     status: "queued",
-    benchmarks: JSON.stringify(["Ashfall"]),
+    benchmarks: JSON.stringify(["Associative Recall"]),
     targets: JSON.stringify(requestedTargets),
   });
   waitUntil(
-    runSuite(suiteRunId, userId, ["Ashfall"], requestedTargets, {
+    runSuite(suiteRunId, userId, ["Associative Recall"], requestedTargets, {
       datasetR2Prefix: datasetRow.r2Prefix,
       episodes: body.episodes,
     }),
   );
 
   return Response.json(
-    { id: suiteRunId, status: "queued", benchmark: "Ashfall" },
+    { id: suiteRunId, status: "queued", benchmark: "Associative Recall" },
     { status: 202 },
   );
 }
