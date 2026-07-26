@@ -1,11 +1,13 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { auth } from "~/lib/auth.server";
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, isNull, isNotNull, or } from "drizzle-orm";
 import { db } from "../../../../data/db";
-import { deployment, model } from "../../../../data/schema";
+import { deployment, model, modelTrainingRun } from "../../../../data/schema";
 import { getSubscription, isActive } from "~/lib/billing";
-import DeployModelButton from "~/components/DeployModelButton";
+import DeployModelButton, {
+  type PretrainedModelOption,
+} from "~/components/DeployModelButton";
 
 type ModelRow = {
   id: string;
@@ -98,9 +100,11 @@ function ModelCard({
 function EmptyState({
   global = false,
   isSubscribed = false,
+  pretrainedModels = [],
 }: {
   global?: boolean;
   isSubscribed?: boolean;
+  pretrainedModels?: PretrainedModelOption[];
 }) {
   return (
     <div className="rounded-2xl border border-dashed border-amber-900/25 bg-amber-900/5 px-5 py-10 text-center">
@@ -113,7 +117,7 @@ function EmptyState({
           : "Your dedicated stateful deployments will appear here once they are ready."}
       </p>
       {!global && isSubscribed ? (
-        <DeployModelButton />
+        <DeployModelButton pretrainedModels={pretrainedModels} />
       ) : !global ? (
         <Link
           href="/upgrade"
@@ -142,7 +146,7 @@ export default async function ModelsPage() {
     createdAt: deployment.createdAt,
   };
 
-  const [privateModels, globalModels] = await Promise.all([
+  const [privateModels, globalModels, pretrainedModels] = await Promise.all([
     db
       .select(selectFields)
       .from(deployment)
@@ -172,6 +176,26 @@ export default async function ModelsPage() {
         ),
       )
       .orderBy(desc(deployment.createdAt)),
+    db
+      .select({
+        id: model.id,
+        name: model.name,
+      })
+      .from(deployment)
+      .innerJoin(model, eq(deployment.modelId, model.id))
+      .innerJoin(modelTrainingRun, eq(modelTrainingRun.modelId, model.id))
+      .where(
+        and(
+          eq(deployment.isAdmin, true),
+          eq(deployment.enabled, true),
+          isNull(deployment.targetUserId),
+          isNull(model.archivedAt),
+          isNotNull(model.weightsR2Key),
+          isNotNull(model.inferenceEndpoint),
+        ),
+      )
+      .orderBy(desc(deployment.createdAt))
+      .limit(3),
   ]);
 
   const toRows = (rows: typeof privateModels): ModelRow[] =>
@@ -179,6 +203,7 @@ export default async function ModelsPage() {
       ...item,
       createdAt: item.createdAt.toISOString(),
     }));
+  const pretrainedModelOptions: PretrainedModelOption[] = pretrainedModels;
 
   return (
     <div className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
@@ -212,7 +237,10 @@ export default async function ModelsPage() {
             </span>
           </div>
           {privateModels.length === 0 ? (
-            <EmptyState isSubscribed={isSubscribed} />
+            <EmptyState
+              isSubscribed={isSubscribed}
+              pretrainedModels={pretrainedModelOptions}
+            />
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {toRows(privateModels).map((item) => (
