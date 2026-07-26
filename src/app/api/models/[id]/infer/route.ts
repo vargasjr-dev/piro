@@ -1,100 +1,153 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
+import { and, eq, isNull, or } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "../../../../../../data/db";
-import { model } from "../../../../../../data/schema";
-import { eq, and } from "drizzle-orm";
+import {
+  deployment,
+  model,
+  modelTrainingRun,
+  trainingRun,
+} from "../../../../../../data/schema";
+import {
+  architectureFromPath,
+  modalTextToPiroOutput,
+  piroInputSchema,
+} from "../../../_lib/contracts";
+import { invokeModalInference, ModalInferenceError } from "../../../_lib/modal";
 
-// ── POST /api/models/[id]/infer ──────────────────────────────────────────────
-// Proxies a prompt to the model's Modal inference endpoint.
-// The Modal webhook secret stays server-side — never leaks to the client.
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
-interface ModalInferResponse {
-  text: string;
-  durationMs: number;
-  error?: string;
-}
+const browserInferenceSchema = piroInputSchema.extend({
+  state: z.record(z.string(), z.unknown()).nullable().optional(),
+});
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-
-  // Auth
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Look up model — must belong to the user
-  const [m] = await db
+  const [modelRow] = await db
     .select({
       id: model.id,
+      userId: model.userId,
       inferenceEndpoint: model.inferenceEndpoint,
-      name: model.name,
+      weightsR2Key: model.weightsR2Key,
     })
     .from(model)
-    .where(and(eq(model.id, id), eq(model.userId, session.user.id)))
+    .where(and(eq(model.id, id), isNull(model.archivedAt)))
     .limit(1);
 
-  if (!m) {
+  if (!modelRow) {
     return Response.json({ error: "Model not found" }, { status: 404 });
   }
 
-  if (!m.inferenceEndpoint) {
+  const [visibleDeployment] = await db
+    .select({ id: deployment.id })
+    .from(deployment)
+    .where(
+      and(
+        eq(deployment.modelId, id),
+        eq(deployment.enabled, true),
+        or(
+          and(
+            eq(deployment.isAdmin, false),
+            eq(deployment.createdByUserId, session.user.id),
+            eq(model.userId, session.user.id),
+          ),
+          and(
+            eq(deployment.isAdmin, true),
+            or(
+              isNull(deployment.targetUserId),
+              eq(deployment.targetUserId, session.user.id),
+            ),
+          ),
+        ),
+      ),
+    )
+    .limit(1);
+
+  if (!visibleDeployment) {
+    return Response.json({ error: "Model not found" }, { status: 404 });
+  }
+
+  if (!modelRow.inferenceEndpoint || !modelRow.weightsR2Key) {
     return Response.json(
-      { error: "This model does not have inference enabled. Retrain to enable." },
+      { error: "This model is not ready for inference yet." },
+      { status: 409 },
+    );
+  }
+
+  const [trainingLink] = await db
+    .select({ trainingRunId: modelTrainingRun.trainingRunId })
+    .from(modelTrainingRun)
+    .where(eq(modelTrainingRun.modelId, id))
+    .limit(1);
+  const [run] = trainingLink
+    ? await db
+        .select({ architecturePath: trainingRun.architecturePath })
+        .from(trainingRun)
+        .where(eq(trainingRun.id, trainingLink.trainingRunId))
+        .limit(1)
+    : [];
+
+  const architecture = run?.architecturePath
+    ? architectureFromPath(run.architecturePath)
+    : null;
+  if (!architecture) {
+    return Response.json(
+      { error: "Model architecture is not supported for inference" },
+      { status: 409 },
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json(
+      { error: "Request body must be valid JSON" },
       { status: 400 },
     );
   }
 
-  // Parse request
-  const body = await request.json();
-  const prompt = (body.prompt ?? "").trim();
-  if (!prompt) {
-    return Response.json({ error: "Prompt is required" }, { status: 400 });
+  const parsed = browserInferenceSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json(
+      { error: "Invalid PiroInput", issues: z.treeifyError(parsed.error) },
+      { status: 400 },
+    );
   }
 
-  // Call Modal inference
-  const secret = process.env.MODAL_WEBHOOK_SECRET ?? "";
-
-  const startTime = performance.now();
-  let res: Response;
   try {
-    res = await fetch(m.inferenceEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model_id: id, prompt, secret }),
-      signal: AbortSignal.timeout(30_000), // 30s timeout
+    const result = await invokeModalInference(
+      modelRow.inferenceEndpoint,
+      modelRow.id,
+      architecture,
+      { parts: parsed.data.parts },
+      process.env.MODAL_WEBHOOK_SECRET ?? "",
+      parsed.data.state ?? null,
+    );
+
+    return Response.json({
+      output: modalTextToPiroOutput(result.text),
+      durationMs: result.durationMs,
+      state: result.state,
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return Response.json(
-      { error: `Inference request failed: ${message}` },
-      { status: 502 },
-    );
+  } catch (error) {
+    if (error instanceof ModalInferenceError) {
+      return Response.json(
+        { error: "Model inference failed" },
+        { status: 502 },
+      );
+    }
+
+    return Response.json({ error: "Model inference failed" }, { status: 502 });
   }
-  const totalMs = Math.round(performance.now() - startTime);
-
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => "Unknown error");
-    return Response.json(
-      { error: `Modal inference error (${res.status}): ${errorText}` },
-      { status: 502 },
-    );
-  }
-
-  const data = (await res.json()) as ModalInferResponse;
-
-  if (data.error) {
-    return Response.json(
-      { error: `Model inference error: ${data.error}` },
-      { status: 500 },
-    );
-  }
-
-  return Response.json({
-    text: data.text ?? "",
-    durationMs: data.durationMs ?? totalMs,
-  });
 }

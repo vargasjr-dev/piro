@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../../../../data/db";
 import {
+  deployment,
   model,
   modelTrainingRun,
   trainingRun,
@@ -12,10 +13,7 @@ import {
   modalTextToPiroOutput,
   piroInputSchema,
 } from "../../../_lib/contracts";
-import {
-  invokeModalInference,
-  ModalInferenceError,
-} from "../../../_lib/modal";
+import { invokeModalInference, ModalInferenceError } from "../../../_lib/modal";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,31 +30,53 @@ export async function POST(
   }
 
   const { model: modelId } = await params;
-  const [modelRow] = await db
+  const [visibleModel] = await db
     .select({
       id: model.id,
       inferenceEndpoint: model.inferenceEndpoint,
+      weightsR2Key: model.weightsR2Key,
       architecturePath: trainingRun.architecturePath,
     })
     .from(model)
+    .innerJoin(deployment, eq(deployment.modelId, model.id))
     .leftJoin(modelTrainingRun, eq(modelTrainingRun.modelId, model.id))
     .leftJoin(trainingRun, eq(trainingRun.id, modelTrainingRun.trainingRunId))
-    .where(and(eq(model.id, modelId), eq(model.userId, auth.userId)))
+    .where(
+      and(
+        eq(model.id, modelId),
+        isNull(model.archivedAt),
+        eq(deployment.enabled, true),
+        or(
+          and(
+            eq(deployment.isAdmin, false),
+            eq(deployment.createdByUserId, auth.userId),
+            eq(model.userId, auth.userId),
+          ),
+          and(
+            eq(deployment.isAdmin, true),
+            or(
+              isNull(deployment.targetUserId),
+              eq(deployment.targetUserId, auth.userId),
+            ),
+          ),
+        ),
+      ),
+    )
     .limit(1);
 
-  if (!modelRow) {
+  if (!visibleModel) {
     return Response.json({ error: "Model not found" }, { status: 404 });
   }
 
-  if (!modelRow.inferenceEndpoint) {
+  if (!visibleModel.inferenceEndpoint || !visibleModel.weightsR2Key) {
     return Response.json(
       { error: "Model inference is not available" },
       { status: 409 },
     );
   }
 
-  const architecture = modelRow.architecturePath
-    ? architectureFromPath(modelRow.architecturePath)
+  const architecture = visibleModel.architecturePath
+    ? architectureFromPath(visibleModel.architecturePath)
     : null;
   if (!architecture) {
     return Response.json(
@@ -85,14 +105,18 @@ export async function POST(
 
   try {
     const result = await invokeModalInference(
-      modelRow.inferenceEndpoint,
-      modelRow.id,
+      visibleModel.inferenceEndpoint,
+      visibleModel.id,
       architecture,
       parsed.data,
       process.env.MODAL_WEBHOOK_SECRET ?? "",
     );
 
-    return Response.json({ output: modalTextToPiroOutput(result.text) });
+    return Response.json({
+      output: modalTextToPiroOutput(result.text),
+      durationMs: result.durationMs,
+      state: result.state,
+    });
   } catch (error) {
     if (error instanceof ModalInferenceError) {
       return Response.json(
