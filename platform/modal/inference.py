@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import modal
@@ -9,7 +10,11 @@ from _common import INFERENCE_APP, R2_BUCKET, _r2_client, image, piro_secrets
 
 app = modal.App(INFERENCE_APP)
 
-SUPPORTED_ARCHITECTURES = frozenset({"ashfall", "borealis"})
+ARCHITECTURE_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+
+def is_supported_architecture(value: object) -> bool:
+    return isinstance(value, str) and ARCHITECTURE_NAME.fullmatch(value) is not None
 
 
 @app.cls(
@@ -40,7 +45,7 @@ class Infer:
 
     def _load(self, model_id: str, architecture: str):
         """Load a model through its architecture-owned main.py entrypoint."""
-        if architecture not in SUPPORTED_ARCHITECTURES:
+        if not is_supported_architecture(architecture):
             raise ValueError(f"Unsupported architecture: {architecture!r}")
 
         cache_key = (model_id, architecture)
@@ -132,7 +137,7 @@ def infer(body: dict) -> dict:
         {
             "parts": [{"type": "text", "text": "..."}],
             "model_id": str,
-            "architecture": "ashfall" | "borealis",
+            "architecture": "<architecture-name>",
             "state": dict | null,
             "secret": str,
         }
@@ -155,8 +160,8 @@ def infer(body: dict) -> dict:
     state = body.get("state")
     if not isinstance(model_id, str) or not model_id:
         raise HTTPException(status_code=400, detail="model_id required")
-    if not isinstance(architecture, str) or architecture not in SUPPORTED_ARCHITECTURES:
-        raise HTTPException(status_code=400, detail="architecture must be ashfall or borealis")
+    if not is_supported_architecture(architecture):
+        raise HTTPException(status_code=400, detail="architecture must be a valid architecture name")
     if not isinstance(parts, list) or not parts:
         raise HTTPException(status_code=400, detail="parts must be a non-empty array")
     for part in parts:

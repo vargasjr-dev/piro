@@ -16,7 +16,7 @@ export type ModalInferenceResult = {
 export async function invokeModalInference(
   endpoint: string,
   modelId: string,
-  architecture: "ashfall" | "borealis",
+  architecture: string,
   input: PiroInput,
   secret: string,
   state: Record<string, unknown> | null = null,

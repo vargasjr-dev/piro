@@ -7,9 +7,12 @@
  * and BUCKET_APPLICATION_SECRET. USER_ID selects the owner when needed.
  */
 
-import { readFileSync } from "fs";
-import { join } from "path";
-import { eq, and } from "drizzle-orm";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { discoverArchitectureEntrypoints } from "./architecture-discovery";
 
 // ── Bootstrap env from .env.local if present ──────────────────────────────────
 const envPath = join(import.meta.dir, "../.env.local");
@@ -38,52 +41,50 @@ const { r2PutText } = await import("../src/lib/r2");
 
 // Built-in classes are stored as source modules plus manifests under one R2 prefix per class.
 
-interface ClassManifest {
-  name: string;
-  slug: string;
-  description: string;
-  hyperparams: Record<string, number | string | boolean>;
-  parameterCount: number;
-  module: string;
-  modelClass: string;
-}
+const architectureManifestSchema = z.object({
+  entrypointPath: z.string(),
+  sourcePath: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  description: z.string(),
+  hyperparams: z.record(z.string(), z.unknown()),
+  parameterCount: z.number().int().nonnegative(),
+  module: z.string(),
+  modelClass: z.string(),
+});
 
-const MODULES: Array<{
-  slug: string;
-  sourcePath: string;
-  manifest: ClassManifest;
-}> = [
-  {
-    slug: "ctm",
-    sourcePath: join(import.meta.dir, "../architectures/ashfall/ctm_10x.py"),
-    manifest: {
-      name: "Continuous Thought Model",
-      slug: "ctm",
-      description:
-        "Iterative tick-loop architecture with sync-driven attention. " +
-        "Neuron state accumulates across ticks before committing to an output — " +
-        "trades parameter efficiency for internal reasoning depth.",
-      hyperparams: {
-        n_neurons: 4,
-        embed_dim: 8,
-        query_dim: 8,
-        value_dim: 8,
-        hidden_dim: 16,
-        n_classes: 5,
-        window_size: 8,
-        max_ticks: 10,
-        enable_burst: false,
-        enable_plasticity: false,
-        enable_oscillation: false,
-        confidence_threshold: 0.9,
-      },
-      parameterCount: 1674,
-      module: "architectures.ashfall.ctm_10x",
-      modelClass: "ContinuousThoughtModel",
-    },
-  },
+type ClassManifest = z.infer<typeof architectureManifestSchema>;
 
-];
+const repositoryRoot = join(import.meta.dir, "..");
+const architectureEntrypoints = discoverArchitectureEntrypoints(
+  join(repositoryRoot, "architectures"),
+);
+const discoveredManifests = architectureManifestSchema
+  .array()
+  .parse(
+    JSON.parse(
+      execFileSync(
+        "python3",
+        [join(import.meta.dir, "architecture-manifests.py")],
+        { cwd: repositoryRoot, encoding: "utf8" },
+      ),
+    ),
+  );
+const manifestsByEntrypoint = new Map(
+  discoveredManifests.map((manifest) => [manifest.entrypointPath, manifest]),
+);
+const MODULES = architectureEntrypoints.map((entrypointPath) => {
+  const relativeEntrypoint = entrypointPath.slice(repositoryRoot.length + 1);
+  const manifest = manifestsByEntrypoint.get(relativeEntrypoint);
+  if (!manifest) {
+    throw new Error(`No manifest discovered for ${relativeEntrypoint}`);
+  }
+  return {
+    slug: manifest.slug,
+    sourcePath: join(repositoryRoot, manifest.sourcePath),
+    manifest,
+  };
+});
 
 // ── Find the single user (or require USER_ID) ─────────────────────────────────
 const { user } = await import("../data/schema");

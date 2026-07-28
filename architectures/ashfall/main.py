@@ -12,6 +12,7 @@ from architectures._common.encoding import memory_embedding, policy_embedding
 from architectures.ashfall.ctm_10x import ContinuousThoughtModel, CTMConfig
 
 MODEL_TEMPLATE = "ashfall"
+MODEL_CLASS = ContinuousThoughtModel
 
 
 def load_model(config: dict[str, Any], state_dict: dict[str, torch.Tensor]) -> ContinuousThoughtModel:
