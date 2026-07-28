@@ -62,6 +62,7 @@ export async function POST(
     : await db
         .select({ id: deployment.id })
         .from(deployment)
+        .innerJoin(model, eq(deployment.modelId, model.id))
         .where(
           and(
             eq(deployment.modelId, id),
@@ -147,9 +148,7 @@ export async function POST(
         .limit(1)
     : [];
 
-  const architecture = architectureFromPath(
-    run?.architecturePath ?? "",
-  );
+  const architecture = architectureFromPath(run?.architecturePath ?? "");
   if (!architecture) {
     return Response.json(
       { error: "Model architecture is not supported for inference" },
