@@ -3,7 +3,7 @@ import type { PiroInput } from "./contracts";
 type HostedInferenceConfig = {
   endpoint: string;
   apiModelName: string;
-  apiKeyEnvVar: string | null;
+  apiKeyEnvVar?: string | null;
 };
 
 type HostedChatResponse = {

@@ -7,7 +7,6 @@ import { db } from "../../../../../../data/db";
 import {
   deployment,
   model,
-  modelHostedApi,
   modelTrainingRun,
   trainingRun,
 } from "../../../../../../data/schema";
@@ -21,6 +20,7 @@ import {
   HostedInferenceError,
 } from "../../../_lib/hosted";
 import { invokeModalInference, ModalInferenceError } from "../../../_lib/modal";
+import { getHostedModel } from "~/lib/hosted-models";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -39,53 +39,52 @@ export async function POST(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [modelRow] = await db
-    .select({
-      id: model.id,
-      userId: model.userId,
-      inferenceEndpoint: model.inferenceEndpoint,
-      weightsR2Key: model.weightsR2Key,
-      hostedEndpoint: modelHostedApi.endpoint,
-      hostedApiModelName: modelHostedApi.apiModelName,
-      hostedApiKeyEnvVar: modelHostedApi.apiKeyEnvVar,
-      hostedModelId: modelHostedApi.id,
-    })
-    .from(model)
-    .leftJoin(modelHostedApi, eq(modelHostedApi.modelId, model.id))
-    .where(and(eq(model.id, id), isNull(model.archivedAt)))
-    .limit(1);
+  const hostedModel = isAdmin(session) ? getHostedModel(id) : undefined;
+  const [modelRow] = hostedModel
+    ? []
+    : await db
+        .select({
+          id: model.id,
+          userId: model.userId,
+          inferenceEndpoint: model.inferenceEndpoint,
+          weightsR2Key: model.weightsR2Key,
+        })
+        .from(model)
+        .where(and(eq(model.id, id), isNull(model.archivedAt)))
+        .limit(1);
 
-  if (!modelRow) {
+  if (!hostedModel && !modelRow) {
     return Response.json({ error: "Model not found" }, { status: 404 });
   }
 
-  const [visibleDeployment] = await db
-    .select({ id: deployment.id })
-    .from(deployment)
-    .where(
-      and(
-        eq(deployment.modelId, id),
-        eq(deployment.enabled, true),
-        or(
+  const [visibleDeployment] = hostedModel
+    ? []
+    : await db
+        .select({ id: deployment.id })
+        .from(deployment)
+        .where(
           and(
-            eq(deployment.isAdmin, false),
-            eq(deployment.createdByUserId, session.user.id),
-            eq(model.userId, session.user.id),
-          ),
-          and(
-            eq(deployment.isAdmin, true),
+            eq(deployment.modelId, id),
+            eq(deployment.enabled, true),
             or(
-              isNull(deployment.targetUserId),
-              eq(deployment.targetUserId, session.user.id),
+              and(
+                eq(deployment.isAdmin, false),
+                eq(deployment.createdByUserId, session.user.id),
+                eq(model.userId, session.user.id),
+              ),
+              and(
+                eq(deployment.isAdmin, true),
+                or(
+                  isNull(deployment.targetUserId),
+                  eq(deployment.targetUserId, session.user.id),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    )
-    .limit(1);
+        )
+        .limit(1);
 
-  const hostedAdminAccess = isAdmin(session) && modelRow.hostedModelId !== null;
-  if (!visibleDeployment && !hostedAdminAccess) {
+  if (!hostedModel && !visibleDeployment) {
     return Response.json({ error: "Model not found" }, { status: 404 });
   }
 
@@ -107,23 +106,11 @@ export async function POST(
     );
   }
 
-  if (modelRow.hostedModelId) {
-    if (!modelRow.hostedEndpoint || !modelRow.hostedApiModelName) {
-      return Response.json(
-        { error: "Hosted model configuration is incomplete" },
-        { status: 409 },
-      );
-    }
-
+  if (hostedModel) {
     try {
-      const result = await invokeHostedInference(
-        {
-          endpoint: modelRow.hostedEndpoint,
-          apiModelName: modelRow.hostedApiModelName,
-          apiKeyEnvVar: modelRow.hostedApiKeyEnvVar,
-        },
-        { parts: parsed.data.parts },
-      );
+      const result = await invokeHostedInference(hostedModel, {
+        parts: parsed.data.parts,
+      });
       return Response.json({
         output: modalTextToPiroOutput(result.text),
         durationMs: result.durationMs,
@@ -140,7 +127,7 @@ export async function POST(
     }
   }
 
-  if (!modelRow.inferenceEndpoint || !modelRow.weightsR2Key) {
+  if (!modelRow!.inferenceEndpoint || !modelRow!.weightsR2Key) {
     return Response.json(
       { error: "This model is not ready for inference yet." },
       { status: 409 },
@@ -172,8 +159,8 @@ export async function POST(
 
   try {
     const result = await invokeModalInference(
-      modelRow.inferenceEndpoint,
-      modelRow.id,
+      modelRow!.inferenceEndpoint,
+      modelRow!.id,
       architecture,
       { parts: parsed.data.parts },
       process.env.MODAL_WEBHOOK_SECRET ?? "",

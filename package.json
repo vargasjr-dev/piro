@@ -11,7 +11,6 @@
     "lint": "next lint",
     "format": "prettier --write \"**/*.tsx\"",
     "db:push": "bun scripts/db-push.ts",
-    "db:seed-hosted-models": "bun scripts/seed-hosted-models.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

@@ -1,16 +1,12 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { desc, eq, inArray, isNull } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { auth } from "~/lib/auth.server";
 import { isAdmin } from "~/lib/admin";
+import { HOSTED_MODELS } from "~/lib/hosted-models";
 import { db } from "../../../../../data/db";
-import {
-  deployment,
-  model,
-  modelHostedApi,
-  user,
-} from "../../../../../data/schema";
+import { deployment, model, user } from "../../../../../data/schema";
 import { setDeploymentEnabled } from "../actions";
 import { AdminShell } from "../AdminShell";
 
@@ -21,7 +17,7 @@ export default async function AdminDeploymentsPage() {
   if (!session) redirect("/login");
   if (!isAdmin(session)) redirect("/models");
 
-  const [deployments, hostedModels] = await Promise.all([
+  const [deployments] = await Promise.all([
     db
       .select({
         id: deployment.id,
@@ -40,19 +36,6 @@ export default async function AdminDeploymentsPage() {
       .innerJoin(model, eq(deployment.modelId, model.id))
       .innerJoin(user, eq(deployment.createdByUserId, user.id))
       .orderBy(desc(deployment.createdAt)),
-    db
-      .select({
-        id: model.id,
-        name: model.name,
-        description: model.description,
-        provider: modelHostedApi.provider,
-        apiModelName: modelHostedApi.apiModelName,
-        createdAt: model.createdAt,
-      })
-      .from(model)
-      .innerJoin(modelHostedApi, eq(modelHostedApi.modelId, model.id))
-      .where(isNull(model.archivedAt))
-      .orderBy(desc(model.createdAt)),
   ]);
 
   const targetUserIds = deployments.flatMap((item) =>
@@ -189,50 +172,43 @@ export default async function AdminDeploymentsPage() {
             </p>
           </div>
           <span className="text-xs text-amber-600/40">
-            {hostedModels.length}{" "}
-            {hostedModels.length === 1 ? "model" : "models"}
+            {HOSTED_MODELS.length}{" "}
+            {HOSTED_MODELS.length === 1 ? "model" : "models"}
           </span>
         </div>
-        {hostedModels.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-amber-900/25 bg-amber-900/5 px-5 py-12 text-center text-sm text-amber-200/55">
-            No hosted models configured.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {hostedModels.map((item) => (
-              <article
-                key={item.id}
-                className="rounded-2xl border border-amber-900/25 bg-[#13100c] p-5"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate text-sm font-semibold text-amber-50">
-                        {item.name}
-                      </h3>
-                      <span className="rounded-full border border-sky-400/25 bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
-                        Hosted · {item.provider}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-amber-300/50">
-                      {item.description || item.apiModelName}
-                    </p>
-                    <p className="mt-3 text-[11px] text-amber-500/50">
-                      {item.apiModelName} · configured{" "}
-                      {item.createdAt.toLocaleDateString()}
-                    </p>
+        <div className="space-y-3">
+          {HOSTED_MODELS.map((item) => (
+            <article
+              key={item.modelId}
+              className="rounded-2xl border border-amber-900/25 bg-[#13100c] p-5"
+            >
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-sm font-semibold text-amber-50">
+                      {item.displayName}
+                    </h3>
+                    <span className="rounded-full border border-sky-400/25 bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                      Hosted · {item.name}
+                    </span>
                   </div>
-                  <Link
-                    href={`/models/${encodeURIComponent(item.name)}`}
-                    className="shrink-0 rounded-xl border border-orange-500/30 px-3 py-2 text-xs font-semibold text-orange-300 transition-colors hover:bg-orange-500/10"
-                  >
-                    Open sandbox
-                  </Link>
+                  <p className="mt-1 text-xs text-amber-300/50">
+                    {item.description}
+                  </p>
+                  <p className="mt-3 text-[11px] text-amber-500/50">
+                    {item.apiModelName}
+                  </p>
                 </div>
-              </article>
-            ))}
-          </div>
-        )}
+                <Link
+                  href={`/models/${encodeURIComponent(item.displayName)}`}
+                  className="shrink-0 rounded-xl border border-orange-500/30 px-3 py-2 text-xs font-semibold text-orange-300 transition-colors hover:bg-orange-500/10"
+                >
+                  Open sandbox
+                </Link>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
     </AdminShell>
   );
