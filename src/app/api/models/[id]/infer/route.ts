@@ -10,7 +10,7 @@ import {
   trainingRun,
 } from "../../../../../../data/schema";
 import {
-  architectureFromPath,
+  architectureFromTrainingMetadata,
   modalTextToPiroOutput,
   piroInputSchema,
 } from "../../../_lib/contracts";
@@ -91,15 +91,19 @@ export async function POST(
     .limit(1);
   const [run] = trainingLink
     ? await db
-        .select({ architecturePath: trainingRun.architecturePath })
+        .select({
+          architecturePath: trainingRun.architecturePath,
+          configJson: trainingRun.configJson,
+        })
         .from(trainingRun)
         .where(eq(trainingRun.id, trainingLink.trainingRunId))
         .limit(1)
     : [];
 
-  const architecture = run?.architecturePath
-    ? architectureFromPath(run.architecturePath)
-    : null;
+  const architecture = architectureFromTrainingMetadata(
+    run?.architecturePath,
+    run?.configJson,
+  );
   if (!architecture) {
     return Response.json(
       { error: "Model architecture is not supported for inference" },

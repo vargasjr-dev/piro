@@ -9,7 +9,7 @@ import {
 } from "../../../../../../data/schema";
 import { extractBearer, validateApiKey } from "../../../../../lib/api-auth";
 import {
-  architectureFromPath,
+  architectureFromTrainingMetadata,
   modalTextToPiroOutput,
   piroInputSchema,
 } from "../../../_lib/contracts";
@@ -36,6 +36,7 @@ export async function POST(
       inferenceEndpoint: model.inferenceEndpoint,
       weightsR2Key: model.weightsR2Key,
       architecturePath: trainingRun.architecturePath,
+      configJson: trainingRun.configJson,
     })
     .from(model)
     .innerJoin(deployment, eq(deployment.modelId, model.id))
@@ -75,9 +76,10 @@ export async function POST(
     );
   }
 
-  const architecture = visibleModel.architecturePath
-    ? architectureFromPath(visibleModel.architecturePath)
-    : null;
+  const architecture = architectureFromTrainingMetadata(
+    visibleModel.architecturePath,
+    visibleModel.configJson,
+  );
   if (!architecture) {
     return Response.json(
       { error: "Model architecture is not supported for inference" },
