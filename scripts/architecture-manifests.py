@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parent.parent
 ARCHITECTURES = ROOT / "architectures"
 sys.path.insert(0, str(ROOT))
 
+from architectures._common.base import ArchitectureModel
+
 
 def json_safe(value: Any) -> Any:
     if value is None or isinstance(value, (bool, int, float, str)):
@@ -25,15 +27,31 @@ def json_safe(value: Any) -> Any:
     raise TypeError(f"Architecture metadata contains unsupported value: {value!r}")
 
 
+def implementation_class(module: Any, entrypoint: Path) -> type[ArchitectureModel]:
+    candidates = [
+        candidate
+        for _, candidate in inspect.getmembers(module, inspect.isclass)
+        if candidate is not ArchitectureModel
+        and issubclass(candidate, ArchitectureModel)
+    ]
+    if len(candidates) != 1:
+        names = ", ".join(candidate.__name__ for candidate in candidates) or "none"
+        raise RuntimeError(
+            f"{entrypoint} must expose exactly one ArchitectureModel subclass; found {names}"
+        )
+    return candidates[0]
+
+
 def discover() -> list[dict[str, Any]]:
     manifests: list[dict[str, Any]] = []
     for entrypoint in sorted(ARCHITECTURES.glob("*/main.py")):
         architecture = entrypoint.parent.name
         module = importlib.import_module(f"architectures.{architecture}.main")
-        model_class = getattr(module, "MODEL_CLASS", None)
-        if model_class is None:
-            raise RuntimeError(f"{entrypoint} must export MODEL_CLASS")
+        architecture_name = getattr(module, "MODEL_CLASS", None)
+        if not isinstance(architecture_name, str) or not architecture_name.strip():
+            raise RuntimeError(f"{entrypoint} must export a non-empty string MODEL_CLASS")
 
+        model_class = implementation_class(module, entrypoint)
         model = model_class()
         source_path = Path(inspect.getfile(model_class)).resolve().relative_to(ROOT)
         manifests.append(
@@ -46,7 +64,7 @@ def discover() -> list[dict[str, Any]]:
                 "hyperparams": json_safe(model_class.hyper_parameters),
                 "parameterCount": model.count_parameters(),
                 "module": model_class.__module__,
-                "modelClass": model_class.__name__,
+                "modelClass": architecture_name,
             }
         )
     return manifests
