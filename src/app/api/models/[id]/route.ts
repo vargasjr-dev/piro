@@ -2,12 +2,13 @@ import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { db } from "../../../../../data/db";
 import {
+  deployment,
   model,
   modelHostedApi,
   modelTrainingRun,
   trainingRun,
 } from "../../../../../data/schema";
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { deriveLiveTrainingMetrics } from "~/lib/training-run-metrics";
 
 export async function PATCH(
@@ -26,6 +27,19 @@ export async function PATCH(
     .limit(1);
 
   if (!m) return Response.json({ error: "Not found" }, { status: 404 });
+
+  const [liveDeployment] = await db
+    .select({ id: deployment.id })
+    .from(deployment)
+    .where(and(eq(deployment.modelId, id), eq(deployment.enabled, true)))
+    .limit(1);
+
+  if (liveDeployment) {
+    return Response.json(
+      { error: "Disable all live deployments before archiving this model" },
+      { status: 409 },
+    );
+  }
 
   await db
     .update(model)
