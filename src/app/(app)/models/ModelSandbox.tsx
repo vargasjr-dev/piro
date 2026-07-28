@@ -55,9 +55,19 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
           }),
         },
       );
-      const body = (await response.json()) as InferResponse;
+      const responseText = await response.text();
+      let body: InferResponse | null = null;
+      try {
+        body = JSON.parse(responseText) as InferResponse;
+      } catch {
+        // Surface a useful HTTP error when the server returns a non-JSON failure page.
+      }
       if (!response.ok) {
-        setError(body.error ?? "Inference failed");
+        setError(body?.error ?? `Inference failed (HTTP ${response.status})`);
+        return;
+      }
+      if (!body) {
+        setError("Inference returned an invalid response.");
         return;
       }
 
@@ -73,7 +83,7 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
       setState(body.state ?? null);
       setPrompt("");
     } catch {
-      setError("We could not reach Piro. Please try again.");
+      setError("We could not reach the inference service. Please try again.");
     } finally {
       setSubmitting(false);
     }
