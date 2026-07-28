@@ -62,7 +62,6 @@ image = (
     )
     .add_local_python_source("architectures")
     .add_local_python_source("sources")
-    .add_local_python_source("benchmarks")
     .add_local_dir("platform", remote_path="/root/platform")
 )
 
