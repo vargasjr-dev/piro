@@ -37,6 +37,7 @@ app = modal.App(APP_NAME)
         "/root/.cache/vllm": vllm_cache,
     },
     port=VLLM_PORT,
+    routing_region="us-east",
     target_concurrency=32,
     unauthenticated=True,
 )

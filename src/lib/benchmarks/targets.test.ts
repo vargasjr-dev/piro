@@ -7,7 +7,10 @@ test("Gemma benchmark target uses the configured Modal OpenAI-compatible endpoin
   const config = getBenchmarkTarget("gemma:google/gemma-3-270m");
   assert.ok(config);
   assert.equal(config.apiModelName, "google/gemma-3-270m");
-  assert.match(config.endpoint, /gemma-vllm/);
+  assert.equal(
+    config.endpoint,
+    "https://dvargasfuertes--piro-gemma-vllm-server.us-east.modal.direct/v1",
+  );
 
   const originalFetch = globalThis.fetch;
   try {

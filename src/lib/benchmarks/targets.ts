@@ -12,7 +12,7 @@ export interface ChatTargetConfig {
 }
 
 const GEMMA_MODAL_ENDPOINT =
-  "https://dvargasfuertes--piro-gemma-vllm-server.modal.run/v1";
+  "https://dvargasfuertes--piro-gemma-vllm-server.us-east.modal.direct/v1";
 
 /** Explicitly configured external benchmark targets. */
 export const BENCHMARK_TARGETS: Record<string, ChatTargetConfig> = {
