@@ -7,7 +7,6 @@ import { isAdmin } from "~/lib/admin";
 import { HOSTED_MODELS } from "~/lib/hosted-models";
 import { db } from "../../../../../data/db";
 import { deployment, model, user } from "../../../../../data/schema";
-import { setDeploymentEnabled } from "../actions";
 import { AdminShell } from "../AdminShell";
 
 export const dynamic = "force-dynamic";
@@ -17,26 +16,22 @@ export default async function AdminDeploymentsPage() {
   if (!session) redirect("/login");
   if (!isAdmin(session)) redirect("/models");
 
-  const [deployments] = await Promise.all([
-    db
-      .select({
-        id: deployment.id,
-        enabled: deployment.enabled,
-        createdAt: deployment.createdAt,
-        modelName: model.name,
-        modelDescription: model.description,
-        inferenceEndpoint: model.inferenceEndpoint,
-        weightsR2Key: model.weightsR2Key,
-        creatorName: user.name,
-        creatorEmail: user.email,
-        targetUserId: deployment.targetUserId,
-        isAdmin: deployment.isAdmin,
-      })
-      .from(deployment)
-      .innerJoin(model, eq(deployment.modelId, model.id))
-      .innerJoin(user, eq(deployment.createdByUserId, user.id))
-      .orderBy(desc(deployment.createdAt)),
-  ]);
+  const deployments = await db
+    .select({
+      id: deployment.id,
+      enabled: deployment.enabled,
+      createdAt: deployment.createdAt,
+      modelName: model.name,
+      modelDescription: model.description,
+      creatorName: user.name,
+      creatorEmail: user.email,
+      targetUserId: deployment.targetUserId,
+      isAdmin: deployment.isAdmin,
+    })
+    .from(deployment)
+    .innerJoin(model, eq(deployment.modelId, model.id))
+    .innerJoin(user, eq(deployment.createdByUserId, user.id))
+    .orderBy(desc(deployment.createdAt));
 
   const targetUserIds = deployments.flatMap((item) =>
     item.targetUserId ? [item.targetUserId] : [],
@@ -85,9 +80,10 @@ export default async function AdminDeploymentsPage() {
         ) : (
           <div className="space-y-3">
             {deployments.map((item) => (
-              <article
+              <Link
                 key={item.id}
-                className="rounded-2xl border border-amber-900/25 bg-[#13100c] p-5"
+                href={`/models/${encodeURIComponent(item.modelName)}`}
+                className="block rounded-2xl border border-amber-900/25 bg-[#13100c] p-5 outline-none transition-colors hover:border-amber-700/40 focus-visible:ring-2 focus-visible:ring-orange-400/70"
               >
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -105,18 +101,13 @@ export default async function AdminDeploymentsPage() {
                       {item.modelDescription || "No deployment description."}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-amber-500/50">
-                      <span>
-                        {item.inferenceEndpoint && item.weightsR2Key
-                          ? "Stateful inference ready"
-                          : "Deployment preparing"}
-                      </span>
-                      <span>
-                        {item.isAdmin
-                          ? item.targetUserId
+                      {item.isAdmin && (
+                        <span>
+                          {item.targetUserId
                             ? `Admin deployment for ${targetUsersById.get(item.targetUserId)?.name ?? targetUsersById.get(item.targetUserId)?.email ?? item.targetUserId}`
-                            : "Global deployment"
-                          : "Private user deployment"}
-                      </span>
+                            : "Global deployment"}
+                        </span>
+                      )}
                       <span>
                         {item.isAdmin
                           ? `Created by ${item.creatorName} (${item.creatorEmail})`
@@ -125,36 +116,8 @@ export default async function AdminDeploymentsPage() {
                       <span>{item.createdAt.toLocaleDateString()}</span>
                     </div>
                   </div>
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <Link
-                      href={`/models/${encodeURIComponent(item.modelName)}`}
-                      className="rounded-xl border border-orange-500/30 px-3 py-2 text-xs font-semibold text-orange-300 transition-colors hover:bg-orange-500/10"
-                    >
-                      Open sandbox
-                    </Link>
-                    <form action={setDeploymentEnabled}>
-                      <input
-                        type="hidden"
-                        name="deploymentId"
-                        value={item.id}
-                      />
-                      <input
-                        type="hidden"
-                        name="enabled"
-                        value={item.enabled ? "false" : "true"}
-                      />
-                      <button
-                        type="submit"
-                        className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${item.enabled ? "border-amber-700/30 text-amber-300/70 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300" : "border-emerald-500/30 text-emerald-300/80 hover:bg-emerald-500/10"}`}
-                      >
-                        {item.enabled
-                          ? "Disable deployment"
-                          : "Enable deployment"}
-                      </button>
-                    </form>
-                  </div>
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         )}
@@ -178,35 +141,28 @@ export default async function AdminDeploymentsPage() {
         </div>
         <div className="space-y-3">
           {HOSTED_MODELS.map((item) => (
-            <article
+            <Link
               key={item.modelId}
-              className="rounded-2xl border border-amber-900/25 bg-[#13100c] p-5"
+              href={`/models/${encodeURIComponent(item.displayName)}`}
+              className="block rounded-2xl border border-amber-900/25 bg-[#13100c] p-5 outline-none transition-colors hover:border-amber-700/40 focus-visible:ring-2 focus-visible:ring-orange-400/70"
             >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate text-sm font-semibold text-amber-50">
-                      {item.displayName}
-                    </h3>
-                    <span className="rounded-full border border-sky-400/25 bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
-                      Hosted · {item.name}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-amber-300/50">
-                    {item.description}
-                  </p>
-                  <p className="mt-3 text-[11px] text-amber-500/50">
-                    {item.apiModelName}
-                  </p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="truncate text-sm font-semibold text-amber-50">
+                    {item.displayName}
+                  </h3>
+                  <span className="rounded-full border border-sky-400/25 bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                    Hosted
+                  </span>
                 </div>
-                <Link
-                  href={`/models/${encodeURIComponent(item.displayName)}`}
-                  className="shrink-0 rounded-xl border border-orange-500/30 px-3 py-2 text-xs font-semibold text-orange-300 transition-colors hover:bg-orange-500/10"
-                >
-                  Open sandbox
-                </Link>
+                <p className="mt-1 text-xs text-amber-300/50">
+                  {item.description}
+                </p>
+                <p className="mt-3 text-[11px] text-amber-500/50">
+                  {item.apiModelName}
+                </p>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       </section>

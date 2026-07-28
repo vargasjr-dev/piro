@@ -8,6 +8,7 @@ import { getHostedModelByName } from "~/lib/hosted-models";
 import { db } from "../../../../../data/db";
 import { deployment, model } from "../../../../../data/schema";
 import ModelSandbox from "../ModelSandbox";
+import { disablePrivateDeployment } from "../actions";
 
 export default async function ModelSandboxPage({
   params,
@@ -27,6 +28,7 @@ export default async function ModelSandboxPage({
           name: model.name,
           parameterCount: model.parameterCount,
           createdAt: model.createdAt,
+          deploymentId: deployment.id,
           isGlobal: deployment.isAdmin,
         })
         .from(model)
@@ -63,6 +65,7 @@ export default async function ModelSandboxPage({
         name: hostedModel.displayName,
         parameterCount: null,
         createdAt: new Date(0),
+        deploymentId: null,
         isGlobal: true,
       }
     : modelRow!;
@@ -75,6 +78,9 @@ export default async function ModelSandboxPage({
       { "type": "text", "text": "What should you remember?" }
     ]
   }'`;
+
+  const canDisablePrivateDeployment =
+    !hostedModel && !resolvedModel.isGlobal && resolvedModel.deploymentId;
 
   return (
     <div className="min-h-screen px-3 py-4 sm:px-6 sm:py-8">
@@ -94,6 +100,25 @@ export default async function ModelSandboxPage({
         </div>
 
         <div className="mt-4">
+          {canDisablePrivateDeployment && (
+            <form
+              action={disablePrivateDeployment}
+              className="mb-3 flex justify-end"
+            >
+              <input
+                type="hidden"
+                name="deploymentId"
+                value={resolvedModel.deploymentId}
+              />
+              <button
+                type="submit"
+                className="rounded-xl border border-red-500/30 px-3 py-2 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/10"
+              >
+                Disable private deployment
+              </button>
+            </form>
+          )}
+
           <ModelSandbox
             modelId={resolvedModel.id}
             more={{
