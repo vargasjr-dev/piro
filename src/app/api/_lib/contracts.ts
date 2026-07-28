@@ -17,15 +17,13 @@ export const piroInputSchema = z
 
 export type PiroInput = z.infer<typeof piroInputSchema>;
 export type PiroOutput = PiroInput;
-export type InferenceArchitecture = "ashfall" | "borealis";
 
-export function architectureFromPath(
-  path: string,
-): InferenceArchitecture | null {
+const architecturePathPattern =
+  /^architectures\/([a-z0-9][a-z0-9_-]*)\/main\.py$/;
+
+export function architectureFromPath(path: string): string | null {
   const normalized = path.trim().replace(/^\/+|\/+$/g, "");
-  if (normalized === "architectures/ashfall/main.py") return "ashfall";
-  if (normalized === "architectures/borealis/main.py") return "borealis";
-  return null;
+  return architecturePathPattern.exec(normalized)?.[1] ?? null;
 }
 
 export function modalTextToPiroOutput(text: string): PiroOutput {

@@ -6,28 +6,15 @@ function fail(status: number, body: unknown, fallback: string): never {
   process.exit(1);
 }
 
-/**
- * Normalize the user-facing architecture name into the path stored on a
- * training run. Bare names use the standard architecture convention; full paths
- * are preserved so experiment-scoped architectures remain addressable.
- */
+/** Normalize an architecture name into its canonical entrypoint path. */
 export function architecturePath(name: string): string {
   const trimmed = name.trim().replace(/^\/+|\/+$/g, "");
   if (!trimmed) throw new Error("architecture name is required");
-  if (
-    trimmed === "ashfall" ||
-    trimmed === "ctm" ||
-    trimmed === "ctm-10x" ||
-    trimmed === "ctm_10x" ||
-    trimmed === "architectures/ashfall"
-  ) {
-    return "architectures/ashfall/main.py";
-  }
-  if (trimmed.startsWith("architectures/")) {
-    return trimmed.endsWith(".py") ? trimmed : `${trimmed}.py`;
-  }
-  if (trimmed.startsWith("ashfall/")) return `architectures/${trimmed}.py`;
-  return `architectures/${trimmed}`;
+
+  const path = trimmed.startsWith("architectures/")
+    ? trimmed
+    : `architectures/${trimmed}`;
+  return path.endsWith("/main.py") ? path : `${path}/main.py`;
 }
 
 export async function architectureTrain(
