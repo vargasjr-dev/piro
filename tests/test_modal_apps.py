@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 MODAL_DIR = Path(__file__).parents[1] / "platform" / "modal"
@@ -38,6 +39,16 @@ def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     assert '"--served-model-name"' in source
     assert 'modal.Volume.from_name("piro-gemma-huggingface-cache"' in source
     assert 'modal.Volume.from_name("piro-gemma-vllm-cache"' in source
+
+
+def test_modal_images_only_package_existing_local_python_sources():
+    common = (MODAL_DIR / "_common.py").read_text()
+    package_root = MODAL_DIR.parents[1]
+    sources = re.findall(r'\.add_local_python_source\("([^"]+)"\)', common)
+
+    assert sources
+    assert all((package_root / source).is_dir() for source in sources), sources
+    assert "benchmarks" not in sources
 
 
 def test_modal_images_own_the_shared_module_import_path():
