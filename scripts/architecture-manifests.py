@@ -47,10 +47,6 @@ def discover() -> list[dict[str, Any]]:
     for entrypoint in sorted(ARCHITECTURES.glob("*/main.py")):
         architecture = entrypoint.parent.name
         module = importlib.import_module(f"architectures.{architecture}.main")
-        architecture_name = getattr(module, "MODEL_CLASS", None)
-        if not isinstance(architecture_name, str) or not architecture_name.strip():
-            raise RuntimeError(f"{entrypoint} must export a non-empty string MODEL_CLASS")
-
         model_class = implementation_class(module, entrypoint)
         model = model_class()
         source_path = Path(inspect.getfile(model_class)).resolve().relative_to(ROOT)
@@ -64,7 +60,7 @@ def discover() -> list[dict[str, Any]]:
                 "hyperparams": json_safe(model_class.hyper_parameters),
                 "parameterCount": model.count_parameters(),
                 "module": model_class.__module__,
-                "modelClass": architecture_name,
+                "modelClass": model_class.__name__,
             }
         )
     return manifests

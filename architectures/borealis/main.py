@@ -9,9 +9,6 @@ import torch
 
 from architectures.borealis.model import Borealis, BorealisConfig
 
-MODEL_CLASS = "Borealis"
-
-
 def load_model(config: dict[str, Any], state_dict: dict[str, torch.Tensor]) -> Borealis:
     """Construct a Borealis model from persisted configuration."""
     config_fields = {field.name for field in fields(BorealisConfig)}
