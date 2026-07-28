@@ -11,6 +11,12 @@ on:
       - "scripts/db-push.ts"
       - ".github/workflows/db-migrate.yml"
   workflow_dispatch:
+    inputs:
+      allow_destructive:
+        description: "Approve dropping retired production schema objects and their data"
+        required: true
+        default: false
+        type: boolean
 
 jobs:
   apply:
@@ -40,3 +46,4 @@ jobs:
         run: bun run db:push
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ALLOW_DESTRUCTIVE_SCHEMA_CHANGES: ${{ inputs.allow_destructive && 'true' || 'false' }}

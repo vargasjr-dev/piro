@@ -1,6 +1,10 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "../data/schema";
+import {
+  isDestructiveSchemaApplyEnabled,
+  TABLE_FILTERS,
+} from "./db-push-config";
 
 type PushResult = {
   hasDataLoss: boolean;
@@ -9,7 +13,7 @@ type PushResult = {
   apply: () => Promise<void>;
 };
 
-type PushSchema = typeof import("drizzle-kit/api")["pushSchema"];
+type PushSchema = (typeof import("drizzle-kit/api"))["pushSchema"];
 
 type StdinWithTTY = typeof process.stdin & {
   isTTY?: boolean;
@@ -22,8 +26,8 @@ type StdinWithTTY = typeof process.stdin & {
  * before applying anything. The first option is Drizzle's non-destructive
  * "create" choice; emit Enter until the API finishes to select it.
  *
- * Data-loss suggestions are still rejected below. This wrapper only resolves
- * ambiguity; it never approves truncation, drops, or other destructive SQL.
+ * Destructive schema changes remain blocked unless the production workflow
+ * explicitly enables them through its manual approval input.
  *
  * Related upstream issues:
  * - https://github.com/drizzle-team/drizzle-orm/issues/4921
@@ -32,6 +36,7 @@ type StdinWithTTY = typeof process.stdin & {
 async function pushSchemaNoPrompt(
   imports: Record<string, unknown>,
   drizzleInstance: Parameters<PushSchema>[1],
+  tablesFilter: string[],
 ): Promise<PushResult> {
   const stdin = process.stdin as StdinWithTTY;
   const originalStdinTTY = stdin.isTTY;
@@ -53,7 +58,7 @@ async function pushSchemaNoPrompt(
   }, 50);
 
   try {
-    return await pushSchema(imports, drizzleInstance);
+    return await pushSchema(imports, drizzleInstance, undefined, tablesFilter);
   } finally {
     clearInterval(enterInterval);
     Object.defineProperty(stdin, "isTTY", {
@@ -79,18 +84,29 @@ const db = drizzle(neon(url), { schema });
 const result = await pushSchemaNoPrompt(
   schema,
   db as unknown as Parameters<PushSchema>[1],
+  TABLE_FILTERS,
 );
 
-if (result.hasDataLoss) {
+if (result.hasDataLoss && !isDestructiveSchemaApplyEnabled()) {
   console.error("Refusing to apply destructive schema changes:");
   for (const warning of result.warnings) {
     console.error(`- ${warning}`);
   }
+  console.error(
+    "Re-run the DB Schema Apply workflow manually with destructive changes explicitly approved if this rollout is intentional.",
+  );
   process.exitCode = 1;
 } else if (result.statementsToExecute.length === 0) {
   console.log("No schema changes detected.");
 } else {
-  console.log(`Applying ${result.statementsToExecute.length} schema statement(s).`);
+  if (result.hasDataLoss) {
+    console.warn(
+      "Applying destructive schema changes with explicit workflow approval.",
+    );
+  }
+  console.log(
+    `Applying ${result.statementsToExecute.length} schema statement(s).`,
+  );
   await result.apply();
   console.log("Schema changes applied.");
 }
