@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { desc } from "drizzle-orm";
@@ -18,6 +19,7 @@ export default async function AdminUsersPage() {
     .select({
       id: user.id,
       name: user.name,
+      username: user.username,
       email: user.email,
       role: user.role,
       createdAt: user.createdAt,
@@ -49,7 +51,12 @@ export default async function AdminUsersPage() {
               {users.map((item) => (
                 <tr key={item.id} className="text-amber-100/80">
                   <td className="px-5 py-4">
-                    <div className="font-medium text-amber-50">{item.name}</div>
+                    <Link
+                      href={`/admin/users/${encodeURIComponent(item.id)}`}
+                      className="font-medium text-amber-50 underline decoration-amber-700/60 underline-offset-2 transition hover:text-amber-100"
+                    >
+                      {item.username || item.name}
+                    </Link>
                     <div className="mt-1 text-xs text-amber-500/55">
                       {item.email}
                     </div>
