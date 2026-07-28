@@ -51,6 +51,7 @@ def _r2_client(os_module):
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
+    .env({"PYTHONPATH": "/root/platform/modal"})
     .pip_install(
         "torch>=2.3.0",
         "numpy>=1.26.0",
@@ -69,6 +70,7 @@ image = (
 # the heavy model images so Modal can acknowledge requests during cold starts.
 trigger_image = (
     modal.Image.debian_slim(python_version="3.11")
+    .env({"PYTHONPATH": "/root/platform/modal"})
     .pip_install("fastapi[standard]>=0.110.0")
     .add_local_dir("platform/modal", remote_path="/root/platform/modal")
 )
