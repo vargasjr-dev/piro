@@ -45,10 +45,20 @@ def test_training_and_source_triggers_use_the_lightweight_image():
     training = (MODAL_DIR / "training.py").read_text()
     source = (MODAL_DIR / "source.py").read_text()
 
-    assert "trigger_image = modal.Image.debian_slim" in common
+    assert "trigger_image =" in common
+    assert '.add_local_dir("platform/modal", remote_path="/root/platform/modal")' in common
     assert "@app.function(image=trigger_image, secrets=[piro_secrets])\n@modal.fastapi_endpoint" in training
     assert "@app.function(image=trigger_image, secrets=[piro_secrets])\n@modal.fastapi_endpoint" in source
     assert "@app.cls(\n    image=image," in training
+
+
+def test_entrypoints_resolve_shared_modules_in_modal_runtime_layout():
+    for filename in ("training.py", "inference.py", "source.py"):
+        source = (MODAL_DIR / filename).read_text()
+        assert 'Path("/root/platform/modal")' not in source
+        assert '"platform" / "modal"' in source
+        assert '(_candidate / "_common.py").exists()' in source
+        assert "sys.path.insert(0, str(_candidate))" in source
 
 
 def test_training_dispatch_has_a_bounded_timeout():

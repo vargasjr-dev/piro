@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+import sys
 from typing import Any
+
+# Modal runs this entrypoint as /root/inference.py while shared modules live in
+# /root/platform/modal. Resolve both the local source and deployed layouts.
+_ENTRYPOINT_DIR = Path(__file__).resolve().parent
+for _candidate in (_ENTRYPOINT_DIR, _ENTRYPOINT_DIR / "platform" / "modal"):
+    if (_candidate / "_common.py").exists():
+        sys.path.insert(0, str(_candidate))
+        break
 
 import modal
 from _common import INFERENCE_APP, R2_BUCKET, _r2_client, image, piro_secrets

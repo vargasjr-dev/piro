@@ -67,8 +67,10 @@ image = (
 
 # Web triggers only validate input and spawn a worker. Keep them separate from
 # the heavy model images so Modal can acknowledge requests during cold starts.
-trigger_image = modal.Image.debian_slim(python_version="3.11").pip_install(
-    "fastapi[standard]>=0.110.0",
+trigger_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install("fastapi[standard]>=0.110.0")
+    .add_local_dir("platform/modal", remote_path="/root/platform/modal")
 )
 
 piro_secrets = modal.Secret.from_name("piro-secrets")
