@@ -40,12 +40,17 @@ def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     assert 'modal.Volume.from_name("piro-gemma-vllm-cache"' in source
 
 
-def test_training_and_source_triggers_use_the_lightweight_image():
+def test_modal_images_own_the_shared_module_import_path():
     common = (MODAL_DIR / "_common.py").read_text()
     training = (MODAL_DIR / "training.py").read_text()
     source = (MODAL_DIR / "source.py").read_text()
+    inference = (MODAL_DIR / "inference.py").read_text()
 
-    assert "trigger_image = modal.Image.debian_slim" in common
+    assert common.count('.env({"PYTHONPATH": "/root/platform/modal"})') == 2
+    assert '.add_local_dir("platform/modal", remote_path="/root/platform/modal")' in common
+    assert "sys.path.insert" not in training
+    assert "sys.path.insert" not in inference
+    assert "sys.path.insert" not in source
     assert "@app.function(image=trigger_image, secrets=[piro_secrets])\n@modal.fastapi_endpoint" in training
     assert "@app.function(image=trigger_image, secrets=[piro_secrets])\n@modal.fastapi_endpoint" in source
     assert "@app.cls(\n    image=image," in training
