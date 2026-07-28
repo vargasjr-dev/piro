@@ -238,7 +238,7 @@ export const generationRun = pgTable(
 
 /**
  * A training run: one invocation against an architecture + dataset.
- * The architecture code lives in the repo (e.g. "architectures/ashfall/ctm.py").
+ * The architecture entrypoint lives in the repo (e.g. "architectures/ashfall/main.py").
  * The dataset is a generated artifact tracked in the `dataset` table.
  */
 export const trainingRun = pgTable(
@@ -249,7 +249,7 @@ export const trainingRun = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     modelName: text("modelName"),
-    /** Path in the workspace to the architecture (e.g. "architectures/ashfall/ctm.py"). */
+    /** Path in the workspace to the architecture entrypoint (e.g. "architectures/ashfall/main.py"). */
     architecturePath: text("architecturePath").notNull(),
     /** FK → dataset.id (which generated dataset to train on). */
     datasetId: text("datasetId").references(() => dataset.id, {

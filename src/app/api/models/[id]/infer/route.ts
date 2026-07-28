@@ -10,7 +10,7 @@ import {
   trainingRun,
 } from "../../../../../../data/schema";
 import {
-  architectureFromTrainingMetadata,
+  architectureFromPath,
   modalTextToPiroOutput,
   piroInputSchema,
 } from "../../../_lib/contracts";
@@ -91,18 +91,14 @@ export async function POST(
     .limit(1);
   const [run] = trainingLink
     ? await db
-        .select({
-          architecturePath: trainingRun.architecturePath,
-          configJson: trainingRun.configJson,
-        })
+        .select({ architecturePath: trainingRun.architecturePath })
         .from(trainingRun)
         .where(eq(trainingRun.id, trainingLink.trainingRunId))
         .limit(1)
     : [];
 
-  const architecture = architectureFromTrainingMetadata(
-    run?.architecturePath,
-    run?.configJson,
+  const architecture = architectureFromPath(
+    run?.architecturePath ?? "",
   );
   if (!architecture) {
     return Response.json(

@@ -48,7 +48,7 @@ class Trainer:
         from architectures._common.encoding import memory_embedding, policy_embedding
         from architectures._common.trainer import Trainer as _Trainer
         from architectures._common.trainer import TrainerConfig
-        from architectures.ashfall.ctm import ContinuousThoughtModel, CTMConfig
+        from architectures.ashfall.ctm_10x import ContinuousThoughtModel, CTMConfig
         from sources._common.sequences import generate_sorting_dataset
 
         # Expose to run()
@@ -876,12 +876,12 @@ def trigger(body: dict) -> dict:
 
     architecture_path = str(body.get("architecturePath", ""))
     dataset_prefix = str(body.get("datasetR2Prefix", ""))
-    model_template = architecture_path.rstrip("/").rsplit("/", 1)[-1]
-    if model_template.endswith(".py"):
-        model_template = model_template[:-3]
-    if model_template == "ctm_10x":
+    if architecture_path == "architectures/ashfall/main.py":
         model_template = "ctm-10x"
-    model_template = model_template or "ctm"
+    else:
+        model_template = architecture_path.rstrip("/").rsplit("/", 1)[-1]
+        if model_template.endswith(".py"):
+            model_template = model_template[:-3]
     data_source = dataset_prefix.rstrip("/").rsplit("/", 1)[-1]
     if not architecture_path or not dataset_prefix:
         raise HTTPException(status_code=400, detail="architecturePath and datasetR2Prefix required")

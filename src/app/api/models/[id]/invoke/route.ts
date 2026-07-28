@@ -9,7 +9,7 @@ import {
 } from "../../../../../../data/schema";
 import { extractBearer, validateApiKey } from "../../../../../lib/api-auth";
 import {
-  architectureFromTrainingMetadata,
+  architectureFromPath,
   modalTextToPiroOutput,
   piroInputSchema,
 } from "../../../_lib/contracts";
@@ -36,7 +36,6 @@ export async function POST(
       inferenceEndpoint: model.inferenceEndpoint,
       weightsR2Key: model.weightsR2Key,
       architecturePath: trainingRun.architecturePath,
-      configJson: trainingRun.configJson,
     })
     .from(model)
     .innerJoin(deployment, eq(deployment.modelId, model.id))
@@ -76,9 +75,8 @@ export async function POST(
     );
   }
 
-  const architecture = architectureFromTrainingMetadata(
-    visibleModel.architecturePath,
-    visibleModel.configJson,
+  const architecture = architectureFromPath(
+    visibleModel.architecturePath ?? "",
   );
   if (!architecture) {
     return Response.json(

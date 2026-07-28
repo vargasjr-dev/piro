@@ -14,9 +14,14 @@ function fail(status: number, body: unknown, fallback: string): never {
 export function architecturePath(name: string): string {
   const trimmed = name.trim().replace(/^\/+|\/+$/g, "");
   if (!trimmed) throw new Error("architecture name is required");
-  if (trimmed === "ctm") return "architectures/ashfall/ctm.py";
-  if (trimmed === "ctm-10x" || trimmed === "ctm_10x") {
-    return "architectures/ashfall/ctm_10x.py";
+  if (
+    trimmed === "ashfall" ||
+    trimmed === "ctm" ||
+    trimmed === "ctm-10x" ||
+    trimmed === "ctm_10x" ||
+    trimmed === "architectures/ashfall"
+  ) {
+    return "architectures/ashfall/main.py";
   }
   if (trimmed.startsWith("architectures/")) {
     return trimmed.endsWith(".py") ? trimmed : `${trimmed}.py`;
