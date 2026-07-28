@@ -1,11 +1,13 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
+import { isAdmin } from "~/lib/admin";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../../../../data/db";
 import {
   deployment,
   model,
+  modelHostedApi,
   modelTrainingRun,
   trainingRun,
 } from "../../../../../../data/schema";
@@ -14,6 +16,10 @@ import {
   modalTextToPiroOutput,
   piroInputSchema,
 } from "../../../_lib/contracts";
+import {
+  invokeHostedInference,
+  HostedInferenceError,
+} from "../../../_lib/hosted";
 import { invokeModalInference, ModalInferenceError } from "../../../_lib/modal";
 
 export const runtime = "nodejs";
@@ -39,8 +45,13 @@ export async function POST(
       userId: model.userId,
       inferenceEndpoint: model.inferenceEndpoint,
       weightsR2Key: model.weightsR2Key,
+      hostedEndpoint: modelHostedApi.endpoint,
+      hostedApiModelName: modelHostedApi.apiModelName,
+      hostedApiKeyEnvVar: modelHostedApi.apiKeyEnvVar,
+      hostedModelId: modelHostedApi.id,
     })
     .from(model)
+    .leftJoin(modelHostedApi, eq(modelHostedApi.modelId, model.id))
     .where(and(eq(model.id, id), isNull(model.archivedAt)))
     .limit(1);
 
@@ -73,8 +84,60 @@ export async function POST(
     )
     .limit(1);
 
-  if (!visibleDeployment) {
+  const hostedAdminAccess = isAdmin(session) && modelRow.hostedModelId !== null;
+  if (!visibleDeployment && !hostedAdminAccess) {
     return Response.json({ error: "Model not found" }, { status: 404 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json(
+      { error: "Request body must be valid JSON" },
+      { status: 400 },
+    );
+  }
+
+  const parsed = browserInferenceSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json(
+      { error: "Invalid PiroInput", issues: z.treeifyError(parsed.error) },
+      { status: 400 },
+    );
+  }
+
+  if (modelRow.hostedModelId) {
+    if (!modelRow.hostedEndpoint || !modelRow.hostedApiModelName) {
+      return Response.json(
+        { error: "Hosted model configuration is incomplete" },
+        { status: 409 },
+      );
+    }
+
+    try {
+      const result = await invokeHostedInference(
+        {
+          endpoint: modelRow.hostedEndpoint,
+          apiModelName: modelRow.hostedApiModelName,
+          apiKeyEnvVar: modelRow.hostedApiKeyEnvVar,
+        },
+        { parts: parsed.data.parts },
+      );
+      return Response.json({
+        output: modalTextToPiroOutput(result.text),
+        durationMs: result.durationMs,
+        state: null,
+      });
+    } catch (error) {
+      if (error instanceof HostedInferenceError) {
+        return Response.json({ error: error.message }, { status: 502 });
+      }
+      return Response.json(
+        { error: "Hosted model inference failed" },
+        { status: 502 },
+      );
+    }
   }
 
   if (!modelRow.inferenceEndpoint || !modelRow.weightsR2Key) {
@@ -107,24 +170,6 @@ export async function POST(
     );
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json(
-      { error: "Request body must be valid JSON" },
-      { status: 400 },
-    );
-  }
-
-  const parsed = browserInferenceSchema.safeParse(body);
-  if (!parsed.success) {
-    return Response.json(
-      { error: "Invalid PiroInput", issues: z.treeifyError(parsed.error) },
-      { status: 400 },
-    );
-  }
-
   try {
     const result = await invokeModalInference(
       modelRow.inferenceEndpoint,
@@ -142,10 +187,7 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof ModalInferenceError) {
-      return Response.json(
-        { error: "Model inference failed" },
-        { status: 502 },
-      );
+      return Response.json({ error: error.message }, { status: 502 });
     }
 
     return Response.json({ error: "Model inference failed" }, { status: 502 });

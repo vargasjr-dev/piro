@@ -1,10 +1,11 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, isNull, isNotNull, or } from "drizzle-orm";
 import { auth } from "~/lib/auth.server";
+import { isAdmin } from "~/lib/admin";
 import { db } from "../../../../../data/db";
-import { deployment, model } from "../../../../../data/schema";
+import { deployment, model, modelHostedApi } from "../../../../../data/schema";
 import ModelSandbox from "../ModelSandbox";
 
 export default async function ModelSandboxPage({
@@ -23,27 +24,34 @@ export default async function ModelSandboxPage({
       parameterCount: model.parameterCount,
       createdAt: model.createdAt,
       isGlobal: deployment.isAdmin,
+      isHosted: modelHostedApi.id,
     })
     .from(model)
-    .innerJoin(deployment, eq(deployment.modelId, model.id))
+    .leftJoin(deployment, eq(deployment.modelId, model.id))
+    .leftJoin(modelHostedApi, eq(modelHostedApi.modelId, model.id))
     .where(
       and(
         eq(model.name, name),
         isNull(model.archivedAt),
-        eq(deployment.enabled, true),
         or(
           and(
-            eq(deployment.isAdmin, false),
-            eq(deployment.createdByUserId, session.user.id),
-            eq(model.userId, session.user.id),
-          ),
-          and(
-            eq(deployment.isAdmin, true),
+            eq(deployment.enabled, true),
             or(
-              isNull(deployment.targetUserId),
-              eq(deployment.targetUserId, session.user.id),
+              and(
+                eq(deployment.isAdmin, false),
+                eq(deployment.createdByUserId, session.user.id),
+                eq(model.userId, session.user.id),
+              ),
+              and(
+                eq(deployment.isAdmin, true),
+                or(
+                  isNull(deployment.targetUserId),
+                  eq(deployment.targetUserId, session.user.id),
+                ),
+              ),
             ),
           ),
+          ...(isAdmin(session) ? [isNotNull(modelHostedApi.id)] : []),
         ),
       ),
     )
@@ -83,14 +91,16 @@ export default async function ModelSandboxPage({
             modelId={modelRow.id}
             more={{
               apiExample,
-              isGlobal: modelRow.isGlobal,
+              isGlobal: Boolean(modelRow.isGlobal ?? modelRow.isHosted),
               parameterCount: modelRow.parameterCount?.toLocaleString() ?? "—",
               deployedAt: modelRow.createdAt.toLocaleDateString(undefined, {
                 month: "short",
                 day: "numeric",
                 year: "numeric",
               }),
-              access: modelRow.isGlobal ? "Shared" : "Private",
+              access: Boolean(modelRow.isGlobal ?? modelRow.isHosted)
+                ? "Shared"
+                : "Private",
             }}
           />
         </div>
