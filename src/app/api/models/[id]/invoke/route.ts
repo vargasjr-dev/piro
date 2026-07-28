@@ -22,14 +22,14 @@ const invalidJsonError = { error: "Request body must be valid JSON" };
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ model: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await validateApiKey(extractBearer(request) ?? "");
   if (!auth) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { model: modelId } = await params;
+  const { id: modelId } = await params;
   const [visibleModel] = await db
     .select({
       id: model.id,
