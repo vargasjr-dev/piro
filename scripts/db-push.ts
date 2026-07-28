@@ -1,8 +1,10 @@
 import { neon } from "@neondatabase/serverless";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "../data/schema";
 import {
   isDestructiveSchemaApplyEnabled,
+  makeLegacyConstraintDropIdempotent,
   TABLE_FILTERS,
 } from "./db-push-config";
 
@@ -107,6 +109,11 @@ if (result.hasDataLoss && !isDestructiveSchemaApplyEnabled()) {
   console.log(
     `Applying ${result.statementsToExecute.length} schema statement(s).`,
   );
-  await result.apply();
+  const applyStatements = result.statementsToExecute.map(
+    makeLegacyConstraintDropIdempotent,
+  );
+  for (const statement of applyStatements) {
+    await db.execute(sql.raw(statement));
+  }
   console.log("Schema changes applied.");
 }
