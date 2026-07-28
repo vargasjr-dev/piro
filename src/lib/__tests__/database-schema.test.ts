@@ -4,6 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { dataset, generationRun, trainingRun } from "../../../data/schema";
 import {
   isDestructiveSchemaApplyEnabled,
+  makeLegacyConstraintDropIdempotent,
   TABLE_FILTERS,
 } from "../../../scripts/db-push-config";
 
@@ -27,5 +28,23 @@ describe("production schema migration safety", () => {
     expect(isDestructiveSchemaApplyEnabled("false")).toBe(false);
     expect(isDestructiveSchemaApplyEnabled(undefined)).toBe(false);
     expect(isDestructiveSchemaApplyEnabled("TRUE")).toBe(false);
+  });
+
+  test("makes only retired ownership constraint drops idempotent", () => {
+    expect(
+      makeLegacyConstraintDropIdempotent(
+        'ALTER TABLE "generation_run" DROP CONSTRAINT "generation_run_repositoryId_fkey";',
+      ),
+    ).toBe(
+      'ALTER TABLE "generation_run" DROP CONSTRAINT IF EXISTS "generation_run_repositoryId_fkey";',
+    );
+    expect(
+      makeLegacyConstraintDropIdempotent(
+        'ALTER TABLE "user" DROP CONSTRAINT "user_email_unique";',
+      ),
+    ).toBe('ALTER TABLE "user" DROP CONSTRAINT "user_email_unique";');
+    expect(
+      makeLegacyConstraintDropIdempotent('DROP TABLE "repository" CASCADE;'),
+    ).toBe('DROP TABLE "repository" CASCADE;');
   });
 });

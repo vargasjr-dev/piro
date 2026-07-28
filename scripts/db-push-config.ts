@@ -13,3 +13,26 @@ export function isDestructiveSchemaApplyEnabled(
 ): boolean {
   return value === "true";
 }
+
+/**
+ * Production may already have some retired ownership constraints removed. Keep
+ * only those generated drops idempotent; every other generated statement must
+ * remain unchanged and fail normally if the database rejects it.
+ */
+export function makeLegacyConstraintDropIdempotent(statement: string): string {
+  const normalized = statement.trim().replace(/\s+/g, " ");
+  const match = normalized.match(
+    /^ALTER TABLE ("(?:dataset|generation_run|training_run)"|(?:dataset|generation_run|training_run)) DROP CONSTRAINT ("[^"]+"|[^;\s]+);?$/i,
+  );
+  if (!match) return statement;
+
+  const constraintName = match[2].replace(/^"|"$/g, "");
+  if (!/(?:repositoryId|repo|integration)/i.test(constraintName)) {
+    return statement;
+  }
+
+  return normalized.replace(
+    / DROP CONSTRAINT /i,
+    " DROP CONSTRAINT IF EXISTS ",
+  );
+}
