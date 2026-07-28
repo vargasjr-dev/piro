@@ -9,7 +9,7 @@ from typing import Any
 import torch
 
 from architectures._common.encoding import memory_embedding, policy_embedding
-from architectures.ashfall.ctm import ContinuousThoughtModel, CTMConfig
+from architectures.ashfall.ctm_10x import ContinuousThoughtModel, CTMConfig
 
 MODEL_TEMPLATE = "ashfall"
 

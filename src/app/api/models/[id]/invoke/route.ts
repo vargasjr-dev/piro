@@ -75,9 +75,9 @@ export async function POST(
     );
   }
 
-  const architecture = visibleModel.architecturePath
-    ? architectureFromPath(visibleModel.architecturePath)
-    : null;
+  const architecture = architectureFromPath(
+    visibleModel.architecturePath ?? "",
+  );
   if (!architecture) {
     return Response.json(
       { error: "Model architecture is not supported for inference" },

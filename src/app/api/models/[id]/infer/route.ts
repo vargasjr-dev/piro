@@ -147,9 +147,9 @@ export async function POST(
         .limit(1)
     : [];
 
-  const architecture = run?.architecturePath
-    ? architectureFromPath(run.architecturePath)
-    : null;
+  const architecture = architectureFromPath(
+    run?.architecturePath ?? "",
+  );
   if (!architecture) {
     return Response.json(
       { error: "Model architecture is not supported for inference" },

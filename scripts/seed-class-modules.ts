@@ -55,7 +55,7 @@ const MODULES: Array<{
 }> = [
   {
     slug: "ctm",
-    sourcePath: join(import.meta.dir, "../architectures/ashfall/ctm.py"),
+    sourcePath: join(import.meta.dir, "../architectures/ashfall/ctm_10x.py"),
     manifest: {
       name: "Continuous Thought Model",
       slug: "ctm",
@@ -78,7 +78,7 @@ const MODULES: Array<{
         confidence_threshold: 0.9,
       },
       parameterCount: 1674,
-      module: "architectures.ashfall.ctm",
+      module: "architectures.ashfall.ctm_10x",
       modelClass: "ContinuousThoughtModel",
     },
   },

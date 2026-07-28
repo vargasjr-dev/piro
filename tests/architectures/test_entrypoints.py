@@ -1,7 +1,7 @@
 import torch
 
 from architectures.ashfall import main as ashfall_main
-from architectures.ashfall.ctm import ContinuousThoughtModel, CTMConfig
+from architectures.ashfall.ctm_10x import ContinuousThoughtModel, CTMConfig
 from architectures.borealis import main as borealis_main
 from architectures.borealis.model import Borealis, BorealisConfig
 

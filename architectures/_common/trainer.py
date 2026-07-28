@@ -15,7 +15,7 @@ The Trainer wraps that interface and runs:
 Usage
 -----
     from architectures._common.trainer import Trainer, TrainerConfig
-    from architectures.ashfall.ctm import ContinuousThoughtModel, CTMConfig
+    from architectures.ashfall.ctm_10x import ContinuousThoughtModel, CTMConfig
     # Build the model
     ctm = ContinuousThoughtModel(CTMConfig())
 

@@ -36,7 +36,7 @@ export function getCurrentPiroArchitecture(): CurrentPiroArchitecture {
   if (track === "ashfall") {
     return {
       architecture: "ashfall",
-      architecturePath: "architectures/ashfall",
+      architecturePath: "architectures/ashfall/main.py",
       label: "Piro · Ashfall",
     };
   }

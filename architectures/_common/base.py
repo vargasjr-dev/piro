@@ -54,7 +54,7 @@ class ArchitectureModel(nn.Module, ABC):
     name: str  # Display name, e.g. "Baseline Transformer"
     slug: str  # URL-safe identifier, e.g. "ashfall-ctm"
     description: str  # One-paragraph description
-    module: str  # Python module name, e.g. "architectures.ashfall.ctm"
+    module: str  # Python module name, e.g. "architectures.ashfall.ctm_10x"
     hyper_parameters: dict[
         str, Any
     ]  # Populated from dict literal OR auto-derived from HyperParameters
