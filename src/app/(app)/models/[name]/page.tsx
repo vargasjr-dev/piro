@@ -3,14 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { auth } from "~/lib/auth.server";
-import { architectureFromPath } from "~/app/api/_lib/contracts";
 import { db } from "../../../../../data/db";
-import {
-  deployment,
-  model,
-  modelTrainingRun,
-  trainingRun,
-} from "../../../../../data/schema";
+import { deployment, model } from "../../../../../data/schema";
 import ModelSandbox from "../ModelSandbox";
 
 export default async function ModelSandboxPage({
@@ -27,8 +21,6 @@ export default async function ModelSandboxPage({
       id: model.id,
       name: model.name,
       parameterCount: model.parameterCount,
-      inferenceEndpoint: model.inferenceEndpoint,
-      weightsR2Key: model.weightsR2Key,
       createdAt: model.createdAt,
       isGlobal: deployment.isAdmin,
     })
@@ -60,25 +52,6 @@ export default async function ModelSandboxPage({
 
   if (!modelRow) notFound();
 
-  const [trainingLink] = await db
-    .select({ trainingRunId: modelTrainingRun.trainingRunId })
-    .from(modelTrainingRun)
-    .where(eq(modelTrainingRun.modelId, modelRow.id))
-    .limit(1);
-  const [run] = trainingLink
-    ? await db
-        .select({ architecturePath: trainingRun.architecturePath })
-        .from(trainingRun)
-        .where(eq(trainingRun.id, trainingLink.trainingRunId))
-        .limit(1)
-    : [];
-
-  const architecture = run?.architecturePath
-    ? architectureFromPath(run.architecturePath)
-    : null;
-  const ready = Boolean(
-    modelRow.inferenceEndpoint && modelRow.weightsR2Key && architecture,
-  );
   const apiExample = `curl "https://trainpiro.app/api/models/${modelRow.id}/invoke" \\
   -H "Authorization: Bearer $PIRO_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -108,7 +81,6 @@ export default async function ModelSandboxPage({
         <div className="mt-4">
           <ModelSandbox
             modelId={modelRow.id}
-            ready={ready}
             more={{
               apiExample,
               isGlobal: modelRow.isGlobal,
