@@ -143,7 +143,7 @@ export default async function AdminDeploymentsPage() {
           {HOSTED_MODELS.map((item) => (
             <Link
               key={item.modelId}
-              href={`/models/${encodeURIComponent(item.displayName)}`}
+              href={`/models/${encodeURIComponent(item.slug)}`}
               className="block rounded-2xl border border-amber-900/25 bg-[#13100c] p-5 outline-none transition-colors hover:border-amber-700/40 focus-visible:ring-2 focus-visible:ring-orange-400/70"
             >
               <div className="min-w-0">

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { auth } from "~/lib/auth.server";
 import { isAdmin } from "~/lib/admin";
-import { getHostedModelByName } from "~/lib/hosted-models";
+import { getHostedModelByRouteKey } from "~/lib/hosted-models";
 import { db } from "../../../../../data/db";
 import { deployment, model } from "../../../../../data/schema";
 import ModelSandbox from "../ModelSandbox";
@@ -19,7 +19,9 @@ export default async function ModelSandboxPage({
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
 
-  const hostedModel = isAdmin(session) ? getHostedModelByName(name) : undefined;
+  const hostedModel = isAdmin(session)
+    ? getHostedModelByRouteKey(name)
+    : undefined;
   const [modelRow] = hostedModel
     ? []
     : await db
