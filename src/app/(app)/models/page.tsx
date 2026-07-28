@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "../../../../data/db";
 import { deployment, model } from "../../../../data/schema";
 import {
@@ -125,7 +125,6 @@ export default async function ModelsPage() {
   };
   const globalSelectFields = {
     ...privateSelectFields,
-    targetUserId: deployment.targetUserId,
     weightsR2Key: model.weightsR2Key,
     inferenceEndpoint: model.inferenceEndpoint,
   };
@@ -141,7 +140,6 @@ export default async function ModelsPage() {
             eq(deployment.createdByUserId, session.user.id),
             eq(deployment.isAdmin, false),
             eq(deployment.enabled, true),
-            isNull(model.archivedAt),
           ),
         )
         .orderBy(desc(deployment.createdAt)),
@@ -155,11 +153,7 @@ export default async function ModelsPage() {
           and(
             eq(deployment.isAdmin, true),
             eq(deployment.enabled, true),
-            or(
-              isNull(deployment.targetUserId),
-              eq(deployment.targetUserId, session.user.id),
-            ),
-            isNull(model.archivedAt),
+            isNull(deployment.targetUserId),
           ),
         )
         .orderBy(desc(deployment.createdAt)),
@@ -191,12 +185,7 @@ export default async function ModelsPage() {
       createdAt: item.createdAt.toISOString(),
     }));
   const pretrainedModelOptions: PretrainedModelOption[] = globalModels
-    .filter(
-      (item) =>
-        item.targetUserId === null &&
-        item.weightsR2Key &&
-        item.inferenceEndpoint,
-    )
+    .filter((item) => item.weightsR2Key && item.inferenceEndpoint)
     .slice(0, 3)
     .map(({ id, name }) => ({ id, name }));
 
