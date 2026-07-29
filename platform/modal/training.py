@@ -335,12 +335,6 @@ class Trainer:
             torch.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
 
-            if data_source in {
-                "associative-recall",
-                "owner-policy-worlds",
-            } and model_template not in {"ctm", "ctm-10x"}:
-                raise ValueError(f"{data_source} training requires the stateful ctm architecture")
-
             if model_template in {"ctm", "ctm-10x"}:
                 if data_source in {"associative-recall", "owner-policy-worlds"}:
                     cfg = (
@@ -364,9 +358,6 @@ class Trainer:
                     "hidden_dim": cfg.hidden_dim,
                     "n_classes": cfg.n_classes,
                 }
-            else:
-                raise ValueError(f"Unknown model_template: {model_template!r}")
-
             # Persist architecture and training-budget config immediately.
             config_dict["dataSource"] = data_source
             config_dict["maxSteps"] = max_steps
