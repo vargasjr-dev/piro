@@ -1,4 +1,4 @@
-"""Piro Modal training job and HTTP trigger."""
+"""Generic Modal training orchestration for Piro architectures and sources."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from _common import (
     LIVE_PROGRESS_INTERVAL_SECONDS,
     MEMORY_RATE_USD_PER_GIB_SECOND,
     R2_BUCKET,
+    TRAINING_APP,
     TRAINING_CPU,
     TRAINING_DEADLINE_SECONDS,
     TRAINING_GPU,
     TRAINING_MEMORY_MB,
     TRAINING_TIMEOUT_SECONDS,
-    TRAINING_APP,
     _r2_client,
     image,
     piro_secrets,
@@ -42,62 +42,22 @@ app = modal.App(TRAINING_APP)
 class Trainer:
     @modal.enter()
     def setup(self):
-        """Runs once per container — imports are snapshotted, not re-run on warm reuse."""
-        import torch  # noqa: F401 — imported here so warm containers skip re-import
+        """Load only generic runtime discovery code during container startup."""
+        import torch
 
-        from architectures._common.encoding import memory_embedding, policy_embedding
-        from architectures._common.trainer import Trainer as _Trainer
-        from architectures._common.trainer import TrainerConfig
-        from architectures.ashfall.ctm_10x import ContinuousThoughtModel, CTMConfig
-        from sources._common.sequences import generate_sorting_dataset
+        from architectures._common.runtime import load_training_runtime
 
-        # Expose to run()
         self._torch = torch
-        self._generate_sorting_dataset = generate_sorting_dataset
-        self._Trainer = _Trainer
-        self._TrainerConfig = TrainerConfig
-        self._ContinuousThoughtModel = ContinuousThoughtModel
-        self._CTMConfig = CTMConfig
-        self._memory_embedding = memory_embedding
-        self._policy_embedding = policy_embedding
-
-        # Configs
-        self._ctm_cfg = CTMConfig(
-            n_neurons=4,
-            embed_dim=8,
-            query_dim=8,
-            value_dim=8,
-            hidden_dim=16,
-            n_classes=5,
-        )
-        self._memory_ctm_cfg = CTMConfig(
-            n_neurons=4,
-            embed_dim=8,
-            query_dim=8,
-            value_dim=8,
-            hidden_dim=16,
-            n_classes=32,
-        )
-        # Approximately 10× the associative-recall CTM parameter count:
-        # 2,005 parameters at baseline versus 20,047 here (9.9985×).
-        self._memory_ctm_10x_cfg = CTMConfig(
-            n_neurons=6,
-            embed_dim=16,
-            query_dim=16,
-            value_dim=16,
-            hidden_dim=88,
-            n_classes=32,
-        )
-
-        print("[piro] container ready — torch + model code loaded")
+        self._load_training_runtime = load_training_runtime
+        print("[piro] container ready — torch + runtime loader loaded")
 
     @modal.method()
     def run(
         self,
         run_id: str,
         model_name: str | None,
-        model_template: str,
-        data_source: str,
+        architecture_path: str,
+        source_path: str,
         dataset_r2_prefix: str,
         max_steps: int,
         seed: int,
@@ -115,6 +75,7 @@ class Trainer:
         import psycopg2
         from platform_progress import update_progress
         from platform_serialization import round_nested_numbers
+        from platform_training_state import heartbeat_loop
 
         torch = self._torch
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -134,120 +95,26 @@ class Trainer:
                 6,
             )
 
-        def _build_dataset(n: int, split: str) -> list:
-            if data_source == "sorting-sequences" and dataset_r2_prefix.rstrip("/").endswith(
-                "/sorting-sequences"
-            ):
-                seqs = self._generate_sorting_dataset(
-                    n=n, length=self._ctm_cfg.n_neurons, seed=seed, split=split
-                )
-                samples = []
-                for seq in seqs:
-                    numbers = list(seq.sequence)
-                    emb = torch.zeros(
-                        self._ctm_cfg.n_neurons, self._ctm_cfg.embed_dim, device=device
-                    )
-                    for i, val in enumerate(numbers):
-                        idx = min(val, self._ctm_cfg.embed_dim - 1)
-                        emb[i, idx] = 1.0
-                    label = numbers.index(min(numbers))
-                    samples.append((emb, label))
-                return samples
-
-            if data_source not in {"associative-recall", "owner-policy-worlds"}:
-                raise ValueError(
-                    "the Modal trainer supports sorting-sequences, associative-recall, "
-                    "and owner-policy-worlds datasets"
-                )
-
-            r2 = _r2_client(os)
-            key = f"{dataset_r2_prefix.rstrip('/')}/train.jsonl"
-            response = r2.get_object(Bucket=R2_BUCKET, Key=key)
-            records = [
-                json.loads(line)
-                for line in response["Body"].read().decode("utf-8").splitlines()
-                if line.strip()
-            ]
-            if data_source == "owner-policy-worlds":
-                episodes = []
-                for record in records:
-                    inputs = record.get("inputs")
-                    target = record.get("answerIndex")
-                    if not isinstance(inputs, list) or len(inputs) < 2:
-                        raise ValueError(
-                            "owner-policy-worlds records need history and query inputs"
-                        )
-                    if not isinstance(target, int) or not 0 <= target < 4:
-                        raise ValueError("owner-policy-worlds answerIndex must be in [0, 4)")
-                    texts = [item["parts"][0]["text"] for item in inputs]
-                    episodes.append((tuple(texts[:-1]), texts[-1], target))
-                if not episodes:
-                    raise ValueError("owner-policy-worlds dataset is empty")
-                marked = [
-                    episode
-                    for record, episode in zip(records, episodes, strict=True)
-                    if record.get("metadata", {}).get("split")
-                    == ("train" if split == "train" else "eval")
-                ]
-                if marked:
-                    return marked
-                split_at = max(1, int(len(episodes) * 0.8))
-                return (
-                    episodes[:split_at] if split == "train" else episodes[split_at:] or episodes[:1]
-                )
-
-            episodes = []
-            for record in records:
-                inputs = record.get("inputs")
-                if not isinstance(inputs, list) or len(inputs) < 2:
-                    raise ValueError("associative-recall records must contain at least two inputs")
-                texts = [item["parts"][0]["text"] for item in inputs]
-                query = texts[-1]
-                observations = texts[:-1]
-                target = next(
-                    (
-                        line
-                        for observation in observations
-                        for line in observation.splitlines()
-                        if line.startswith(f"{query} = ")
-                    ),
-                    None,
-                )
-                if target is None:
-                    raise ValueError(f"no write found for query {query!r}")
-                value = target.split("=", maxsplit=1)[1].strip()
-                episodes.append((tuple(observations), query, value))
-            if not episodes:
-                raise ValueError("associative-recall dataset is empty")
-            split_at = max(1, int(len(episodes) * 0.8))
-            if split == "train":
-                return episodes[:split_at]
-            return episodes[split_at:] or episodes[:1]
-
-        # ── DB ────────────────────────────────────────────────────────────────
         conn = psycopg2.connect(os.environ["DATABASE_URL"])
         cur = conn.cursor()
-
-        # Load the run lease and latest checkpoint metadata.
         cur.execute(
-            'SELECT "userId", "checkpointR2Key", "checkpointStep", "stepHistoryJson", "startedAt", "timeoutAt" FROM training_run WHERE id = %s',
+            'SELECT "userId", "checkpointR2Key", "checkpointStep", "startedAt", "timeoutAt" '
+            "FROM training_run WHERE id = %s",
             (run_id,),
         )
         row = cur.fetchone()
         user_id: str = row[0] if row else ""
         checkpoint_key: str | None = row[1] if row else None
         checkpoint_step: int = int(row[2] or 0) if row else 0
-        persisted_started_at = row[4] if row else None
-        # The first invocation claims queued→running. Resumed invocations keep
-        # the same absolute deadline for the logical run; checkpointing must not
-        # silently buy another application window.
+        persisted_started_at = row[3] if row else None
         now = datetime.now(UTC)
         started_at = persisted_started_at or now
         timeout_at = (
-            row[5]
-            if resume and row and row[5]
+            row[4]
+            if resume and row and row[4]
             else started_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
         )
+
         if resume:
             cur.execute(
                 'UPDATE training_run SET "heartbeatAt" = %s WHERE id = %s AND status = %s',
@@ -255,7 +122,9 @@ class Trainer:
             )
         else:
             cur.execute(
-                'UPDATE training_run SET status = %s, "startedAt" = %s, "heartbeatAt" = %s, "timeoutAt" = %s, "resourceType" = %s, "gpuType" = %s, "cpuCores" = %s, "memoryMb" = %s WHERE id = %s AND status = %s',
+                'UPDATE training_run SET status = %s, "startedAt" = %s, "heartbeatAt" = %s, '
+                '"timeoutAt" = %s, "resourceType" = %s, "gpuType" = %s, "cpuCores" = %s, '
+                '"memoryMb" = %s WHERE id = %s AND status = %s',
                 (
                     "running",
                     started_at,
@@ -276,8 +145,6 @@ class Trainer:
             print(f"[piro] run {run_id} was not claimable; skipping worker")
             return
         conn.commit()
-
-        from platform_training_state import heartbeat_loop
 
         heartbeat_stop = threading.Event()
         lease_lost = threading.Event()
@@ -329,119 +196,59 @@ class Trainer:
             except Exception as exc:  # noqa: BLE001 - progress is observability, not training state
                 print(f"[piro] run {run_id} progress update failed: {exc}")
 
+        runtime = None
         try:
-            # ── Build model ───────────────────────────────────────────────────
             random.seed(seed)
             torch.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
+            runtime = self._load_training_runtime(
+                architecture_path=architecture_path,
+                source_path=source_path,
+                device=device,
+                seed=seed,
+            )
+            r2 = _r2_client(os)
+            train_data = runtime.load_dataset(
+                r2_client=r2,
+                bucket=R2_BUCKET,
+                source_path=source_path,
+                dataset_prefix=dataset_r2_prefix,
+                split="train",
+                limit=500,
+            )
+            val_data = runtime.load_dataset(
+                r2_client=r2,
+                bucket=R2_BUCKET,
+                source_path=source_path,
+                dataset_prefix=dataset_r2_prefix,
+                split="eval",
+                limit=100,
+            )
+            if not train_data:
+                raise ValueError("training dataset is empty")
 
-            if model_template in {"ctm", "ctm-10x"}:
-                if data_source in {"associative-recall", "owner-policy-worlds"}:
-                    cfg = (
-                        self._memory_ctm_10x_cfg
-                        if model_template == "ctm-10x"
-                        else self._memory_ctm_cfg
-                    )
-                else:
-                    cfg = self._ctm_cfg
-                model = self._ContinuousThoughtModel(cfg).to(device)
-                # CTM working state is intentionally not registered as PyTorch
-                # buffers, so rebuild it after moving parameters to CUDA.
-                model.reset()
-                persisted_template = model_template
-                config_dict = {
-                    "template": persisted_template,
-                    "n_neurons": cfg.n_neurons,
-                    "embed_dim": cfg.embed_dim,
-                    "query_dim": cfg.query_dim,
-                    "value_dim": cfg.value_dim,
-                    "hidden_dim": cfg.hidden_dim,
-                    "n_classes": cfg.n_classes,
-                }
-            # Persist architecture and training-budget config immediately.
-            config_dict["dataSource"] = data_source
-            config_dict["maxSteps"] = max_steps
-            config_dict["checkpointIntervalSteps"] = CHECKPOINT_INTERVAL_STEPS
-            config_dict["evalIntervalSteps"] = EVAL_INTERVAL_STEPS
-            config_json = json.dumps(config_dict)
+            config_dict = {
+                **runtime.config(),
+                "architecturePath": architecture_path,
+                "sourcePath": source_path,
+                "datasetR2Prefix": dataset_r2_prefix,
+                "maxSteps": max_steps,
+                "checkpointIntervalSteps": CHECKPOINT_INTERVAL_STEPS,
+                "evalIntervalSteps": EVAL_INTERVAL_STEPS,
+            }
             cur.execute(
                 'UPDATE training_run SET "configJson" = %s WHERE id = %s',
-                (config_json, run_id),
+                (json.dumps(config_dict), run_id),
             )
             conn.commit()
 
-            # ── Build dataset ─────────────────────────────────────────────────
-            # Keep the split deterministic across resumed invocations.
-            train_data = _build_dataset(500, "train")
-            val_data = _build_dataset(100, "val")
-
-            trainer_cfg = self._TrainerConfig(
-                max_steps=max_steps,
-                seed=seed,
-                eval_interval=EVAL_INTERVAL_STEPS,
-            )
-            trainer = self._Trainer(model, trainer_cfg)
             history: list[dict] = []
             order = list(range(len(train_data)))
             cursor = 0
             start_step = 0
-            r2 = _r2_client(os)
-
-            def _memory_prediction(
-                episode: tuple[tuple[str, ...], str, str | int],
-                *,
-                train_mode: bool,
-            ):
-                import torch.nn.functional as F
-
-                observations, query, value = episode
-                model.reset()
-                embed = (
-                    self._policy_embedding
-                    if data_source == "owner-policy-worlds"
-                    else self._memory_embedding
-                )
-                for packet in observations:
-                    for observation in packet.splitlines():
-                        if not observation.strip():
-                            continue
-                        model(
-                            embed(
-                                observation,
-                                cfg.embed_dim,
-                                torch_module=torch,
-                                dtype=next(model.parameters()).dtype,
-                                device=next(model.parameters()).device,
-                            ),
-                            preserve_graph=train_mode,
-                        )
-                output = model(
-                    embed(
-                        query if data_source == "owner-policy-worlds" else f"QUERY:{query}",
-                        cfg.embed_dim,
-                        torch_module=torch,
-                        dtype=next(model.parameters()).dtype,
-                        device=next(model.parameters()).device,
-                    ),
-                    preserve_graph=train_mode,
-                )
-                logits = output.logits if hasattr(output, "logits") else output
-                target = int(
-                    value
-                    if data_source == "owner-policy-worlds"
-                    else str(value).removeprefix("value_")
-                )
-                loss = F.cross_entropy(
-                    logits.unsqueeze(0),
-                    torch.tensor([target], device=logits.device),
-                )
-                return logits, target, loss
 
             def _restore_optimizer_device() -> None:
-                for state in trainer.optimizer.state.values():
-                    for key, value in state.items():
-                        if hasattr(value, "to"):
-                            state[key] = value.to(device)
+                runtime.restore_optimizer_device(device)
 
             def _load_checkpoint() -> None:
                 nonlocal history, order, cursor, start_step
@@ -454,12 +261,16 @@ class Trainer:
                     weights_only=False,
                 )
                 checkpoint_config = payload.get("config", {})
-                if checkpoint_config.get("datasetR2Prefix") != dataset_r2_prefix:
-                    raise RuntimeError("checkpoint dataset does not match this run")
-                if checkpoint_config.get("modelTemplate") != model_template:
-                    raise RuntimeError("checkpoint architecture does not match this run")
-                model.load_state_dict(payload["model"])
-                trainer.optimizer.load_state_dict(payload["optimizer"])
+                for key, expected in {
+                    "architecturePath": architecture_path,
+                    "sourcePath": source_path,
+                    "datasetR2Prefix": dataset_r2_prefix,
+                }.items():
+                    if checkpoint_config.get(key) != expected:
+                        raise RuntimeError(f"checkpoint {key} does not match this run")
+                runtime.load_model_state(payload["model"])
+                runtime.load_optimizer_state(payload["optimizer"])
+                runtime.load_checkpoint_state(payload.get("runtime", {}))
                 _restore_optimizer_device()
                 history = list(payload.get("history", []))
                 order = list(payload.get("order", order))
@@ -480,10 +291,11 @@ class Trainer:
                 if device.type == "cuda":
                     torch.cuda.synchronize(device)
                 payload = {
-                    "version": 1,
+                    "version": 2,
                     "step": step,
-                    "model": model.state_dict(),
-                    "optimizer": trainer.optimizer.state_dict(),
+                    "model": runtime.model_state(),
+                    "optimizer": runtime.optimizer_state(),
+                    "runtime": runtime.checkpoint_state(),
                     "history": history,
                     "order": order,
                     "cursor": cursor,
@@ -495,8 +307,9 @@ class Trainer:
                     "config": {
                         "maxSteps": max_steps,
                         "seed": seed,
+                        "architecturePath": architecture_path,
+                        "sourcePath": source_path,
                         "datasetR2Prefix": dataset_r2_prefix,
-                        "modelTemplate": model_template,
                     },
                 }
                 buffer = io.BytesIO()
@@ -538,88 +351,12 @@ class Trainer:
 
             def _next_batch() -> list:
                 nonlocal cursor
-                if not train_data:
-                    raise ValueError("training dataset is empty")
                 if cursor == 0:
                     random.shuffle(order)
-                size = min(trainer_cfg.batch_size, len(order))
+                size = min(runtime.batch_size, len(order))
                 indices = [order[(cursor + offset) % len(order)] for offset in range(size)]
                 cursor = (cursor + size) % len(order)
                 return [train_data[index] for index in indices]
-
-            def _memory_step(batch: list, *, step: int) -> float:
-                model.train()
-                trainer.optimizer.zero_grad()
-                losses = []
-                for episode_index, episode in enumerate(batch, start=1):
-                    _, _, loss = _memory_prediction(episode, train_mode=True)
-                    losses.append(loss)
-                    model.reset()
-                    _publish_progress(
-                        {
-                            "phase": "train",
-                            "optimizerStep": step,
-                            "maxSteps": max_steps,
-                            "episodeIndex": episode_index,
-                            "episodeCount": len(batch),
-                            "unit": "episodes",
-                            "checkpointStep": last_checkpoint_step,
-                        }
-                    )
-                loss = torch.stack(losses).mean()
-                loss.backward()
-                trainer.optimizer.step()
-                _publish_progress(
-                    {
-                        "phase": "train",
-                        "optimizerStep": step,
-                        "maxSteps": max_steps,
-                        "episodeIndex": len(batch),
-                        "episodeCount": len(batch),
-                        "unit": "episodes",
-                        "stepCompleted": True,
-                        "checkpointStep": last_checkpoint_step,
-                    },
-                    force=True,
-                )
-                return float(loss.detach())
-
-            def _memory_evaluate(data: list, *, step: int) -> tuple[float, float]:
-                total_loss = 0.0
-                correct = 0
-                model.eval()
-                for episode_index, episode in enumerate(data, start=1):
-                    with torch.no_grad():
-                        logits, target, loss = _memory_prediction(episode, train_mode=False)
-                    total_loss += float(loss.detach())
-                    correct += int(int(logits.argmax().item()) == target)
-                    model.reset()
-                    _publish_progress(
-                        {
-                            "phase": "validation",
-                            "optimizerStep": step,
-                            "maxSteps": max_steps,
-                            "episodeIndex": episode_index,
-                            "episodeCount": len(data),
-                            "unit": "episodes",
-                            "checkpointStep": last_checkpoint_step,
-                        }
-                    )
-                count = max(1, len(data))
-                _publish_progress(
-                    {
-                        "phase": "validation",
-                        "optimizerStep": step,
-                        "maxSteps": max_steps,
-                        "episodeIndex": len(data),
-                        "episodeCount": len(data),
-                        "unit": "episodes",
-                        "phaseCompleted": True,
-                        "checkpointStep": last_checkpoint_step,
-                    },
-                    force=True,
-                )
-                return total_loss / count, correct / count
 
             _load_checkpoint()
             if not checkpoint_key and start_step == 0:
@@ -630,8 +367,8 @@ class Trainer:
                         "optimizerStep": 0,
                         "maxSteps": max_steps,
                         "episodeIndex": 0,
-                        "episodeCount": trainer_cfg.batch_size,
-                        "unit": "episodes",
+                        "episodeCount": runtime.batch_size,
+                        "unit": "examples",
                         "checkpointStep": 0,
                     },
                     force=True,
@@ -651,8 +388,7 @@ class Trainer:
                         """
                         UPDATE training_run
                         SET status = %s, error = %s, "completedAt" = %s,
-                            "runtimeMs" = %s, "costUsd" = %s,
-                            "costBasis" = %s
+                            "runtimeMs" = %s, "costUsd" = %s, "costBasis" = %s
                         WHERE id = %s AND status = 'running'
                         """,
                         (
@@ -669,52 +405,38 @@ class Trainer:
                     print(f"[piro] run {run_id} checkpointed at step {step - 1}; deadline reached")
                     return
 
-                batch = _next_batch()
-                if data_source in {"associative-recall", "owner-policy-worlds"}:
-                    train_loss = _memory_step(batch, step=step)
-                else:
-                    train_loss = trainer._train_step(batch)
+                train_loss = runtime.train_step(_next_batch(), step=step)
                 _ensure_lease()
-
                 should_evaluate = step % EVAL_INTERVAL_STEPS == 0 or step == max_steps
                 if should_evaluate:
-                    if data_source in {"associative-recall", "owner-policy-worlds"}:
-                        val_loss, val_acc = _memory_evaluate(val_data, step=step)
-                    else:
-                        val_loss, val_acc = trainer._evaluate(val_data)
+                    evaluation = runtime.evaluate(val_data)
                     history.append(
                         {
                             "step": step,
                             "trainLoss": train_loss,
-                            "valLoss": val_loss,
-                            "valAccuracy": val_acc,
+                            "valLoss": evaluation.loss,
+                            "valAccuracy": evaluation.accuracy,
                         }
                     )
                     print(
                         f"[piro] run {run_id} step {step}/{max_steps} — "
-                        f"train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  "
-                        f"val_acc={val_acc:.3f}"
+                        f"train_loss={train_loss:.4f}  val_loss={evaluation.loss:.4f}  "
+                        f"val_acc={evaluation.accuracy:.3f}"
                     )
                 if step % CHECKPOINT_INTERVAL_STEPS == 0 or step == max_steps:
                     _save_checkpoint(step)
 
-            # ── Serialize + upload model weights to R2
-            # Allocate the model ID before deriving its R2 prefix.
             model_id = str(_uuid.uuid4())
-            state = {key: value.detach().cpu() for key, value in model.state_dict().items()}
-
-            # Binary .pt file for inference
+            state = {
+                key: value.detach().cpu() for key, value in runtime.model_state().items()
+            }
             pt_buf = io.BytesIO()
             torch.save(state, pt_buf)
             pt_bytes = pt_buf.getvalue()
-
-            # JSON file for visualization: {key: [[...], ...] or [...]}
             weights_json_str = json.dumps(
-                {k: round_nested_numbers(v.tolist()) for k, v in state.items()}
+                {key: round_nested_numbers(value.tolist()) for key, value in state.items()}
             )
-
             r2_prefix = f"models/{model_id}"
-            r2 = _r2_client(os)
             r2.put_object(
                 Bucket=R2_BUCKET,
                 Key=f"{r2_prefix}/weights.pt",
@@ -727,27 +449,16 @@ class Trainer:
                 Body=weights_json_str.encode("utf-8"),
                 ContentType="application/json",
             )
-            print(
-                f"[piro] uploaded weights to R2: {r2_prefix}/ ({len(pt_bytes)} bytes .pt, {len(weights_json_str)} bytes .json)"
-            )
 
-            # ── Final training_run update ─────────────────────────────────────
             last = history[-1]
             completed_at = datetime.now(UTC)
             runtime_ms = int((completed_at - started_at).total_seconds() * 1000)
             cur.execute(
                 """
                 UPDATE training_run
-                SET
-                    status             = %s,
-                    "finalTrainLoss"   = %s,
-                    "finalValLoss"     = %s,
-                    "finalValAccuracy" = %s,
-                    "completedAt"      = %s,
-                    "heartbeatAt"      = %s,
-                    "runtimeMs"        = %s,
-                    "costUsd"          = %s,
-                    "costBasis"        = %s
+                SET status = %s, "finalTrainLoss" = %s, "finalValLoss" = %s,
+                    "finalValAccuracy" = %s, "completedAt" = %s, "heartbeatAt" = %s,
+                    "runtimeMs" = %s, "costUsd" = %s, "costBasis" = %s
                 WHERE id = %s AND status = 'running'
                 """,
                 (
@@ -766,25 +477,26 @@ class Trainer:
             completed_update_count = cur.rowcount
             conn.commit()
             if completed_update_count != 1:
-                print(
-                    f"[piro] run {run_id} was already terminal when worker completed; "
-                    "skipping model publication"
-                )
+                print(f"[piro] run {run_id} was already terminal; skipping model publication")
                 return
 
-            # ── Create model + model_training_run rows (with weights) ─────────
-            param_count = sum(p.numel() for p in model.parameters())
             resolved_name = (
-                model_name.strip()
-                if model_name and model_name.strip()
-                else f"{model_template}-{run_id[:8]}"
+                model_name.strip() if model_name and model_name.strip() else f"model-{run_id[:8]}"
             )
             cur.execute(
                 """
-                INSERT INTO model (id, "userId", name, "parameterCount", "weightsR2Key", "inferenceEndpoint", "createdAt")
+                INSERT INTO model (id, "userId", name, "parameterCount", "weightsR2Key",
+                                   "inferenceEndpoint", "createdAt")
                 VALUES (%s, %s, %s, %s, %s, %s, NOW())
                 """,
-                (model_id, user_id, resolved_name, param_count, r2_prefix, INFER_ENDPOINT),
+                (
+                    model_id,
+                    user_id,
+                    resolved_name,
+                    runtime.parameter_count(),
+                    r2_prefix,
+                    INFER_ENDPOINT,
+                ),
             )
             cur.execute(
                 """
@@ -795,10 +507,8 @@ class Trainer:
             )
             conn.commit()
             print(
-                f"[piro] run {run_id} complete — "
-                f"val_acc={last['valAccuracy']:.3f}  val_loss={last['valLoss']:.4f}  "
-                f"model_id={model_id}  name={resolved_name!r}  "
-                f"weights_bytes={len(pt_bytes)}"
+                f"[piro] run {run_id} complete — model_id={model_id} "
+                f"name={resolved_name!r} weights_bytes={len(pt_bytes)}"
             )
 
         except BaseException as exc:
@@ -838,21 +548,7 @@ class Trainer:
 @app.function(image=trigger_image, secrets=[piro_secrets])
 @modal.fastapi_endpoint(method="POST")
 def trigger(body: dict) -> dict:
-    """
-    Accept a training request from Vercel, spawn it async, return 200 immediately.
-
-    Body:
-        {
-            "runId":         str,
-            "modelName":     str | null,
-            "architecturePath": str,
-            "datasetR2Prefix": str,
-            "maxSteps":      int,
-            "seed":          int,
-            "resume":        bool,
-            "secret":        str,
-        }
-    """
+    """Validate a generic architecture/source training request and spawn it."""
     import os
 
     from fastapi import HTTPException
@@ -865,32 +561,27 @@ def trigger(body: dict) -> dict:
     if not run_id:
         raise HTTPException(status_code=400, detail="runId required")
 
-    architecture_path = str(body.get("architecturePath", ""))
-    dataset_prefix = str(body.get("datasetR2Prefix", ""))
-    if architecture_path == "architectures/ashfall/main.py":
-        model_template = "ctm-10x"
-    else:
-        model_template = architecture_path.rstrip("/").rsplit("/", 1)[-1]
-        if model_template.endswith(".py"):
-            model_template = model_template[:-3]
-    data_source = dataset_prefix.rstrip("/").rsplit("/", 1)[-1]
-    if not architecture_path or not dataset_prefix:
-        raise HTTPException(status_code=400, detail="architecturePath and datasetR2Prefix required")
+    architecture_path = str(body.get("architecturePath", "")).strip()
+    source_path = str(body.get("sourcePath", "")).strip()
+    dataset_prefix = str(body.get("datasetR2Prefix", "")).strip()
+    if not architecture_path or not source_path or not dataset_prefix:
+        raise HTTPException(
+            status_code=400,
+            detail="architecturePath, sourcePath, and datasetR2Prefix required",
+        )
 
     max_steps = int(body.get("maxSteps", 5000))
     if max_steps < 1 or max_steps > 1_000_000:
         raise HTTPException(status_code=400, detail="maxSteps must be between 1 and 1,000,000")
 
-    trainer = Trainer()
-    trainer.run.spawn(
+    Trainer().run.spawn(
         run_id=run_id,
         model_name=body.get("modelName"),
-        model_template=model_template,
-        data_source=data_source,
+        architecture_path=architecture_path,
+        source_path=source_path,
         dataset_r2_prefix=dataset_prefix,
         max_steps=max_steps,
         seed=int(body.get("seed", 42)),
         resume=bool(body.get("resume", False)),
     )
-
     return {"ok": True, "runId": run_id}

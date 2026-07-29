@@ -10,6 +10,7 @@ import torch
 
 from architectures._common.encoding import memory_embedding, policy_embedding
 from architectures.ashfall.ctm_10x import ContinuousThoughtModel, CTMConfig
+from architectures.ashfall.training import create_training_runtime
 
 def load_model(config: dict[str, Any], state_dict: dict[str, torch.Tensor]) -> ContinuousThoughtModel:
     """Construct an Ashfall model from persisted training configuration."""
