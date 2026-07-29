@@ -1,0 +1,169 @@
+name: Run PR Data Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Open same-repository PR containing the migration script"
+        required: true
+        type: string
+      script:
+        description: "Migration script path under scripts/data-migrations/"
+        required: true
+        type: string
+      confirmation:
+        description: "Type RUN_PRODUCTION_MIGRATION to approve execution"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: production-data-migration
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: Run PR data migration
+    runs-on: ubuntu-latest
+    environment: production-migrations
+    steps:
+      - name: Validate confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRMATION" != "RUN_PRODUCTION_MIGRATION" ]; then
+            echo "The confirmation input must be RUN_PRODUCTION_MIGRATION." >&2
+            exit 1
+          fi
+
+      - name: Resolve and validate pull request
+        id: pr
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          MIGRATION_SCRIPT: ${{ inputs.script }}
+        with:
+          script: |
+            const pullNumber = Number(process.env.PR_NUMBER);
+            if (!Number.isInteger(pullNumber) || pullNumber < 1) {
+              core.setFailed('pr_number must be a positive integer');
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const { data: pull } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pullNumber,
+            });
+            const expectedRepository = `${owner}/${repo}`;
+
+            if (pull.state !== 'open') {
+              core.setFailed(`PR #${pullNumber} must be open; it is ${pull.state}`);
+              return;
+            }
+            if (pull.draft) {
+              core.setFailed(`PR #${pullNumber} must be marked ready for review`);
+              return;
+            }
+            if (pull.base.ref !== 'main') {
+              core.setFailed(`PR #${pullNumber} must target main; it targets ${pull.base.ref}`);
+              return;
+            }
+            if (!pull.head.repo || pull.head.repo.full_name !== expectedRepository) {
+              core.setFailed('The migration PR must come from this repository, not a fork');
+              return;
+            }
+
+            const changedFiles = await github.paginate(
+              github.rest.pulls.listFiles,
+              { owner, repo, pull_number: pullNumber },
+            );
+            const requestedScript = process.env.MIGRATION_SCRIPT;
+            if (
+              changedFiles.length !== 1 ||
+              changedFiles[0].filename !== requestedScript ||
+              changedFiles[0].status !== 'added'
+            ) {
+              core.setFailed(
+                `The PR must add exactly the selected migration script and no other files; received ${changedFiles.map((file) => `${file.status}:${file.filename}`).join(', ') || 'no files'}`,
+              );
+              return;
+            }
+
+            const { data: reviews } = await github.paginate(
+              github.rest.pulls.listReviews,
+              { owner, repo, pull_number: pullNumber },
+            );
+            const latestReviewByUser = new Map();
+            for (const review of reviews) {
+              if (review.user?.login) latestReviewByUser.set(review.user.login, review);
+            }
+            const hasExternalApproval = [...latestReviewByUser.values()].some(
+              (review) =>
+                review.state === 'APPROVED' &&
+                review.commit_id === pull.head.sha &&
+                review.user.login !== pull.user.login,
+            );
+            if (!hasExternalApproval) {
+              core.setFailed('The migration PR must have an approving review for its current head from someone other than its author');
+              return;
+            }
+
+            core.setOutput('head_sha', pull.head.sha);
+            core.setOutput('head_repository', pull.head.repo.full_name);
+            core.info(`Using ${expectedRepository}@${pull.head.sha} from PR #${pullNumber}`);
+
+      - name: Check out PR revision
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pr.outputs.head_repository }}
+          ref: ${{ steps.pr.outputs.head_sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Validate migration script path
+        env:
+          MIGRATION_SCRIPT: ${{ inputs.script }}
+        run: |
+          set -euo pipefail
+          case "$MIGRATION_SCRIPT" in
+            scripts/data-migrations/*.ts|scripts/data-migrations/*.js) ;;
+            *)
+              echo "script must be a .ts or .js file directly under scripts/data-migrations/." >&2
+              exit 1
+              ;;
+          esac
+          case "$MIGRATION_SCRIPT" in
+            *..*|scripts/data-migrations/*/*)
+              echo "script must not contain traversal or nested directories." >&2
+              exit 1
+              ;;
+          esac
+          if [ ! -f "$MIGRATION_SCRIPT" ]; then
+            echo "Migration script does not exist in the selected PR: $MIGRATION_SCRIPT" >&2
+            exit 1
+          fi
+          echo "Migration script: $MIGRATION_SCRIPT"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run migration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MIGRATION_SCRIPT: ${{ inputs.script }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL is not configured in the production-migrations environment." >&2
+            exit 1
+          fi
+          bun "$MIGRATION_SCRIPT"
