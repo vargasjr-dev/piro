@@ -169,6 +169,7 @@ export async function POST(request: Request) {
           runId: id,
           modelName: modelName?.trim() || null,
           architecturePath,
+          sourcePath: ds.sourcePath,
           datasetR2Prefix: ds.r2Prefix,
           maxSteps,
           seed: 42,
