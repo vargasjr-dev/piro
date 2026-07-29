@@ -42,14 +42,16 @@ app = modal.App(TRAINING_APP)
 class Trainer:
     @modal.enter()
     def setup(self):
-        """Load only generic runtime discovery code during container startup."""
+        """Load only generic architecture and source discovery code during container startup."""
         import torch
 
-        from architectures._common.runtime import load_training_runtime
+        from architectures._common import load_architecture
+        from sources._common.training import load_source_examples
 
         self._torch = torch
-        self._load_training_runtime = load_training_runtime
-        print("[piro] container ready — torch + runtime loader loaded")
+        self._load_architecture = load_architecture
+        self._load_source_examples = load_source_examples
+        print("[piro] container ready — torch + architecture/source loaders loaded")
 
     @modal.method()
     def run(
@@ -196,39 +198,39 @@ class Trainer:
             except Exception as exc:  # noqa: BLE001 - progress is observability, not training state
                 print(f"[piro] run {run_id} progress update failed: {exc}")
 
-        runtime = None
+        model = None
+        optimizer = None
         try:
             random.seed(seed)
             torch.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
-            runtime = self._load_training_runtime(
-                architecture_path=architecture_path,
-                source_path=source_path,
-                device=device,
-                seed=seed,
-            )
+            architecture_class = self._load_architecture(architecture_path)
             r2 = _r2_client(os)
-            train_data = runtime.load_dataset(
+            train_data = self._load_source_examples(
+                source_path=source_path,
                 r2_client=r2,
                 bucket=R2_BUCKET,
-                source_path=source_path,
-                dataset_prefix=dataset_r2_prefix,
+                prefix=dataset_r2_prefix,
                 split="train",
                 limit=500,
             )
-            val_data = runtime.load_dataset(
+            val_data = self._load_source_examples(
+                source_path=source_path,
                 r2_client=r2,
                 bucket=R2_BUCKET,
-                source_path=source_path,
-                dataset_prefix=dataset_r2_prefix,
+                prefix=dataset_r2_prefix,
                 split="eval",
                 limit=100,
             )
             if not train_data:
                 raise ValueError("training dataset is empty")
 
+            model_config = architecture_class.config_for_training(train_data)
+            model = architecture_class.from_config(model_config).to(device)
+            optimizer = torch.optim.Adam(model.parameters(), **model.optimizer_kwargs())
+
             config_dict = {
-                **runtime.config(),
+                **model.config_dict(),
                 "architecturePath": architecture_path,
                 "sourcePath": source_path,
                 "datasetR2Prefix": dataset_r2_prefix,
@@ -248,7 +250,10 @@ class Trainer:
             start_step = 0
 
             def _restore_optimizer_device() -> None:
-                runtime.restore_optimizer_device(device)
+                for state in optimizer.state.values():
+                    for key, value in state.items():
+                        if hasattr(value, "to"):
+                            state[key] = value.to(device)
 
             def _load_checkpoint() -> None:
                 nonlocal history, order, cursor, start_step
@@ -268,9 +273,9 @@ class Trainer:
                 }.items():
                     if checkpoint_config.get(key) != expected:
                         raise RuntimeError(f"checkpoint {key} does not match this run")
-                runtime.load_model_state(payload["model"])
-                runtime.load_optimizer_state(payload["optimizer"])
-                runtime.load_checkpoint_state(payload.get("runtime", {}))
+                model.load_model_state(payload["model"])
+                optimizer.load_state_dict(payload["optimizer"])
+                model.load_checkpoint_state(payload.get("runtime", {}))
                 _restore_optimizer_device()
                 history = list(payload.get("history", []))
                 order = list(payload.get("order", order))
@@ -293,9 +298,9 @@ class Trainer:
                 payload = {
                     "version": 2,
                     "step": step,
-                    "model": runtime.model_state(),
-                    "optimizer": runtime.optimizer_state(),
-                    "runtime": runtime.checkpoint_state(),
+                    "model": model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "runtime": model.checkpoint_state(),
                     "history": history,
                     "order": order,
                     "cursor": cursor,
@@ -353,7 +358,7 @@ class Trainer:
                 nonlocal cursor
                 if cursor == 0:
                     random.shuffle(order)
-                size = min(runtime.batch_size, len(order))
+                size = min(model.training_batch_size, len(order))
                 indices = [order[(cursor + offset) % len(order)] for offset in range(size)]
                 cursor = (cursor + size) % len(order)
                 return [train_data[index] for index in indices]
@@ -367,7 +372,7 @@ class Trainer:
                         "optimizerStep": 0,
                         "maxSteps": max_steps,
                         "episodeIndex": 0,
-                        "episodeCount": runtime.batch_size,
+                        "episodeCount": model.training_batch_size,
                         "unit": "examples",
                         "checkpointStep": 0,
                     },
@@ -405,11 +410,11 @@ class Trainer:
                     print(f"[piro] run {run_id} checkpointed at step {step - 1}; deadline reached")
                     return
 
-                train_loss = runtime.train_step(_next_batch(), step=step)
+                train_loss = model.train_step(_next_batch(), optimizer)
                 _ensure_lease()
                 should_evaluate = step % EVAL_INTERVAL_STEPS == 0 or step == max_steps
                 if should_evaluate:
-                    evaluation = runtime.evaluate(val_data)
+                    evaluation = model.evaluate(val_data)
                     history.append(
                         {
                             "step": step,
@@ -428,7 +433,7 @@ class Trainer:
 
             model_id = str(_uuid.uuid4())
             state = {
-                key: value.detach().cpu() for key, value in runtime.model_state().items()
+                key: value.detach().cpu() for key, value in model.state_dict().items()
             }
             pt_buf = io.BytesIO()
             torch.save(state, pt_buf)
@@ -493,7 +498,7 @@ class Trainer:
                     model_id,
                     user_id,
                     resolved_name,
-                    runtime.parameter_count(),
+                    model.parameter_count(),
                     r2_prefix,
                     INFER_ENDPOINT,
                 ),

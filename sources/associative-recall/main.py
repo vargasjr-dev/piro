@@ -32,6 +32,7 @@ def load_training_data(*, r2_client, bucket, prefix, split, limit):
             Example(
                 inputs=tuple(observations) + (query,),
                 target=target.split("=", maxsplit=1)[1].strip(),
+                metadata={"task": "memory"},
             )
         )
     return examples

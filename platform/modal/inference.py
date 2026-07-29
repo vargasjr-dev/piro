@@ -25,7 +25,6 @@ def is_supported_architecture(value: object) -> bool:
 class Infer:
     @modal.enter()
     def setup(self):
-        import importlib
         import io
         import json
         import os
@@ -33,18 +32,20 @@ class Infer:
         import psycopg2
         import torch
 
-        self._import_module = importlib.import_module
+        from architectures._common import load_architecture
+
         self._io = io
         self._json = json
         self._os = os
         self._psycopg2 = psycopg2
         self._torch = torch
-        self._cache: dict[tuple[str, str], tuple[Any, dict[str, Any], Any]] = {}
+        self._load_architecture = load_architecture
+        self._cache: dict[tuple[str, str], tuple[Any, dict[str, Any]]] = {}
 
         print("[piro-infer] container ready")
 
     def _load(self, model_id: str, architecture: str):
-        """Load a model through its architecture-owned main.py entrypoint."""
+        """Load a model class through its canonical architecture entrypoint."""
         if not is_supported_architecture(architecture):
             raise ValueError(f"Unsupported architecture: {architecture!r}")
 
@@ -80,24 +81,20 @@ class Infer:
 
         r2 = _r2_client(self._os)
         resp = r2.get_object(Bucket=R2_BUCKET, Key=f"{r2_prefix}/weights.pt")
-        pt_bytes = resp["Body"].read()
         state = self._torch.load(
-            self._io.BytesIO(pt_bytes),
+            self._io.BytesIO(resp["Body"].read()),
             map_location="cpu",
             weights_only=True,
         )
 
-        entrypoint = self._import_module(f"architectures.{architecture}.main")
-        load_model = getattr(entrypoint, "load_model", None)
-        invoke = getattr(entrypoint, "invoke", None)
-        if not callable(load_model) or not callable(invoke):
-            raise ValueError(f"Architecture {architecture!r} has no usable main.py entrypoint")
-
-        model = load_model(cfg, state)
-        self._cache[cache_key] = (model, cfg, entrypoint)
+        architecture_class = self._load_architecture(f"architectures/{architecture}/main.py")
+        model = architecture_class.from_config(cfg)
+        model.load_model_state(state)
+        model.eval()
+        self._cache[cache_key] = (model, cfg)
         print(
             f"[piro-infer] loaded {model_id} ({architecture}, "
-            f"{sum(p.numel() for p in model.parameters())} params) from R2 {r2_prefix}/"
+            f"{model.parameter_count()} params) from R2 {r2_prefix}/"
         )
         return self._cache[cache_key]
 
@@ -109,13 +106,13 @@ class Infer:
         input_packet: dict[str, Any],
         state: dict[str, Any] | None = None,
     ) -> dict:
-        """Dispatch one structured PiroInput packet to an architecture entrypoint."""
+        """Dispatch one structured PiroInput packet to the architecture model."""
         import time
 
         t0 = time.time()
         try:
-            model, _cfg, entrypoint = self._load(model_id, architecture)
-            result = entrypoint.invoke(model, input_packet, state, _cfg)
+            model, _cfg = self._load(model_id, architecture)
+            result = model.invoke(input_packet, state)
             if not isinstance(result, dict):
                 raise ValueError("Architecture invocation must return an object")
             return {
@@ -129,23 +126,7 @@ class Infer:
 @app.function(image=image, secrets=[piro_secrets])
 @modal.fastapi_endpoint(method="POST")
 def infer(body: dict) -> dict:
-    """
-    Run inference on a trained Piro model.
-
-    The request extends the public PiroInput packet with platform metadata::
-
-        {
-            "parts": [{"type": "text", "text": "..."}],
-            "model_id": str,
-            "architecture": "<architecture-name>",
-            "state": dict | null,
-            "secret": str,
-        }
-
-    Response::
-
-        { "text": str, "state": dict | null, "durationMs": int }
-    """
+    """Run inference on a trained Piro model."""
     import os
 
     from fastapi import HTTPException
