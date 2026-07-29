@@ -1,10 +1,10 @@
 import torch
 
-from architectures.ashfall.ctm_10x import ContinuousThoughtModel, CTMConfig
+from architectures.ashfall.ctm_10x import Ashfall, CTMConfig
 
 
 def test_ctm_forward_has_expected_shape_and_persistent_state():
-    model = ContinuousThoughtModel(n_neurons=4, embed_dim=3, query_dim=3, value_dim=3, n_classes=2)
+    model = Ashfall(n_neurons=4, embed_dim=3, query_dim=3, value_dim=3, n_classes=2)
     sample = torch.randn(2, 3)
     first = model(sample)
     before = model.snapshot_state()["history_entries"][-1].clone()
@@ -15,10 +15,10 @@ def test_ctm_forward_has_expected_shape_and_persistent_state():
 
 
 def test_associative_recall_10x_config_is_near_ten_times_baseline():
-    baseline = ContinuousThoughtModel(
+    baseline = Ashfall(
         CTMConfig(n_neurons=4, embed_dim=8, query_dim=8, value_dim=8, hidden_dim=16, n_classes=32)
     )
-    scaled = ContinuousThoughtModel(
+    scaled = Ashfall(
         CTMConfig(
             n_neurons=6, embed_dim=16, query_dim=16, value_dim=16, hidden_dim=88, n_classes=32
         )
@@ -31,7 +31,7 @@ def test_associative_recall_10x_config_is_near_ten_times_baseline():
 
 
 def test_plastic_state_updates_and_can_be_reset():
-    model = ContinuousThoughtModel(
+    model = Ashfall(
         n_neurons=3, embed_dim=2, query_dim=2, value_dim=2, n_classes=2, enable_plasticity=True
     )
     model(sample := torch.randn(2, 2))
