@@ -4,8 +4,10 @@ import { describe, expect, test } from "bun:test";
 import { dataset, generationRun, trainingRun } from "../../../data/schema";
 import {
   isDestructiveSchemaApplyEnabled,
-  makeLegacyConstraintDropIdempotent,
+  makeDestructiveStatementIdempotent,
+  parseNotNullChange,
   TABLE_FILTERS,
+  TEXT_LIKE_TYPES,
 } from "../../../scripts/db-push-config";
 
 const columnNames = (table: Parameters<typeof getTableConfig>[0]) =>
@@ -30,21 +32,43 @@ describe("production schema migration safety", () => {
     expect(isDestructiveSchemaApplyEnabled("TRUE")).toBe(false);
   });
 
-  test("makes only retired ownership constraint drops idempotent", () => {
+  test("makes supported destructive statements idempotent without schema names", () => {
     expect(
-      makeLegacyConstraintDropIdempotent(
-        'ALTER TABLE "generation_run" DROP CONSTRAINT "generation_run_repositoryId_fkey";',
+      makeDestructiveStatementIdempotent(
+        'ALTER TABLE "generation_run" DROP CONSTRAINT "legacy_fkey";',
       ),
     ).toBe(
-      'ALTER TABLE "generation_run" DROP CONSTRAINT IF EXISTS "generation_run_repositoryId_fkey";',
+      'ALTER TABLE "generation_run" DROP CONSTRAINT IF EXISTS "legacy_fkey";',
     );
     expect(
-      makeLegacyConstraintDropIdempotent(
-        'ALTER TABLE "user" DROP CONSTRAINT "user_email_unique";',
+      makeDestructiveStatementIdempotent(
+        'ALTER TABLE "training_run" DROP COLUMN "old_column";',
       ),
-    ).toBe('ALTER TABLE "user" DROP CONSTRAINT "user_email_unique";');
+    ).toBe('ALTER TABLE "training_run" DROP COLUMN IF EXISTS "old_column";');
+    expect(makeDestructiveStatementIdempotent('DROP INDEX "old_index";')).toBe(
+      'DROP INDEX IF EXISTS "old_index";',
+    );
+    expect(makeDestructiveStatementIdempotent('DROP TABLE "old_table";')).toBe(
+      'DROP TABLE IF EXISTS "old_table";',
+    );
+    const unrelatedStatement =
+      '  CREATE INDEX  "new_index" ON "table" ("column");  ';
+    expect(makeDestructiveStatementIdempotent(unrelatedStatement)).toBe(
+      unrelatedStatement,
+    );
+  });
+
+  test("parses nullable-to-not-null changes generically", () => {
     expect(
-      makeLegacyConstraintDropIdempotent('DROP TABLE "repository" CASCADE;'),
-    ).toBe('DROP TABLE "repository" CASCADE;');
+      parseNotNullChange(
+        'ALTER TABLE "training_run" ALTER COLUMN "architecturePath" SET NOT NULL;',
+      ),
+    ).toEqual({
+      schema: "public",
+      table: "training_run",
+      column: "architecturePath",
+    });
+    expect(TEXT_LIKE_TYPES.has("text")).toBe(true);
+    expect(TEXT_LIKE_TYPES.has("integer")).toBe(false);
   });
 });

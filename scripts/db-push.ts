@@ -4,8 +4,10 @@ import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "../data/schema";
 import {
   isDestructiveSchemaApplyEnabled,
-  makeLegacyConstraintDropIdempotent,
+  makeDestructiveStatementIdempotent,
+  parseNotNullChange,
   TABLE_FILTERS,
+  TEXT_LIKE_TYPES,
 } from "./db-push-config";
 
 type PushResult = {
@@ -109,11 +111,27 @@ if (result.hasDataLoss && !isDestructiveSchemaApplyEnabled()) {
   console.log(
     `Applying ${result.statementsToExecute.length} schema statement(s).`,
   );
-  const applyStatements = result.statementsToExecute.map(
-    makeLegacyConstraintDropIdempotent,
-  );
-  for (const statement of applyStatements) {
-    await db.execute(sql.raw(statement));
+  for (const rawStatement of result.statementsToExecute) {
+    const notNullChange = parseNotNullChange(rawStatement);
+    if (notNullChange) {
+      const metadata = await db.execute<{ data_type: string }>(sql`
+        select data_type
+        from information_schema.columns
+        where table_schema = ${notNullChange.schema}
+          and table_name = ${notNullChange.table}
+          and column_name = ${notNullChange.column}
+      `);
+      const dataType = metadata.rows[0]?.data_type;
+      if (dataType && TEXT_LIKE_TYPES.has(dataType)) {
+        await db.execute(sql`
+          UPDATE ${sql.identifier(notNullChange.schema)}.${sql.identifier(notNullChange.table)}
+          SET ${sql.identifier(notNullChange.column)} = ''
+          WHERE ${sql.identifier(notNullChange.column)} IS NULL
+        `);
+      }
+    }
+
+    await db.execute(sql.raw(makeDestructiveStatementIdempotent(rawStatement)));
   }
   console.log("Schema changes applied.");
 }
