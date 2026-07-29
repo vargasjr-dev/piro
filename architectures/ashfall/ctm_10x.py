@@ -12,6 +12,7 @@ former TypeScript reference while making the state boundary explicit:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -19,7 +20,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from architectures._common import ArchitectureModel
+from architectures._common import ArchitectureModel, EvaluationResult, json_state
+from architectures._common.encoding import memory_embedding, policy_embedding
 
 ActivationName = Literal["relu", "sigmoid", "tanh"]
 
@@ -353,6 +355,8 @@ class ContinuousThoughtModel(ArchitectureModel):
     slug = "ctm"
     description = "Stateful iterative tick-loop model with synchronization, burst dynamics, and optional plasticity."
     module = "ctm"
+    config_type = CTMConfig
+    training_batch_size = 32
 
     hyper_parameters = {**CTMConfig().__dict__}
 
@@ -383,6 +387,185 @@ class ContinuousThoughtModel(ArchitectureModel):
         self.plastic_config = PlasticConfig() if cfg.enable_plasticity else None
         self.oscillator_config = OscillatorConfig() if cfg.enable_oscillation else None
         self._state = self._new_state()
+
+    @classmethod
+    def config_for_training(cls, examples: list[Any]) -> dict[str, Any]:
+        tasks = {getattr(example, "metadata", {}).get("task") for example in examples}
+        if "owner_policy" in tasks:
+            return {
+                "n_neurons": 6,
+                "embed_dim": 16,
+                "query_dim": 16,
+                "value_dim": 16,
+                "hidden_dim": 88,
+                "n_classes": 32,
+            }
+        if "sorting" in tasks:
+            return {
+                "n_neurons": 4,
+                "embed_dim": 8,
+                "query_dim": 8,
+                "value_dim": 8,
+                "hidden_dim": 16,
+                "n_classes": 5,
+            }
+        return {
+            "n_neurons": 4,
+            "embed_dim": 8,
+            "query_dim": 8,
+            "value_dim": 8,
+            "hidden_dim": 16,
+            "n_classes": 32,
+        }
+
+    def _example_loss(self, example: Any, *, preserve_graph: bool) -> tuple[torch.Tensor, int, torch.Tensor]:
+        self.reset()
+        task = getattr(example, "metadata", {}).get("task")
+        parameter = next(self.parameters())
+        if task == "sorting":
+            text = str(example.inputs[0])
+            numbers = [int(value) for value in re.findall(r"\d+", text)]
+            numbers = numbers[-self.config.n_neurons :]
+            if len(numbers) != self.config.n_neurons:
+                raise ValueError(f"sorting examples must contain exactly {self.config.n_neurons} numbers")
+            embeddings = torch.zeros(self.config.n_neurons, self.config.embed_dim, device=parameter.device, dtype=parameter.dtype)
+            for index, value in enumerate(numbers):
+                embeddings[index, min(value, self.config.embed_dim - 1)] = 1.0
+            output = self(embeddings, preserve_graph=preserve_graph)
+            target = numbers.index(min(numbers))
+        else:
+            policy_mode = task == "owner_policy"
+            embed = policy_embedding if policy_mode else memory_embedding
+            observations = example.inputs[:-1]
+            query = example.inputs[-1]
+            for packet in observations:
+                for observation in str(packet).splitlines():
+                    if observation.strip():
+                        self(embed(observation, self.config.embed_dim, torch_module=torch, dtype=parameter.dtype, device=parameter.device), preserve_graph=preserve_graph)
+            query_text = str(query) if policy_mode else f"QUERY:{query}"
+            output = self(embed(query_text, self.config.embed_dim, torch_module=torch, dtype=parameter.dtype, device=parameter.device), preserve_graph=preserve_graph)
+            target = int(example.target) if policy_mode else int(str(example.target).removeprefix("value_"))
+        logits = output.logits
+        loss = F.cross_entropy(logits.unsqueeze(0), torch.tensor([target], device=logits.device))
+        return logits, target, loss
+
+    def training_loss(self, example: Any) -> torch.Tensor:
+        return self._example_loss(example, preserve_graph=True)[2]
+
+    def evaluate(self, examples: list[Any]) -> EvaluationResult:
+        self.eval()
+        total_loss = 0.0
+        correct = 0
+        with torch.no_grad():
+            for example in examples:
+                logits, target, loss = self._example_loss(example, preserve_graph=False)
+                total_loss += float(loss)
+                correct += int(int(logits.argmax().item()) == target)
+        count = max(1, len(examples))
+        return EvaluationResult(total_loss / count, correct / count)
+
+    def invoke(self, input_packet: dict[str, Any], state: dict[str, Any] | None = None) -> dict[str, Any]:
+        text = self._text_from_input(input_packet)
+        if "=" not in text and re.search(r"\[[^\]]+\]", text):
+            return {"text": self._sort_text(text), "state": None}
+        task = "owner_policy" if "CHOICE|" in text or "OPTION|" in text else "memory"
+        if state is None:
+            self.reset()
+        else:
+            self.load_state(self._load_json_state(state))
+        parameter = next(self.parameters())
+        answer = "ACK"
+        if task == "owner_policy":
+            if "CHOICE|" not in text:
+                output = self(policy_embedding(text, self.config.embed_dim, torch_module=torch, dtype=parameter.dtype, device=parameter.device))
+                answer = str(int(output.logits.argmax().item()))
+            else:
+                for observation in text.splitlines():
+                    if observation.strip():
+                        self(policy_embedding(observation.strip(), self.config.embed_dim, torch_module=torch, dtype=parameter.dtype, device=parameter.device))
+        else:
+            for observation in text.splitlines():
+                observation = observation.strip()
+                if not observation:
+                    continue
+                is_query = "=" not in observation and not observation.startswith("token_")
+                output = self(memory_embedding(f"QUERY:{observation}" if is_query else observation, self.config.embed_dim, torch_module=torch, dtype=parameter.dtype, device=parameter.device))
+                if is_query:
+                    answer = f"value_{int(output.logits.argmax().item()):03d}"
+        return {"text": answer, "state": json_state(self.snapshot_state())}
+
+    @staticmethod
+    def _text_from_input(input_packet: dict[str, Any]) -> str:
+        parts = input_packet.get("parts")
+        if not isinstance(parts, list) or not parts:
+            raise ValueError("input must contain at least one PiroInput part")
+        texts: list[str] = []
+        for part in parts:
+            if not isinstance(part, dict) or part.get("type") != "text":
+                raise ValueError("input parts must be text parts")
+            value = part.get("text")
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("input text parts must be non-empty strings")
+            texts.append(value)
+        return "\n".join(texts)
+
+    def _sort_text(self, prompt: str) -> str:
+        match = re.search(r"\[([^\]]+)\]", prompt)
+        if match is None:
+            return ""
+        try:
+            numbers = [int(value.strip()) for value in match.group(1).split(",")]
+        except ValueError as exc:
+            raise ValueError("sorting input must contain comma-separated integers") from exc
+        chunk_size = self.config.n_neurons
+        remaining = list(numbers)
+        result: list[int] = []
+        while remaining:
+            minimum = self._find_min(remaining, chunk_size)
+            result.append(minimum)
+            remaining.remove(minimum)
+        return " ".join(str(value) for value in result)
+
+    def _find_min(self, numbers: list[int], chunk_size: int) -> int:
+        if len(numbers) <= chunk_size:
+            return self._argmin_chunk(numbers, chunk_size)
+        candidates = [
+            self._argmin_chunk(numbers[index : index + chunk_size], chunk_size)
+            for index in range(0, len(numbers), chunk_size)
+        ]
+        return self._find_min(candidates, chunk_size)
+
+    def _argmin_chunk(self, values: list[int], chunk_size: int) -> int:
+        embed_dim = self.config.embed_dim
+        padded = values + [embed_dim - 1] * (chunk_size - len(values))
+        parameter = next(self.parameters())
+        embeddings = torch.zeros(
+            len(padded), embed_dim, dtype=parameter.dtype, device=parameter.device
+        )
+        for index, value in enumerate(padded):
+            embeddings[index, min(value, embed_dim - 1)] = 1.0
+        with torch.no_grad():
+            output = self(embeddings)
+        logits = output.logits
+        return values[int(logits[: len(values)].argmax().item())]
+
+    def _load_json_state(self, payload: dict[str, Any]) -> dict[str, Any]:
+        parameter = next(self.parameters())
+        def tensor(value: Any, *, tensor_dtype: torch.dtype = parameter.dtype) -> torch.Tensor:
+            return torch.tensor(value, dtype=tensor_dtype, device=parameter.device)
+        state: dict[str, Any] = {
+            "previous_activations": tensor(payload["previous_activations"]) if payload.get("previous_activations") is not None else None,
+            "history_entries": [tensor(entry) for entry in payload.get("history_entries", [])],
+        }
+        if "plastic_weights" in payload:
+            state["plastic_weights"] = tensor(payload["plastic_weights"])
+            state["plastic_ticks"] = int(payload.get("plastic_ticks", 0))
+        if "burst_counter" in payload:
+            state["burst_counter"] = tensor(payload["burst_counter"], tensor_dtype=torch.long)
+            state["refractory_counter"] = tensor(payload.get("refractory_counter", []), tensor_dtype=torch.long)
+        if "phases" in payload:
+            state["phases"] = tensor(payload["phases"])
+        return state
 
     def _new_state(self) -> CTMState:
         device = next(self.parameters()).device

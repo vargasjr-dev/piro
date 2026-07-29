@@ -2,7 +2,8 @@ from pathlib import Path
 
 import torch
 
-from architectures._common.runtime import load_training_runtime
+from architectures._common import load_architecture
+from architectures.borealis.model import Borealis
 from sources._common.training import load_source_examples
 
 
@@ -42,17 +43,26 @@ def test_source_entrypoint_decodes_owner_policy_examples_without_runner_knowledg
     )
     assert examples[0].inputs == ("history", "query")
     assert examples[0].target == 2
+    assert examples[0].metadata["task"] == "owner_policy"
 
 
-def test_architecture_entrypoint_supplies_training_runtime():
-    runtime = load_training_runtime(
-        architecture_path="architectures/borealis/main.py",
-        source_path="sources/owner-policy-worlds/main.py",
-        device=torch.device("cpu"),
-        seed=42,
-    )
-    assert runtime.config()["vocab_size"] == 32
-    assert runtime.parameter_count() > 0
+def test_canonical_entrypoint_resolves_to_one_architecture_class():
+    architecture = load_architecture("architectures/borealis/main.py")
+    model = architecture.from_config({})
+    assert architecture is Borealis
+    assert isinstance(model, Borealis)
+    assert model.parameter_count() > 0
+
+
+def test_model_class_owns_training_loss_and_evaluation_contract():
+    architecture = load_architecture("architectures/borealis/main.py")
+    model = architecture.from_config({"vocab_size": 8, "embed_dim": 4, "context_dim": 6})
+    example = type("Example", (), {"inputs": ("hello",), "target": "world", "metadata": {}})()
+    loss = model.training_loss(example)
+    assert loss.ndim == 0
+    result = model.evaluate([example])
+    assert result.loss >= 0
+    assert 0 <= result.accuracy <= 1
 
 
 def test_modal_runner_contains_no_product_registry_or_branch():
@@ -64,6 +74,8 @@ def test_modal_runner_contains_no_product_registry_or_branch():
         "ctm-10x",
         "data_source",
         "model_template",
+        "TrainingRuntime",
+        "load_training_runtime",
     )
     assert not any(value in source for value in forbidden)
     assert "sourcePath" in source

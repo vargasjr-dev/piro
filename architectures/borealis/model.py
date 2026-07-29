@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from architectures._common import ArchitectureModel
+from architectures._common import ArchitectureModel, EvaluationResult, json_state
 
 
 @dataclass
@@ -77,6 +77,8 @@ class Borealis(ArchitectureModel):
         "and explicit replay-safe consolidation."
     )
     module = "borealis"
+    config_type = BorealisConfig
+    training_batch_size = 16
     hyper_parameters = {**BorealisConfig().__dict__}
 
     def __init__(self, config: BorealisConfig | None = None, **kwargs: Any) -> None:
@@ -99,6 +101,70 @@ class Borealis(ArchitectureModel):
         self.recurrent = nn.GRUCell(cfg.context_dim, cfg.context_dim)
         self.output_norm = nn.LayerNorm(cfg.context_dim)
         self.output_head = nn.Linear(cfg.context_dim, cfg.vocab_size)
+
+    def _tokens(self, example: Any) -> torch.Tensor:
+        prompt = "\n".join(str(value) for value in example.inputs)
+        text = f"{prompt}\nANSWER:{example.target}"
+        values = [byte % self.config.vocab_size for byte in text.encode("utf-8")]
+        if len(values) < 2:
+            values.append(0)
+        return torch.tensor(values, dtype=torch.long, device=self.token_embedding.weight.device)
+
+    def training_loss(self, example: Any) -> torch.Tensor:
+        tokens = self._tokens(example)
+        logits = self.run(tokens, adapt=False)
+        return F.cross_entropy(logits.unsqueeze(0), tokens[-1].unsqueeze(0))
+
+    def evaluate(self, examples: list[Any]) -> EvaluationResult:
+        self.eval()
+        total_loss = 0.0
+        correct = 0
+        with torch.no_grad():
+            for example in examples:
+                tokens = self._tokens(example)
+                logits = self.run(tokens, adapt=False)
+                target = tokens[-1]
+                loss = F.cross_entropy(logits.unsqueeze(0), target.unsqueeze(0))
+                total_loss += float(loss)
+                correct += int(int(logits.argmax().item()) == int(target.item()))
+        count = max(1, len(examples))
+        return EvaluationResult(total_loss / count, correct / count)
+
+    def invoke(self, input_packet: dict[str, Any], state: dict[str, Any] | None = None) -> dict[str, Any]:
+        text = self._text_from_input(input_packet)
+        token_ids = self._encode(text)
+        adaptation_state = (
+            self.load_adaptation_state(state)
+            if state is not None
+            else self.initialize_adaptation_state()
+        )
+        with torch.no_grad():
+            logits = self.run(token_ids, adaptation_state, adapt=True)
+        return {
+            "text": str(int(logits.argmax().item())),
+            "state": json_state(self.snapshot_adaptation_state(self.initialize_adaptation_state())),
+        }
+
+    @staticmethod
+    def _text_from_input(input_packet: dict[str, Any]) -> str:
+        parts = input_packet.get("parts")
+        if not isinstance(parts, list) or not parts:
+            raise ValueError("input must contain at least one PiroInput part")
+        texts: list[str] = []
+        for part in parts:
+            if not isinstance(part, dict) or part.get("type") != "text":
+                raise ValueError("input parts must be text parts")
+            value = part.get("text")
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("input text parts must be non-empty strings")
+            texts.append(value)
+        return "\n".join(texts)
+
+    def _encode(self, text: str) -> torch.Tensor:
+        values = [byte % self.config.vocab_size for byte in text.encode("utf-8")]
+        if len(values) < 2:
+            values.append(0)
+        return torch.tensor(values, dtype=torch.long, device=self.token_embedding.weight.device)
 
     # ── Pseudocode contract ────────────────────────────────────────────────────
 
