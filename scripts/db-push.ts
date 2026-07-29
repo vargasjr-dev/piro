@@ -3,7 +3,6 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "../data/schema";
 import {
-  isDestructiveSchemaApplyEnabled,
   makeDestructiveStatementIdempotent,
   parseNotNullChange,
   TABLE_FILTERS,
@@ -30,8 +29,9 @@ type StdinWithTTY = typeof process.stdin & {
  * before applying anything. The first option is Drizzle's non-destructive
  * "create" choice; emit Enter until the API finishes to select it.
  *
- * Destructive schema changes remain blocked unless the production workflow
- * explicitly enables them through its manual approval input.
+ * The generated declarative plan is applied as-is after Drizzle's prompts
+ * are answered non-destructively; supported drift operations are made
+ * idempotent in the statement loop below.
  *
  * Related upstream issues:
  * - https://github.com/drizzle-team/drizzle-orm/issues/4921
@@ -91,22 +91,14 @@ const result = await pushSchemaNoPrompt(
   TABLE_FILTERS,
 );
 
-if (result.hasDataLoss && !isDestructiveSchemaApplyEnabled()) {
-  console.error("Refusing to apply destructive schema changes:");
-  for (const warning of result.warnings) {
-    console.error(`- ${warning}`);
-  }
-  console.error(
-    "Re-run the DB Schema Apply workflow manually with destructive changes explicitly approved if this rollout is intentional.",
-  );
-  process.exitCode = 1;
-} else if (result.statementsToExecute.length === 0) {
+if (result.statementsToExecute.length === 0) {
   console.log("No schema changes detected.");
 } else {
   if (result.hasDataLoss) {
-    console.warn(
-      "Applying destructive schema changes with explicit workflow approval.",
-    );
+    console.warn("Applying destructive schema changes.");
+    for (const warning of result.warnings) {
+      console.warn(`- ${warning}`);
+    }
   }
   console.log(
     `Applying ${result.statementsToExecute.length} schema statement(s).`,

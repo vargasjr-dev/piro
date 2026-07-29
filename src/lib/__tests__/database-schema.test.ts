@@ -3,7 +3,6 @@ import { describe, expect, test } from "bun:test";
 
 import { dataset, generationRun, trainingRun } from "../../../data/schema";
 import {
-  isDestructiveSchemaApplyEnabled,
   makeDestructiveStatementIdempotent,
   parseNotNullChange,
   TABLE_FILTERS,
@@ -23,13 +22,6 @@ describe("production schema migration safety", () => {
 
   test("excludes Drizzle's internal migration table from schema introspection", () => {
     expect(TABLE_FILTERS).toEqual(["*", "!_applied_migrations"]);
-  });
-
-  test("requires explicit approval before applying destructive schema changes", () => {
-    expect(isDestructiveSchemaApplyEnabled("true")).toBe(true);
-    expect(isDestructiveSchemaApplyEnabled("false")).toBe(false);
-    expect(isDestructiveSchemaApplyEnabled(undefined)).toBe(false);
-    expect(isDestructiveSchemaApplyEnabled("TRUE")).toBe(false);
   });
 
   test("makes supported destructive statements idempotent without schema names", () => {
