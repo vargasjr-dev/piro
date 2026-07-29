@@ -1,5 +1,5 @@
 """Canonical Ashfall architecture entrypoint."""
 
-from architectures.ashfall.ctm_10x import ContinuousThoughtModel
+from architectures.ashfall.ctm_10x import Ashfall
 
-__all__ = ["ContinuousThoughtModel"]
+__all__ = ["Ashfall"]

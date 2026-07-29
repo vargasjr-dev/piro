@@ -4,7 +4,7 @@ architectures/_common/trainer.py
 Shared Trainer for Ashfall model architectures.
 
 The trainer accepts a model whose forward pass returns an object with a
-``logits`` tensor, such as ``ContinuousThoughtModel``.
+``logits`` tensor, such as ``Ashfall``.
 
 The Trainer wraps that interface and runs:
     - Cross-entropy loss
@@ -15,9 +15,9 @@ The Trainer wraps that interface and runs:
 Usage
 -----
     from architectures._common.trainer import Trainer, TrainerConfig
-    from architectures.ashfall.ctm_10x import ContinuousThoughtModel, CTMConfig
+    from architectures.ashfall.ctm_10x import Ashfall, CTMConfig
     # Build the model
-    ctm = ContinuousThoughtModel(CTMConfig())
+    ctm = Ashfall(CTMConfig())
 
     # Shared trainer config
     cfg = TrainerConfig(max_steps=5000, lr=1e-3, batch_size=32, seed=42)

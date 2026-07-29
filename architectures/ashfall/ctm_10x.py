@@ -350,8 +350,8 @@ class CTMOutput:
     state: CTMState
 
 
-class ContinuousThoughtModel(ArchitectureModel):
-    name = "Continuous Thought Model"
+class Ashfall(ArchitectureModel):
+    name = "Ashfall"
     slug = "ctm"
     description = "Stateful iterative tick-loop model with synchronization, burst dynamics, and optional plasticity."
     module = "ctm"
