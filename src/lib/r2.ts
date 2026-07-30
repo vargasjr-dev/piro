@@ -57,14 +57,24 @@ export async function r2Put(key: string, content: string): Promise<void> {
  * Use this for .py, .jsonl, .json, etc.
  */
 export async function r2PutText(key: string, content: string, contentType: string): Promise<void> {
+  await r2PutObject(key, content, contentType);
+}
+
+export async function r2PutObject(
+  key: string,
+  body: NonNullable<ConstructorParameters<typeof PutObjectCommand>[0]>["Body"],
+  contentType: string,
+  contentLength?: number,
+): Promise<void> {
   const client = getR2Client();
   await client.send(
     new PutObjectCommand({
       Bucket: BUCKET(),
       Key: key,
-      Body: content,
+      Body: body,
       ContentType: contentType,
-    })
+      ...(contentLength !== undefined ? { ContentLength: contentLength } : {}),
+    }),
   );
 }
 

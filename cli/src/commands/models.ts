@@ -10,6 +10,15 @@ const deploymentResponseSchema = z.object({
   created: z.boolean().optional(),
 });
 
+const huggingFaceUploadResponseSchema = z.object({
+  model: z.string(),
+  revision: z.string(),
+  prefix: z.string(),
+  manifestKey: z.string(),
+  fileCount: z.number(),
+  totalBytes: z.number(),
+});
+
 function fail(status: number, body: unknown, fallback: string): never {
   const error = z.object({ error: z.string() }).safeParse(body);
   console.error(
@@ -43,4 +52,30 @@ export async function modelsDeploy(modelId: string): Promise<void> {
   console.log(
     `${created === false ? "Deployment already exists" : "Created deployment"} ${deployment.id} for model ${deployment.modelId}`,
   );
+}
+
+export async function modelsUpload(
+  model: string,
+  revision: string,
+): Promise<void> {
+  const config = resolveConfig();
+  const response = await piroFetch(config, "/api/admin/huggingface-upload", {
+    method: "POST",
+    body: JSON.stringify({ model, revision }),
+  });
+
+  if (!response.ok) {
+    fail(response.status, response.body, "Hugging Face model migration failed");
+  }
+
+  const result = huggingFaceUploadResponseSchema.safeParse(response.body);
+  if (!result.success) {
+    console.error("Error: migration response was invalid");
+    process.exit(1);
+  }
+
+  console.log(
+    `Uploaded ${result.data.model}@${result.data.revision}: ${result.data.fileCount} files (${result.data.totalBytes} bytes) under ${result.data.prefix}`,
+  );
+  console.log(`Manifest: ${result.data.manifestKey}`);
 }
