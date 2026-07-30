@@ -110,10 +110,13 @@ export async function GET(
           return;
         }
 
-        if (reconciled.status === "error") {
+        if (
+          reconciled.status === "error" ||
+          reconciled.status === "cancelled"
+        ) {
           controller.enqueue(
-            event("error", {
-              message: reconciled.error ?? "Unknown error",
+            event(reconciled.status, {
+              message: reconciled.error ?? "Training run cancelled",
               runtimeMs: reconciled.runtimeMs,
               costUsd: reconciled.costUsd,
               costBasis: reconciled.costBasis,
