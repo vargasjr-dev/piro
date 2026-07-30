@@ -14,8 +14,7 @@ Put one-time, **data-only** production repairs in this directory and run them th
 3. Open the PR against `main` in this repository. Fork PRs are intentionally rejected because the workflow executes PR code with production database access.
 4. Manually dispatch **Run PR Data Migration** with:
    - the open PR number;
-   - the script path, such as `scripts/data-migrations/repair-global-ashfall-path.ts`;
-   - the exact confirmation `RUN_PRODUCTION_MIGRATION`.
+   - the script path, such as `scripts/data-migrations/repair-global-ashfall-path.ts`.
 5. Approve the protected `production-migrations` environment when GitHub requests approval.
 6. Review the workflow log and the script's before/after assertions.
 

@@ -11,10 +11,6 @@ on:
         description: "Migration script path under scripts/data-migrations/"
         required: true
         type: string
-      confirmation:
-        description: "Type RUN_PRODUCTION_MIGRATION to approve execution"
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -30,16 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: production-migrations
     steps:
-      - name: Validate confirmation
-        env:
-          CONFIRMATION: ${{ inputs.confirmation }}
-        run: |
-          set -euo pipefail
-          if [ "$CONFIRMATION" != "RUN_PRODUCTION_MIGRATION" ]; then
-            echo "The confirmation input must be RUN_PRODUCTION_MIGRATION." >&2
-            exit 1
-          fi
-
       - name: Resolve and validate pull request
         id: pr
         uses: actions/github-script@v7
