@@ -24,7 +24,7 @@ import {
   trainingGet,
   trainingList,
 } from "./commands/training.js";
-import { modelsDeploy } from "./commands/models.js";
+import { modelsDeploy, modelsUpload } from "./commands/models.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -55,6 +55,7 @@ function usage(msg?: string): never {
   console.error("  piro evals list");
   console.error("  piro evals get <id>");
   console.error("  piro models deploy <model-id>");
+  console.error("  piro models upload <huggingface-model> --revision <revision>");
   console.error("  piro training list");
   console.error("  piro training get <id>");
   console.error(
@@ -152,6 +153,14 @@ switch (subject) {
         const modelId = arg(rest, 0);
         if (!modelId) usage("model id is required");
         await modelsDeploy(modelId);
+        break;
+      }
+      case "upload": {
+        const model = arg(rest, 0);
+        if (!model) usage("Hugging Face model is required");
+        const revision = opt(rest, "revision");
+        if (!revision) usage("--revision is required for upload");
+        await modelsUpload(model, revision);
         break;
       }
       default:
