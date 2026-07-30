@@ -2,7 +2,7 @@ import { neon } from "@neondatabase/serverless";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const GLOBAL_MODEL_ID = "b675fccf-1a4a-4b91-8f92-d1453abdff55";
-const LEGACY_ARCHITECTURE_PATH = "architectures/ashfall/ctm.py";
+const LEGACY_ARCHITECTURE_PATH = "experiments/ashfall/architectures/ctm-10x";
 const CANONICAL_ARCHITECTURE_PATH = "architectures/ashfall/main.py";
 
 if (!DATABASE_URL) {
