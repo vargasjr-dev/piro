@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
-import { deriveLiveTrainingMetrics } from "~/lib/training-run-metrics";
+import { deriveTrainingRunMetrics } from "~/lib/training-run-metrics";
 import { reconcileStaleTrainingRun } from "~/lib/training-run-observability.server";
 import { db } from "../../../../../../data/db";
 import { trainingRun } from "../../../../../../data/schema";
@@ -48,11 +48,8 @@ export async function GET(
         }
 
         const reconciled = await reconcileStaleTrainingRun(run);
-        const liveMetrics = deriveLiveTrainingMetrics(reconciled);
+        const liveMetrics = deriveTrainingRunMetrics(reconciled);
 
-        // Push every new live-progress snapshot, including work inside a
-        // checkpoint interval. Checkpoint metadata remains separate so the
-        // client can distinguish observable progress from resumable state.
         let history: unknown[] = [];
         if (reconciled.stepHistoryJson) {
           try {
@@ -61,28 +58,11 @@ export async function GET(
             /* ignore */
           }
         }
-        let progress: Record<string, unknown> = {};
-        if (reconciled.progressJson) {
-          try {
-            const parsed = JSON.parse(reconciled.progressJson);
-            if (
-              parsed &&
-              typeof parsed === "object" &&
-              !Array.isArray(parsed)
-            ) {
-              progress = parsed as Record<string, unknown>;
-            }
-          } catch {
-            /* ignore */
-          }
-        }
         const progressPayload = JSON.stringify({
-          currentStep: reconciled.currentStep,
           maxSteps: reconciled.maxSteps,
           checkpointStep: reconciled.checkpointStep,
           checkpointAt: reconciled.checkpointAt?.toISOString() ?? null,
           history,
-          progress,
           ...liveMetrics,
           status: reconciled.status,
         });
