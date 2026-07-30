@@ -81,7 +81,7 @@ jobs:
               return;
             }
 
-            const { data: reviews } = await github.paginate(
+            const reviews = await github.paginate(
               github.rest.pulls.listReviews,
               { owner, repo, pull_number: pullNumber },
             );
