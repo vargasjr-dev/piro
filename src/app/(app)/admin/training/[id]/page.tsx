@@ -6,7 +6,7 @@ import { auth } from "~/lib/auth.server";
 import { isAdmin } from "~/lib/admin";
 import { db } from "../../../../../../data/db";
 import { dataset, trainingRun, user } from "../../../../../../data/schema";
-import { deriveLiveTrainingMetrics } from "~/lib/training-run-metrics";
+import { deriveTrainingRunMetrics } from "~/lib/training-run-metrics";
 import {
   formatAge,
   formatDate,
@@ -61,12 +61,8 @@ export default async function AdminTrainingDetailPage({
   if (!row) notFound();
 
   const now = new Date();
-  const metrics = deriveLiveTrainingMetrics(row.run, now);
+  const metrics = deriveTrainingRunMetrics(row.run, now);
   const config = parseJsonRecord(row.run.configJson);
-  const progress = parseJsonRecord(row.run.progressJson);
-  const progressUpdatedAt = metrics.progressUpdatedAt
-    ? new Date(metrics.progressUpdatedAt)
-    : null;
 
   return (
     <AdminShell current="Training">
@@ -120,8 +116,10 @@ export default async function AdminTrainingDetailPage({
               : `${metrics.progressStep} / ${metrics.progressMaxSteps}`,
           ],
           [
-            "Progress freshness",
-            progressUpdatedAt ? formatAge(progressUpdatedAt, now) : "Never",
+            "Progress checkpoint freshness",
+            metrics.progressUpdatedAt
+              ? formatAge(new Date(metrics.progressUpdatedAt), now)
+              : "Never",
           ],
           ["Heartbeat freshness", formatAge(row.run.heartbeatAt, now)],
           [
@@ -177,33 +175,29 @@ export default async function AdminTrainingDetailPage({
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-amber-900/30 bg-[#100c0a] p-5">
-          <h2 className="text-lg font-bold text-amber-50">Live signal</h2>
+          <h2 className="text-lg font-bold text-amber-50">
+            Training telemetry
+          </h2>
           <p className="mt-2 text-sm leading-relaxed text-amber-200/55">
-            A fresh heartbeat means the process can still reach the database. A
-            fresh progress timestamp means the training loop is publishing new
-            optimizer work. Compare both to identify a live-but-stalled worker.
+            Progress is reported from the latest durable checkpoint. Heartbeat
+            is separate and only indicates whether the worker can still reach
+            the database.
           </p>
           <dl className="mt-5 space-y-3 text-sm">
             <div className="flex justify-between gap-4 border-b border-amber-900/20 pb-3">
-              <dt className="text-amber-300/50">Optimizer step</dt>
+              <dt className="text-amber-300/50">Checkpoint step</dt>
               <dd className="font-semibold text-amber-100/80">
-                {display(progress.optimizerStep)}
+                {display(row.run.checkpointStep)}
               </dd>
             </div>
             <div className="flex justify-between gap-4 border-b border-amber-900/20 pb-3">
-              <dt className="text-amber-300/50">Progress updated</dt>
-              <dd className="text-right text-amber-100/75">
-                {progressUpdatedAt ? formatDate(progressUpdatedAt) : "Never"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4 border-b border-amber-900/20 pb-3">
-              <dt className="text-amber-300/50">Checkpoint updated</dt>
+              <dt className="text-amber-300/50">Checkpoint saved</dt>
               <dd className="text-right text-amber-100/75">
                 {formatDate(row.run.checkpointAt)}
               </dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-amber-300/50">Heartbeat updated</dt>
+              <dt className="text-amber-300/50">Worker heartbeat</dt>
               <dd className="text-right text-amber-100/75">
                 {formatDate(row.run.heartbeatAt)}
               </dd>

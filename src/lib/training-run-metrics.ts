@@ -9,13 +9,7 @@ const MEMORY_RATE_USD_PER_GIB_SECOND = 0.00000222;
 
 type TrainingRun = typeof trainingRun.$inferSelect;
 
-type ProgressSnapshot = {
-  optimizerStep?: unknown;
-  maxSteps?: unknown;
-  updatedAt?: unknown;
-};
-
-export type LiveTrainingMetrics = {
+export type TrainingRunMetrics = {
   progressStep: number | null;
   progressMaxSteps: number;
   progressPercent: number | null;
@@ -27,19 +21,7 @@ export type LiveTrainingMetrics = {
   costIsEstimate: boolean;
 };
 
-function parseProgress(progressJson: string | null): ProgressSnapshot {
-  if (!progressJson) return {};
-  try {
-    const parsed: unknown = JSON.parse(progressJson);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-      return {};
-    return parsed as ProgressSnapshot;
-  } catch {
-    return {};
-  }
-}
-
-function finiteNonNegativeInteger(value: unknown): number | null {
+function finiteNonNegativeInteger(value: number | null): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0
     ? Math.floor(value)
     : null;
@@ -59,19 +41,14 @@ function estimateCostUsd(run: TrainingRun, runtimeMs: number): number | null {
   );
 }
 
-export function deriveLiveTrainingMetrics(
+export function deriveTrainingRunMetrics(
   run: TrainingRun,
   now = new Date(),
-): LiveTrainingMetrics {
-  const progress = parseProgress(run.progressJson);
-  const progressStep =
-    finiteNonNegativeInteger(progress.optimizerStep) ?? run.currentStep;
-  const progressMaxSteps =
-    finiteNonNegativeInteger(progress.maxSteps) ?? run.maxSteps;
+): TrainingRunMetrics {
+  const progressStep = finiteNonNegativeInteger(run.checkpointStep);
+  const progressMaxSteps = Math.max(0, run.maxSteps);
   const boundedStep =
-    progressStep === null
-      ? null
-      : Math.min(progressStep, Math.max(0, progressMaxSteps));
+    progressStep === null ? null : Math.min(progressStep, progressMaxSteps);
   const progressPercent =
     boundedStep === null || progressMaxSteps <= 0
       ? null
@@ -102,12 +79,6 @@ export function deriveLiveTrainingMetrics(
     estimatedCompletionAt = projected.toISOString();
   }
 
-  const progressUpdatedAt =
-    typeof progress.updatedAt === "string" &&
-    !Number.isNaN(Date.parse(progress.updatedAt))
-      ? new Date(progress.updatedAt).toISOString()
-      : null;
-
   return {
     progressStep: boundedStep,
     progressMaxSteps,
@@ -115,7 +86,7 @@ export function deriveLiveTrainingMetrics(
     elapsedRuntimeMs,
     estimatedCostUsd,
     estimatedCompletionAt,
-    progressUpdatedAt,
+    progressUpdatedAt: run.checkpointAt?.toISOString() ?? null,
     metricsAreLive: isRunning,
     costIsEstimate: !hasFinalCost && estimatedCostUsd !== null,
   };

@@ -9,7 +9,7 @@ import {
   trainingRun,
 } from "../../../../../data/schema";
 import { and, eq } from "drizzle-orm";
-import { deriveLiveTrainingMetrics } from "~/lib/training-run-metrics";
+import { deriveTrainingRunMetrics } from "~/lib/training-run-metrics";
 
 export async function PATCH(
   _request: Request,
@@ -108,14 +108,12 @@ export async function GET(
           finalValLoss: run.finalValLoss,
           finalValAccuracy: run.finalValAccuracy,
           stepHistoryJson: run.stepHistoryJson,
-          currentStep: run.currentStep,
-          progressJson: run.progressJson,
           checkpointStep: run.checkpointStep,
           checkpointAt: run.checkpointAt?.toISOString() ?? null,
           queuedAt: run.queuedAt.toISOString(),
           startedAt: run.startedAt?.toISOString() ?? null,
           completedAt: run.completedAt?.toISOString() ?? null,
-          ...deriveLiveTrainingMetrics(run),
+          ...deriveTrainingRunMetrics(run),
         }
       : null,
     hostedApi: hostedApi

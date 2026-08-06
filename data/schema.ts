@@ -262,10 +262,6 @@ export const trainingRun = pgTable(
     finalValLoss: real("finalValLoss"),
     finalValAccuracy: real("finalValAccuracy"),
     stepHistoryJson: text("stepHistoryJson"),
-    /** Last optimizer step included in the latest durable R2 checkpoint. */
-    currentStep: integer("currentStep"),
-    /** JSON snapshot of live work inside the current checkpoint interval. */
-    progressJson: text("progressJson"),
     error: text("error"),
     /** Last worker heartbeat; used to reconcile platform-level terminations. */
     heartbeatAt: timestamp("heartbeatAt"),

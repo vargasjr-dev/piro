@@ -6,7 +6,7 @@ import { auth } from "~/lib/auth.server";
 import { isAdmin } from "~/lib/admin";
 import { db } from "../../../../../data/db";
 import { dataset, trainingRun, user } from "../../../../../data/schema";
-import { deriveLiveTrainingMetrics } from "~/lib/training-run-metrics";
+import { deriveTrainingRunMetrics } from "~/lib/training-run-metrics";
 import { formatAge, formatDate } from "~/lib/training-run-admin";
 import { AdminShell } from "../AdminShell";
 
@@ -104,7 +104,7 @@ export default async function AdminTrainingPage({
               </thead>
               <tbody className="divide-y divide-amber-900/20">
                 {rows.map(({ run, datasetName, userEmail, userName }) => {
-                  const metrics = deriveLiveTrainingMetrics(run, now);
+                  const metrics = deriveTrainingRunMetrics(run, now);
                   const progressLabel =
                     metrics.progressStep === null
                       ? "—"

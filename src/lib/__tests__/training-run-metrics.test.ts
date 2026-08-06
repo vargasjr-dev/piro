@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { trainingRun } from "../../../data/schema";
-import { deriveLiveTrainingMetrics } from "../training-run-metrics";
+import { deriveTrainingRunMetrics } from "../training-run-metrics";
 
 type TrainingRun = typeof trainingRun.$inferSelect;
 
 const STARTED_AT = new Date("2026-07-25T18:00:00.000Z");
+const CHECKPOINT_AT = new Date("2026-07-25T18:05:00.000Z");
 const NOW = new Date("2026-07-25T18:10:00.000Z");
 
 function makeRun(overrides: Partial<TrainingRun> = {}): TrainingRun {
@@ -21,8 +22,6 @@ function makeRun(overrides: Partial<TrainingRun> = {}): TrainingRun {
     finalValLoss: null,
     finalValAccuracy: null,
     stepHistoryJson: null,
-    currentStep: 0,
-    progressJson: null,
     error: null,
     heartbeatAt: null,
     timeoutAt: null,
@@ -43,48 +42,40 @@ function makeRun(overrides: Partial<TrainingRun> = {}): TrainingRun {
   };
 }
 
-describe("deriveLiveTrainingMetrics", () => {
-  test("should project completion from optimizer progress when the run is active", () => {
-    const metrics = deriveLiveTrainingMetrics(
-      makeRun({
-        progressJson: JSON.stringify({
-          optimizerStep: 100,
-          updatedAt: NOW.toISOString(),
-        }),
-      }),
+describe("deriveTrainingRunMetrics", () => {
+  test("projects completion from the durable checkpoint step", () => {
+    const metrics = deriveTrainingRunMetrics(
+      makeRun({ checkpointStep: 100, checkpointAt: CHECKPOINT_AT }),
       NOW,
     );
 
+    expect(metrics.progressStep).toBe(100);
     expect(metrics.progressPercent).toBe(40);
+    expect(metrics.progressUpdatedAt).toBe(CHECKPOINT_AT.toISOString());
     expect(metrics.estimatedCompletionAt).toBe("2026-07-25T18:25:00.000Z");
   });
 
-  test("should report no ETA before the first optimizer step", () => {
-    const metrics = deriveLiveTrainingMetrics(makeRun(), NOW);
+  test("reports no progress or ETA before the first checkpoint", () => {
+    const metrics = deriveTrainingRunMetrics(makeRun(), NOW);
 
+    expect(metrics.progressStep).toBeNull();
+    expect(metrics.progressPercent).toBeNull();
+    expect(metrics.progressUpdatedAt).toBeNull();
     expect(metrics.estimatedCompletionAt).toBeNull();
   });
 
-  test("should fall back to durable progress when progress JSON is malformed", () => {
-    const metrics = deriveLiveTrainingMetrics(
-      makeRun({ currentStep: 50, progressJson: "not-json" }),
+  test("caps checkpoint progress at max steps", () => {
+    const metrics = deriveTrainingRunMetrics(
+      makeRun({ checkpointStep: 300 }),
       NOW,
     );
 
-    expect(metrics.progressStep).toBe(50);
-  });
-
-  test("should cap progress percentage when the live step exceeds max steps", () => {
-    const metrics = deriveLiveTrainingMetrics(
-      makeRun({ progressJson: JSON.stringify({ optimizerStep: 300 }) }),
-      NOW,
-    );
-
+    expect(metrics.progressStep).toBe(250);
     expect(metrics.progressPercent).toBe(100);
   });
 
-  test("should preserve the persisted final cost over the live estimate", () => {
-    const metrics = deriveLiveTrainingMetrics(
+  test("preserves the persisted final cost over the live estimate", () => {
+    const metrics = deriveTrainingRunMetrics(
       makeRun({ status: "complete", runtimeMs: 10_000, costUsd: 1.234567 }),
       NOW,
     );
@@ -93,8 +84,8 @@ describe("deriveLiveTrainingMetrics", () => {
     expect(metrics.costIsEstimate).toBe(false);
   });
 
-  test("should derive elapsed runtime and estimated cost from the injected clock", () => {
-    const metrics = deriveLiveTrainingMetrics(makeRun(), NOW);
+  test("derives elapsed runtime and estimated cost from the injected clock", () => {
+    const metrics = deriveTrainingRunMetrics(makeRun(), NOW);
 
     expect(metrics.elapsedRuntimeMs).toBe(600_000);
     expect(metrics.estimatedCostUsd).toBe(0.135168);

@@ -13,7 +13,6 @@ from _common import (
     GPU_RATE_USD_PER_SECOND,
     HEARTBEAT_INTERVAL_SECONDS,
     INFER_ENDPOINT,
-    LIVE_PROGRESS_INTERVAL_SECONDS,
     MEMORY_RATE_USD_PER_GIB_SECOND,
     R2_BUCKET,
     TRAINING_APP,
@@ -70,12 +69,10 @@ class Trainer:
         import os
         import random
         import threading
-        import time
         import uuid as _uuid
         from datetime import datetime, timedelta
 
         import psycopg2
-        from platform_progress import update_progress
         from platform_serialization import round_nested_numbers
         from platform_training_state import heartbeat_loop
 
@@ -173,31 +170,6 @@ class Trainer:
             if lease_lost.is_set():
                 raise RuntimeError("training run lease was lost while the worker was running")
 
-        last_progress_publish_at = 0.0
-
-        def _publish_progress(progress: dict, *, force: bool = False) -> None:
-            nonlocal last_progress_publish_at
-            now_monotonic = time.monotonic()
-            if (
-                not force
-                and now_monotonic - last_progress_publish_at < LIVE_PROGRESS_INTERVAL_SECONDS
-            ):
-                return
-            try:
-                if not update_progress(
-                    psycopg2.connect,
-                    os.environ["DATABASE_URL"],
-                    run_id,
-                    progress,
-                ):
-                    lease_lost.set()
-                    raise RuntimeError("training run lease was lost while publishing progress")
-                last_progress_publish_at = now_monotonic
-            except RuntimeError:
-                raise
-            except Exception as exc:  # noqa: BLE001 - progress is observability, not training state
-                print(f"[piro] run {run_id} progress update failed: {exc}")
-
         model = None
         optimizer = None
         try:
@@ -289,10 +261,7 @@ class Trainer:
                     torch.cuda.set_rng_state_all(payload["cudaRandomState"])
                 print(f"[piro] resumed run {run_id} from checkpoint step {start_step}")
 
-            last_checkpoint_step = checkpoint_step
-
             def _save_checkpoint(step: int) -> None:
-                nonlocal last_checkpoint_step
                 if device.type == "cuda":
                     torch.cuda.synchronize(device)
                 payload = {
@@ -330,8 +299,7 @@ class Trainer:
                 cur.execute(
                     """
                     UPDATE training_run
-                    SET "currentStep" = %s,
-                        "stepHistoryJson" = %s,
+                    SET "stepHistoryJson" = %s,
                         "checkpointR2Key" = %s,
                         "checkpointStep" = %s,
                         "checkpointAt" = %s,
@@ -339,7 +307,6 @@ class Trainer:
                     WHERE id = %s AND status = 'running'
                     """,
                     (
-                        step,
                         json.dumps(history),
                         key,
                         step,
@@ -352,7 +319,6 @@ class Trainer:
                     conn.rollback()
                     raise RuntimeError("training run became terminal while checkpointing")
                 conn.commit()
-                last_checkpoint_step = step
 
             def _next_batch() -> list:
                 nonlocal cursor
@@ -366,18 +332,6 @@ class Trainer:
             _load_checkpoint()
             if not checkpoint_key and start_step == 0:
                 _save_checkpoint(0)
-                _publish_progress(
-                    {
-                        "phase": "train",
-                        "optimizerStep": 0,
-                        "maxSteps": max_steps,
-                        "episodeIndex": 0,
-                        "episodeCount": model.training_batch_size,
-                        "unit": "examples",
-                        "checkpointStep": 0,
-                    },
-                    force=True,
-                )
                 print(f"[piro] run {run_id} initialized checkpoint at step 0")
 
             for step in range(start_step + 1, max_steps + 1):
