@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "../../../../data/db";
 import { deployment, model } from "../../../../data/schema";
 import {
@@ -137,8 +137,16 @@ export default async function ModelsPage() {
         .innerJoin(model, eq(deployment.modelId, model.id))
         .where(
           and(
-            eq(deployment.createdByUserId, session.user.id),
-            eq(deployment.isAdmin, false),
+            or(
+              and(
+                eq(deployment.isAdmin, false),
+                eq(deployment.createdByUserId, session.user.id),
+              ),
+              and(
+                eq(deployment.isAdmin, true),
+                eq(deployment.targetUserId, session.user.id),
+              ),
+            ),
             eq(deployment.enabled, true),
           ),
         )
@@ -212,7 +220,7 @@ export default async function ModelsPage() {
                 Private deployments
               </h2>
               <p className="mt-1 text-xs text-amber-500/50">
-                Models owned by your account.
+                Models available to your account.
               </p>
             </div>
             <span className="text-xs text-amber-600/40">
