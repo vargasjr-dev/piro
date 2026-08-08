@@ -51,9 +51,51 @@ jobs:
               - 'pyproject.toml'
               - '.github/workflows/modal-deploy.yml'
 
+  sync-secrets:
+    name: Sync Modal runtime secrets
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate required secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MODAL_WEBHOOK_SECRET: ${{ secrets.MODAL_WEBHOOK_SECRET }}
+          BUCKET_ENDPOINT_URL: ${{ secrets.BUCKET_ENDPOINT_URL }}
+          BUCKET_KEY_ID: ${{ secrets.BUCKET_KEY_ID }}
+          BUCKET_APPLICATION_SECRET: ${{ secrets.BUCKET_APPLICATION_SECRET }}
+        run: |
+          set -euo pipefail
+          for name in DATABASE_URL MODAL_WEBHOOK_SECRET BUCKET_ENDPOINT_URL BUCKET_KEY_ID BUCKET_APPLICATION_SECRET; do
+            if [ -z "${!name}" ]; then
+              echo "Required GitHub Actions secret $name is not configured." >&2
+              exit 1
+            fi
+          done
+
+      - uses: astral-sh/setup-uv@v5
+      - run: uv tool install modal
+      - name: Create or update Modal runtime secret
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MODAL_WEBHOOK_SECRET: ${{ secrets.MODAL_WEBHOOK_SECRET }}
+          BUCKET_ENDPOINT_URL: ${{ secrets.BUCKET_ENDPOINT_URL }}
+          BUCKET_KEY_ID: ${{ secrets.BUCKET_KEY_ID }}
+          BUCKET_APPLICATION_SECRET: ${{ secrets.BUCKET_APPLICATION_SECRET }}
+        run: |
+          set -euo pipefail
+          modal secret create piro-secrets \
+            DATABASE_URL="$DATABASE_URL" \
+            MODAL_WEBHOOK_SECRET="$MODAL_WEBHOOK_SECRET" \
+            BUCKET_ENDPOINT_URL="$BUCKET_ENDPOINT_URL" \
+            BUCKET_KEY_ID="$BUCKET_KEY_ID" \
+            BUCKET_APPLICATION_SECRET="$BUCKET_APPLICATION_SECRET" \
+            --force
+
   deploy-training:
     name: Deploy training app
-    needs: changes
+    needs: [changes, sync-secrets]
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.training == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -67,7 +109,7 @@ jobs:
 
   deploy-inference:
     name: Deploy inference app
-    needs: changes
+    needs: [changes, sync-secrets]
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.inference == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -81,7 +123,7 @@ jobs:
 
   deploy-source:
     name: Deploy source app
-    needs: changes
+    needs: [changes, sync-secrets]
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -95,7 +137,7 @@ jobs:
 
   deploy-gemma:
     name: Deploy Gemma app
-    needs: changes
+    needs: [changes, sync-secrets]
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.gemma == 'true'
     runs-on: ubuntu-latest
     steps:
