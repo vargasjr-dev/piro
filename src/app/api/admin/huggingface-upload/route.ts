@@ -15,6 +15,7 @@ export const maxDuration = 300;
 
 const MAX_FILES = 200;
 const MAX_TOTAL_BYTES = 10 * 1024 * 1024 * 1024;
+const SKIPPED_REPOSITORY_FILES = new Set([".gitattributes"]);
 
 type ModelFile = { rfilename?: string; size?: number };
 
@@ -83,7 +84,11 @@ export async function POST(request: Request) {
   const modelInfo = (await modelResponse.json()) as { siblings?: ModelFile[] };
   const files: Array<{ name: string; size?: number }> = [];
   for (const file of modelInfo.siblings ?? []) {
-    if (file.rfilename && !file.rfilename.startsWith(".git/")) {
+    if (
+      file.rfilename &&
+      !file.rfilename.startsWith(".git/") &&
+      !SKIPPED_REPOSITORY_FILES.has(file.rfilename)
+    ) {
       files.push({ name: file.rfilename, size: file.size });
     }
   }
@@ -152,6 +157,7 @@ export async function POST(request: Request) {
           model,
           revision,
           source: "https://huggingface.co",
+          skippedFiles: [...SKIPPED_REPOSITORY_FILES],
           files: manifest,
           totalBytes,
         },
