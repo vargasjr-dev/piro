@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { Readable, Transform } from "node:stream";
 import { resolveRequestAuth } from "~/lib/request-auth";
 import {
   encodeRepositoryFile,
@@ -32,20 +31,10 @@ function responseError(message: string, status: number) {
   return Response.json({ error: message }, { status });
 }
 
-function digestingStream() {
-  const hash = createHash("sha256");
-  let bytes = 0;
-  const stream = new Transform({
-    transform(chunk: Buffer, _encoding, callback) {
-      hash.update(chunk);
-      bytes += chunk.length;
-      callback(null, chunk);
-    },
-  });
+function digestBuffer(buffer: Buffer) {
   return {
-    stream,
-    getDigest: () => hash.digest("hex"),
-    getBytes: () => bytes,
+    bytes: buffer.byteLength,
+    sha256: createHash("sha256").update(buffer).digest("hex"),
   };
 }
 
@@ -132,21 +121,27 @@ export async function POST(request: Request) {
         throw new MigrationFailure("Model exceeds the 10 GiB migration limit", 413);
       }
 
-      const key = `${prefix}/${encodeRepositoryFile(file.name)}`;
-      const digest = digestingStream();
-      await r2PutObject(
-        key,
-        Readable.fromWeb(response.body as never).pipe(digest.stream),
-        response.headers.get("content-type") ?? "application/octet-stream",
-        contentLength > 0 ? contentLength : undefined,
-      );
-
-      const bytes = digest.getBytes();
-      totalBytes += bytes;
-      if (totalBytes > MAX_TOTAL_BYTES) {
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const digest = digestBuffer(buffer);
+      if (totalBytes + digest.bytes > MAX_TOTAL_BYTES) {
         throw new MigrationFailure("Model exceeds the 10 GiB migration limit", 413);
       }
-      manifest.push({ name: file.name, key, bytes, sha256: digest.getDigest() });
+
+      const key = `${prefix}/${encodeRepositoryFile(file.name)}`;
+      await r2PutObject(
+        key,
+        buffer,
+        response.headers.get("content-type") ?? "application/octet-stream",
+        digest.bytes,
+      );
+
+      totalBytes += digest.bytes;
+      manifest.push({
+        name: file.name,
+        key,
+        bytes: digest.bytes,
+        sha256: digest.sha256,
+      });
     }
 
     const manifestKey = `${prefix}/manifest.json`;
