@@ -3,9 +3,14 @@
 import { useState } from "react";
 
 type SandboxMessage = {
-  prompt: string;
-  output: string;
-  durationMs: number | null;
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  sentAt: number;
+  durationMs?: number | null;
+  metadata?: Record<string, unknown> | null;
+  pending?: boolean;
+  error?: boolean;
 };
 
 type ModelMore = {
@@ -27,8 +32,35 @@ type InferResponse = {
   };
   state?: Record<string, unknown> | null;
   durationMs?: number;
+  metadata?: Record<string, unknown> | null;
   error?: string;
 };
+
+function formatDuration(durationMs: number): string {
+  if (durationMs < 1000) return `${durationMs}ms`;
+  // Truncate to match the measured request duration without overstating it.
+  return `${(Math.floor(durationMs / 100) / 10).toFixed(1)}s`;
+}
+
+function formatTimestamp(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatModelOutput(
+  text: string,
+  metadata: Record<string, unknown> | null,
+): string {
+  if (metadata?.outputFormat !== "token-id") return text || "(empty response)";
+  const tokenId =
+    typeof metadata.tokenId === "number" ? ` ${metadata.tokenId}` : "";
+  const vocabSize =
+    typeof metadata.vocabSize === "number" ? ` / ${metadata.vocabSize}` : "";
+  return `${text || "(empty response)"} (raw token ID:${tokenId.trim() || "unknown"}${vocabSize})`;
+}
 
 export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
   const [prompt, setPrompt] = useState("");
@@ -41,8 +73,34 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
     const text = prompt.trim();
     if (!text || submitting) return;
 
+    const sentAt = Date.now();
+    const userMessageId = `${sentAt}-user`;
+    const assistantMessageId = `${sentAt}-assistant`;
+    setPrompt("");
     setSubmitting(true);
     setError(null);
+    setMessages((current) => [
+      ...current,
+      { id: userMessageId, role: "user", text, sentAt },
+      {
+        id: assistantMessageId,
+        role: "assistant",
+        text: "",
+        sentAt,
+        pending: true,
+      },
+    ]);
+
+    function finishAssistant(update: Omit<SandboxMessage, "id" | "role">) {
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === assistantMessageId
+            ? { ...message, ...update, pending: false }
+            : message,
+        ),
+      );
+    }
+
     try {
       const response = await fetch(
         `/api/models/${encodeURIComponent(modelId)}/infer`,
@@ -63,11 +121,20 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
         // Surface a useful HTTP error when the server returns a non-JSON failure page.
       }
       if (!response.ok) {
-        setError(body?.error ?? `Inference failed (HTTP ${response.status})`);
+        const message =
+          body?.error ?? `Inference failed (HTTP ${response.status})`;
+        setError(message);
+        finishAssistant({
+          text: message,
+          sentAt: Date.now(),
+          error: true,
+        });
         return;
       }
       if (!body) {
-        setError("Inference returned an invalid response.");
+        const message = "Inference returned an invalid response.";
+        setError(message);
+        finishAssistant({ text: message, sentAt: Date.now(), error: true });
         return;
       }
 
@@ -76,14 +143,19 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
           ?.filter((part) => part.type === "text")
           .map((part) => part.text ?? "")
           .join(" ") ?? "";
-      setMessages((current) => [
-        ...current,
-        { prompt: text, output, durationMs: body.durationMs ?? null },
-      ]);
+      const receivedAt = Date.now();
+      finishAssistant({
+        text: formatModelOutput(output, body.metadata ?? null),
+        sentAt: receivedAt,
+        durationMs: body.durationMs ?? null,
+        metadata: body.metadata ?? null,
+      });
       setState(body.state ?? null);
-      setPrompt("");
     } catch {
-      setError("We could not reach the inference service. Please try again.");
+      const message =
+        "We could not reach the inference service. Please try again.";
+      setError(message);
+      finishAssistant({ text: message, sentAt: Date.now(), error: true });
     } finally {
       setSubmitting(false);
     }
@@ -91,6 +163,64 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
 
   return (
     <section className="rounded-3xl border border-orange-500/25 bg-[#17100b] p-4 shadow-[0_0_80px_rgba(249,115,22,0.07)] sm:p-6">
+      {messages.length > 0 && (
+        <div className="mb-6 space-y-4 border-b border-amber-900/20 pb-5">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`group flex items-center gap-3 ${
+                message.role === "user" ? "justify-end" : "justify-start"
+              }`}
+            >
+              {message.role === "assistant" && (
+                <time
+                  dateTime={new Date(message.sentAt).toISOString()}
+                  className="w-20 shrink-0 text-right text-[10px] text-amber-500/0 transition group-hover:text-amber-500/65"
+                >
+                  {formatTimestamp(message.sentAt)}
+                </time>
+              )}
+              <div
+                className={`max-w-[92%] rounded-2xl px-4 py-3 ${
+                  message.role === "user"
+                    ? "rounded-br-md bg-orange-500 text-[#180d07]"
+                    : "rounded-bl-md border border-amber-900/25 bg-[#0e0b09] text-amber-50"
+                }`}
+              >
+                <p
+                  aria-live={message.pending ? "polite" : undefined}
+                  className={`whitespace-pre-wrap text-sm leading-relaxed ${
+                    message.pending
+                      ? "animate-pulse text-amber-300/70"
+                      : message.error
+                        ? "text-rose-300"
+                        : ""
+                  }`}
+                >
+                  {message.pending ? "Thinking…" : message.text}
+                </p>
+                {message.role === "assistant" &&
+                  !message.pending &&
+                  message.durationMs !== undefined &&
+                  message.durationMs !== null && (
+                    <p className="mt-2 text-[10px] text-amber-500/45">
+                      {formatDuration(message.durationMs)}
+                    </p>
+                  )}
+              </div>
+              {message.role === "user" && (
+                <time
+                  dateTime={new Date(message.sentAt).toISOString()}
+                  className="w-20 shrink-0 text-[10px] text-amber-500/0 transition group-hover:text-amber-500/65"
+                >
+                  {formatTimestamp(message.sentAt)}
+                </time>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div>
         <textarea
           id="chat-prompt"
@@ -177,32 +307,6 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
           </p>
         )}
       </div>
-
-      {messages.length > 0 && (
-        <div className="mt-6 space-y-4 border-t border-amber-900/20 pt-5">
-          {messages.map((message, index) => (
-            <div key={`${message.prompt}-${index}`} className="space-y-3">
-              <div className="flex justify-end">
-                <p className="max-w-[88%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-orange-500 px-4 py-3 text-sm leading-relaxed text-[#180d07]">
-                  {message.prompt}
-                </p>
-              </div>
-              <div className="flex justify-start">
-                <div className="max-w-[92%] rounded-2xl rounded-bl-md border border-amber-900/25 bg-[#0e0b09] px-4 py-3">
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-amber-50">
-                    {message.output || "(empty response)"}
-                  </p>
-                  {message.durationMs !== null && (
-                    <p className="mt-2 text-[10px] text-amber-500/45">
-                      {message.durationMs} ms
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </section>
   );
 }

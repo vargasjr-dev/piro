@@ -30,6 +30,12 @@ def test_borealis_entrypoint_exposes_the_model_class_and_invokes_structured_inpu
     result = model.invoke({"parts": [{"type": "text", "text": "hello"}]})
     assert result["text"].isdigit()
     assert 0 <= int(result["text"]) < config.vocab_size
+    assert result["metadata"] == {
+        "outputFormat": "token-id",
+        "tokenId": int(result["text"]),
+        "encoding": "utf8-byte-modulo",
+        "vocabSize": config.vocab_size,
+    }
     assert result["state"] == {"output_bias": [0.0] * config.vocab_size, "updates": 0, "loss_ema": None}
 
 
