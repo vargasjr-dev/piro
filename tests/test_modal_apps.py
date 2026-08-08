@@ -76,6 +76,12 @@ def test_modal_images_own_the_shared_module_import_path():
     assert "@app.cls(\n    image=image," in training
 
 
+def test_training_checkpoints_after_every_optimizer_step():
+    source = (MODAL_DIR / "_common.py").read_text()
+
+    assert "CHECKPOINT_INTERVAL_STEPS = 1" in source
+
+
 def test_training_dispatch_has_a_bounded_timeout():
     source = (Path(__file__).parents[1] / "src" / "app" / "api" / "training-runs" / "route.ts").read_text()
     assert "signal: AbortSignal.timeout(30_000)" in source
