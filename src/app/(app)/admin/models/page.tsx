@@ -31,17 +31,13 @@ export default async function AdminModelsPage() {
         weightsR2Key: model.weightsR2Key,
         createdAt: model.createdAt,
         ownerName: user.name,
-        ownerEmail: user.email,
       })
       .from(model)
       .innerJoin(user, eq(model.userId, user.id))
       .leftJoin(modelHostedApi, eq(modelHostedApi.modelId, model.id))
       .where(isNull(modelHostedApi.id))
       .orderBy(desc(model.createdAt)),
-    db
-      .select({ id: user.id, name: user.name, email: user.email })
-      .from(user)
-      .orderBy(user.name),
+    db.select({ id: user.id, name: user.name }).from(user).orderBy(user.name),
   ]);
 
   const deploymentRows = await db
@@ -97,9 +93,7 @@ export default async function AdminModelsPage() {
                       {item.description || "No description."}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-amber-500/50">
-                      <span>
-                        Owner: {item.ownerName} ({item.ownerEmail})
-                      </span>
+                      <span>Owner: {item.ownerName}</span>
                       <span>
                         {item.parameterCount?.toLocaleString() ?? "—"}{" "}
                         parameters
@@ -143,7 +137,7 @@ export default async function AdminModelsPage() {
                             </option>
                             {users.map((target) => (
                               <option key={target.id} value={target.id}>
-                                {target.name} ({target.email})
+                                {target.name}
                               </option>
                             ))}
                           </select>
