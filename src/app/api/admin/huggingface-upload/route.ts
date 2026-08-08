@@ -7,7 +7,7 @@ import {
   huggingFaceMigrationRequestSchema,
   modelPrefix,
 } from "~/lib/huggingface-migration";
-import { r2DeletePrefix, r2PutObject } from "~/lib/r2";
+import { r2DeletePrefix, r2PutMultipart, r2PutObject } from "~/lib/r2";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -31,10 +31,33 @@ function responseError(message: string, status: number) {
   return Response.json({ error: message }, { status });
 }
 
-function digestBuffer(buffer: Buffer) {
+const MULTIPART_PART_BYTES = 8 * 1024 * 1024;
+
+function createDigestingChunks(body: ReadableStream<Uint8Array>) {
+  const reader = body.getReader();
+  const hash = createHash("sha256");
+  let bytes = 0;
+  let pending = Buffer.alloc(0);
+
+  async function* chunks(): AsyncGenerator<Buffer> {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      const chunk = Buffer.from(next.value);
+      hash.update(chunk);
+      bytes += chunk.byteLength;
+      pending = Buffer.concat([pending, chunk]);
+      while (pending.byteLength >= MULTIPART_PART_BYTES) {
+        yield pending.subarray(0, MULTIPART_PART_BYTES);
+        pending = pending.subarray(MULTIPART_PART_BYTES);
+      }
+    }
+    if (pending.byteLength > 0) yield pending;
+  }
+
   return {
-    bytes: buffer.byteLength,
-    sha256: createHash("sha256").update(buffer).digest("hex"),
+    chunks: chunks(),
+    getDigest: () => ({ bytes, sha256: hash.digest("hex") }),
   };
 }
 
@@ -136,27 +159,20 @@ export async function POST(request: Request) {
         throw new MigrationFailure("Model exceeds the 10 GiB migration limit", 413);
       }
 
-      const buffer = Buffer.from(await response.arrayBuffer());
-      const digest = digestBuffer(buffer);
+      const key = `${prefix}/${encodeRepositoryFile(file.name)}`;
+      const digesting = createDigestingChunks(response.body);
+      await r2PutMultipart(
+        key,
+        digesting.chunks,
+        response.headers.get("content-type") ?? "application/octet-stream",
+      );
+      const digest = digesting.getDigest();
       if (totalBytes + digest.bytes > MAX_TOTAL_BYTES) {
         throw new MigrationFailure("Model exceeds the 10 GiB migration limit", 413);
       }
 
-      const key = `${prefix}/${encodeRepositoryFile(file.name)}`;
-      await r2PutObject(
-        key,
-        buffer,
-        response.headers.get("content-type") ?? "application/octet-stream",
-        digest.bytes,
-      );
-
       totalBytes += digest.bytes;
-      manifest.push({
-        name: file.name,
-        key,
-        bytes: digest.bytes,
-        sha256: digest.sha256,
-      });
+      manifest.push({ name: file.name, key, bytes: digest.bytes, sha256: digest.sha256 });
     }
 
     const manifestKey = `${prefix}/manifest.json`;

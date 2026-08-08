@@ -1,6 +1,10 @@
 import {
   S3Client,
   PutObjectCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
   GetObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
@@ -76,6 +80,61 @@ export async function r2PutObject(
       ...(contentLength !== undefined ? { ContentLength: contentLength } : {}),
     }),
   );
+}
+
+export async function r2PutMultipart(
+  key: string,
+  parts: AsyncIterable<Buffer>,
+  contentType: string,
+): Promise<void> {
+  const client = getR2Client();
+  const created = await client.send(
+    new CreateMultipartUploadCommand({
+      Bucket: BUCKET(),
+      Key: key,
+      ContentType: contentType,
+    }),
+  );
+  if (!created.UploadId) throw new Error("Object storage did not return an upload id");
+
+  const completedParts: Array<{ ETag?: string; PartNumber: number }> = [];
+  let partNumber = 1;
+  try {
+    for await (const part of parts) {
+      const uploaded = await client.send(
+        new UploadPartCommand({
+          Bucket: BUCKET(),
+          Key: key,
+          UploadId: created.UploadId,
+          PartNumber: partNumber,
+          Body: part,
+        }),
+      );
+      completedParts.push({ ETag: uploaded.ETag, PartNumber: partNumber });
+      partNumber += 1;
+    }
+
+    if (completedParts.length === 0) throw new Error("Cannot upload an empty object");
+    await client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: BUCKET(),
+        Key: key,
+        UploadId: created.UploadId,
+        MultipartUpload: { Parts: completedParts },
+      }),
+    );
+  } catch (error) {
+    await client
+      .send(
+        new AbortMultipartUploadCommand({
+          Bucket: BUCKET(),
+          Key: key,
+          UploadId: created.UploadId,
+        }),
+      )
+      .catch(() => undefined);
+    throw error;
+  }
 }
 
 /**
