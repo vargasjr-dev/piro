@@ -22,21 +22,16 @@ def test_ashfall_entrypoint_exposes_the_model_class_and_invokes_structured_input
     assert isinstance(result["state"], dict)
 
 
-def test_borealis_entrypoint_exposes_the_model_class_and_invokes_structured_input():
-    config = BorealisConfig(vocab_size=8, embed_dim=4, context_dim=6)
+def test_borealis_entrypoint_decodes_generated_tokens_to_text():
+    config = BorealisConfig(tokenizer_name="byte", vocab_size=257, embed_dim=4, context_dim=6)
     model = Borealis(config)
     architecture = load_architecture("architectures/borealis/main.py")
     assert architecture is Borealis
     result = model.invoke({"parts": [{"type": "text", "text": "hello"}]})
-    assert result["text"].isdigit()
-    assert 0 <= int(result["text"]) < config.vocab_size
-    assert result["metadata"] == {
-        "outputFormat": "token-id",
-        "tokenId": int(result["text"]),
-        "encoding": "utf8-byte-modulo",
-        "vocabSize": config.vocab_size,
-    }
-    assert result["state"] == {"output_bias": [0.0] * config.vocab_size, "updates": 0, "loss_ema": None}
+    assert isinstance(result["text"], str)
+    assert result["metadata"]["outputFormat"] == "text"
+    assert result["metadata"]["tokenizer"] == "byte"
+    assert isinstance(result["metadata"]["tokenIds"], list)
 
 
 def test_model_invocation_returns_json_safe_state():
