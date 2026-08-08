@@ -105,10 +105,25 @@ export async function POST(request: Request) {
 
   try {
     for (const file of files) {
-      const response = await fetch(huggingFaceFileUrl(model, revision, file.name), {
+      let response = await fetch(huggingFaceFileUrl(model, revision, file.name), {
         headers: authorization,
         cache: "no-store",
+        redirect: "manual",
       });
+      const downloadUrl = response.headers.get("location");
+      if (response.status >= 300 && response.status < 400 && downloadUrl) {
+        const redirectedResponse = await fetch(downloadUrl, { cache: "no-store" });
+        if (!redirectedResponse.ok) {
+          throw new MigrationFailure(
+            `Hugging Face file download failed for ${file.name} with status ${redirectedResponse.status}`,
+            redirectedResponse.status === 401 || redirectedResponse.status === 403
+              ? 403
+              : 502,
+          );
+        }
+        // The signed storage response replaces the redirect response below.
+        response = redirectedResponse;
+      }
       if (!response.ok || !response.body) {
         throw new MigrationFailure(
           `Hugging Face file download failed for ${file.name} with status ${response.status}`,
