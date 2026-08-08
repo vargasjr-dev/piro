@@ -8,8 +8,9 @@ import { db } from "../../../../../../data/db";
 import { dataset, trainingRun, user } from "../../../../../../data/schema";
 import { deriveTrainingRunMetrics } from "~/lib/training-run-metrics";
 import {
-  formatAge,
+  formatArchitecturePath,
   formatDate,
+  formatSourcePath,
   isTrainingRunCancellable,
   parseJsonRecord,
 } from "~/lib/training-run-admin";
@@ -17,12 +18,6 @@ import { AdminShell } from "../../AdminShell";
 import { CancelTrainingRunButton } from "../CancelTrainingRunButton";
 
 export const dynamic = "force-dynamic";
-
-function display(value: unknown): string {
-  return value === null || value === undefined || value === ""
-    ? "—"
-    : String(value);
-}
 
 function statusClass(status: string): string {
   if (status === "complete")
@@ -115,19 +110,6 @@ export default async function AdminTrainingDetailPage({
               ? "—"
               : `${metrics.progressStep} / ${metrics.progressMaxSteps}`,
           ],
-          [
-            "Progress checkpoint freshness",
-            metrics.progressUpdatedAt
-              ? formatAge(new Date(metrics.progressUpdatedAt), now)
-              : "Never",
-          ],
-          ["Heartbeat freshness", formatAge(row.run.heartbeatAt, now)],
-          [
-            "Checkpoint",
-            row.run.checkpointStep === null
-              ? "—"
-              : `Step ${row.run.checkpointStep}`,
-          ],
         ].map(([label, value]) => (
           <div
             key={label}
@@ -145,8 +127,8 @@ export default async function AdminTrainingDetailPage({
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Architecture", row.run.architecturePath],
-          ["Source", row.datasetSourcePath ?? "Metadata unavailable"],
+          ["Architecture", formatArchitecturePath(row.run.architecturePath)],
+          ["Source", formatSourcePath(row.datasetSourcePath)],
           ["GPU", row.run.gpuType ?? "—"],
           [
             "Estimated cost",
@@ -173,45 +155,12 @@ export default async function AdminTrainingDetailPage({
         ))}
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-amber-900/30 bg-[#100c0a] p-5">
-          <h2 className="text-lg font-bold text-amber-50">
-            Training telemetry
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-amber-200/55">
-            Progress is reported from the latest durable checkpoint. Heartbeat
-            is separate and only indicates whether the worker can still reach
-            the database.
-          </p>
-          <dl className="mt-5 space-y-3 text-sm">
-            <div className="flex justify-between gap-4 border-b border-amber-900/20 pb-3">
-              <dt className="text-amber-300/50">Checkpoint step</dt>
-              <dd className="font-semibold text-amber-100/80">
-                {display(row.run.checkpointStep)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4 border-b border-amber-900/20 pb-3">
-              <dt className="text-amber-300/50">Checkpoint saved</dt>
-              <dd className="text-right text-amber-100/75">
-                {formatDate(row.run.checkpointAt)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-amber-300/50">Worker heartbeat</dt>
-              <dd className="text-right text-amber-100/75">
-                {formatDate(row.run.heartbeatAt)}
-              </dd>
-            </div>
-          </dl>
-        </section>
-
-        <section className="rounded-2xl border border-amber-900/30 bg-[#100c0a] p-5">
-          <h2 className="text-lg font-bold text-amber-50">Run configuration</h2>
-          <pre className="mt-4 max-h-96 overflow-auto rounded-xl bg-black/25 p-4 text-xs leading-relaxed text-amber-200/65">
-            {JSON.stringify(config, null, 2)}
-          </pre>
-        </section>
-      </div>
+      <section className="mt-8 rounded-2xl border border-amber-900/30 bg-[#100c0a] p-5">
+        <h2 className="text-lg font-bold text-amber-50">Run configuration</h2>
+        <pre className="mt-4 max-h-96 overflow-auto rounded-xl bg-black/25 p-4 text-xs leading-relaxed text-amber-200/65">
+          {JSON.stringify(config, null, 2)}
+        </pre>
+      </section>
     </AdminShell>
   );
 }
