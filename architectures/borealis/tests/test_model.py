@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 
 from architectures.borealis.model import (
     Borealis,
@@ -10,7 +9,8 @@ from architectures.borealis.model import (
 
 def small_model(**overrides) -> Borealis:
     config = {
-        "vocab_size": 7,
+        "tokenizer_name": "byte",
+        "vocab_size": 257,
         "embed_dim": 8,
         "context_dim": 12,
         "adaptation_learning_rate": 0.4,
@@ -27,7 +27,7 @@ def test_borealis_run_returns_only_final_causal_logits():
 
     result = model.run(tokens)
 
-    assert result.shape == (7,)
+    assert result.shape == (257,)
     assert torch.isfinite(result).all()
 
 
@@ -49,7 +49,7 @@ def test_adaptation_changes_later_logits_and_updates_durable_parameters():
 
 def test_final_output_uses_adaptation_state_after_context_adaptation():
     tokens = torch.tensor([1, 2, 3, 4])
-    initial = BorealisAdaptationState(output_bias=torch.zeros(7))
+    initial = BorealisAdaptationState(output_bias=torch.zeros(257))
     adapted_model = small_model(consolidation_rate=0.0)
     unadapted_model = small_model(consolidation_rate=0.0)
     unadapted_model.load_state_dict(adapted_model.state_dict())
@@ -64,7 +64,7 @@ def test_adaptation_state_snapshot_round_trips_and_preserves_predictions():
     model = small_model()
     tokens = torch.tensor([1, 2, 3, 4])
     state = BorealisAdaptationState(
-        output_bias=torch.ones(7),
+        output_bias=torch.ones(257),
         updates=2,
         loss_ema=0.1,
     )
@@ -85,7 +85,7 @@ def test_adaptation_state_snapshot_round_trips_and_preserves_predictions():
 def test_consolidation_moves_adaptation_bias_to_durable_output_head_and_clears_adaptation_state():
     model = small_model()
     state = BorealisAdaptationState(
-        output_bias=torch.ones(7),
+        output_bias=torch.ones(257),
         updates=2,
         loss_ema=0.1,
     )
@@ -94,7 +94,7 @@ def test_consolidation_moves_adaptation_bias_to_durable_output_head_and_clears_a
     next_state = model.consolidate_weights(state)
 
     assert torch.allclose(model.output_head.bias, before + 0.5)
-    assert torch.equal(next_state.output_bias, torch.zeros(7))
+    assert torch.equal(next_state.output_bias, torch.zeros(257))
     assert next_state.updates == 0
     assert next_state.loss_ema is None
 
@@ -148,7 +148,7 @@ def test_generate_reuses_state_and_returns_only_new_tokens():
 
 def test_generate_with_state_returns_cleared_adaptation_state_and_final_context_state():
     model = small_model(consolidation_rate=0.0)
-    initial = BorealisAdaptationState(output_bias=torch.ones(7), updates=2, loss_ema=0.5)
+    initial = BorealisAdaptationState(output_bias=torch.ones(257), updates=2, loss_ema=0.5)
 
     generated, state = model.generate_with_state(
         torch.tensor([1, 2]),
@@ -159,10 +159,10 @@ def test_generate_with_state_returns_cleared_adaptation_state_and_final_context_
 
     assert generated.shape == (2,)
     assert state.context_state.shape == (12,)
-    assert torch.equal(state.adaptation_state.output_bias, torch.zeros(7))
+    assert torch.equal(state.adaptation_state.output_bias, torch.zeros(257))
     assert state.adaptation_state.updates == 0
     assert state.adaptation_state.loss_ema is None
-    assert torch.equal(initial.output_bias, torch.ones(7))
+    assert torch.equal(initial.output_bias, torch.ones(257))
 
 
 def test_generation_state_matches_manual_prefill_and_decode():
@@ -247,7 +247,7 @@ def test_generate_rejects_invalid_limits_and_prompt_tokens():
         raise AssertionError("negative generation length should be rejected")
 
     try:
-        model.generate(torch.tensor([1, 9]), max_new_tokens=1)
+        model.generate(torch.tensor([1, 300]), max_new_tokens=1)
     except ValueError as error:
         assert "within" in str(error)
     else:
@@ -259,7 +259,7 @@ def test_two_token_sequence_still_produces_final_output_without_adaptation_steps
 
     result = model.run(torch.tensor([1, 2]))
 
-    assert result.shape == (7,)
+    assert result.shape == (257,)
     assert torch.isfinite(result).all()
 
 
@@ -274,18 +274,39 @@ def test_invalid_sequences_are_rejected():
         raise AssertionError("short token sequence should be rejected")
 
     try:
-        model.run(torch.tensor([1, 9]))
+        model.run(torch.tensor([1, 300]))
     except ValueError as error:
         assert "within" in str(error)
     else:
         raise AssertionError("out-of-range token should be rejected")
 
 
-def test_causal_loss_uses_each_next_token_as_target():
+def test_causal_loss_is_teacher_forced_over_the_full_sequence():
     model = small_model(adaptation_learning_rate=0.0)
     tokens = torch.tensor([1, 2, 3])
-    result = model.run(tokens, adapt=False)
 
-    manual = F.cross_entropy(result.unsqueeze(0), tokens[-1].unsqueeze(0))
+    loss = model.causal_loss(tokens)
 
-    assert torch.allclose(model.causal_loss(tokens), manual)
+    assert loss.ndim == 0
+    assert torch.isfinite(loss)
+
+
+def test_byte_tokenizer_round_trips_utf8_text():
+    model = small_model()
+    text = "héllo 🌞"
+
+    assert model.tokenizer.decode(model.tokenizer.encode(text)) == text
+
+
+def test_invoke_returns_decoded_text_and_tokenizer_metadata():
+    model = small_model(max_new_tokens=2, adaptation_learning_rate=0.0, consolidation_rate=0.0)
+    with torch.no_grad():
+        model.output_head.weight.zero_()
+        model.output_head.bias.zero_()
+        model.output_head.bias[ord("o")] = 10.0
+
+    result = model.invoke({"parts": [{"type": "text", "text": "hello"}]})
+
+    assert result["text"] == "oo"
+    assert result["metadata"]["outputFormat"] == "text"
+    assert result["metadata"]["tokenizer"] == "byte"

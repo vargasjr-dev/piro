@@ -107,10 +107,23 @@ serialization contract.
 - `causal_loss(token_ids)` remains the differentiable training helper.
 - `forward(token_ids)` remains equivalent to `run(token_ids, adapt=False)`.
 
-The model is token-ID based for this experiment. Tokenization and text decoding
-belong outside the core architecture so synthetic tasks can use tiny vocabularies
-and the recurrent state behavior remains measurable. The HTTP invocation boundary
-returns the legacy token ID in `text` and labels it with metadata:
-`outputFormat="token-id"`, `encoding="utf8-byte-modulo"`, and `vocabSize`.
-Callers must not present that ID as a natural-language answer without an
-experiment-specific decoder.
+## Tokenizer and text boundary
+
+Borealis now follows a real language-model path. Production configuration uses the
+reversible `o200k_base` BPE tokenizer from `tiktoken`; the tokenizer name is stored
+in `BorealisConfig` and therefore in every persisted training configuration.
+
+Training constructs complete sequences as:
+
+```text
+<input context>\nANSWER:<target><end-of-text>
+```
+
+The loss is teacher-forced across every next-token target, not only the final token.
+Inference encodes the input plus `target_prefix`, generates token IDs
+autoregressively until EOS or `max_new_tokens`, and decodes those IDs with the same
+BPE tokenizer before returning the API response. Token IDs remain diagnostic
+metadata, while `text` is always decoded model output.
+
+The `byte` tokenizer name is retained only as a small reversible test fixture; it is
+not the production tokenizer.

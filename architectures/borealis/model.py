@@ -9,14 +9,15 @@ Borealis is intentionally smaller than the deferred CTM experiment.  It follows
 * adaptation updates run-local state during the invocation;
 * consolidation runs at the end of every invocation and produces the next durable revision.
 
-The model is token-id based for the first experiment.  Tokenization belongs at the
-experiment boundary; keeping it out of the core makes the causal state behavior
-measurable and lets synthetic tasks use tiny vocabularies.
+Borealis uses a reversible frontier-style BPE tokenizer at the architecture
+boundary. The tokenizer identity is persisted with the model configuration so
+training and serving share the same vocabulary and decode generated token IDs
+back into text.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import torch
@@ -24,11 +25,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from architectures._common import ArchitectureModel, EvaluationResult, json_state
+from architectures.borealis.tokenizer import BorealisTokenizer
 
 
 @dataclass
 class BorealisConfig:
-    vocab_size: int = 32
+    vocab_size: int | None = None
+    tokenizer_name: str | None = "o200k_base"
+    target_prefix: str = "\nANSWER:"
+    max_new_tokens: int = 32
     embed_dim: int = 32
     context_dim: int = 64
     adaptation_learning_rate: float = 0.1
@@ -84,74 +89,110 @@ class Borealis(ArchitectureModel):
     def __init__(self, config: BorealisConfig | None = None, **kwargs: Any) -> None:
         super().__init__()
         cfg = config or BorealisConfig(**kwargs)
-        if cfg.vocab_size < 2:
-            raise ValueError("vocab_size must be at least 2")
+        tokenizer_name = cfg.tokenizer_name
+        if tokenizer_name is None:
+            raise ValueError("tokenizer_name is required for the language-model path")
+        self.tokenizer = BorealisTokenizer(tokenizer_name)
+        vocab_size = self.tokenizer.vocab_size
+        if cfg.vocab_size is not None and cfg.vocab_size != vocab_size:
+            raise ValueError("vocab_size must match the selected tokenizer vocabulary")
+        if cfg.max_new_tokens < 1:
+            raise ValueError("max_new_tokens must be positive")
         if cfg.embed_dim <= 0 or cfg.context_dim <= 0:
             raise ValueError("embed_dim and context_dim must be positive")
         if cfg.adaptation_learning_rate < 0:
             raise ValueError("adaptation_learning_rate must be non-negative")
         if not 0 <= cfg.consolidation_rate <= 1:
             raise ValueError("consolidation_rate must be in [0, 1]")
-        if cfg.eos_token_id is not None and not 0 <= cfg.eos_token_id < cfg.vocab_size:
-            raise ValueError("eos_token_id must be within the configured vocabulary")
+        eos_token_id = cfg.eos_token_id
+        if eos_token_id is None:
+            eos_token_id = self.tokenizer.eos_token_id
+        if eos_token_id is not None and not 0 <= eos_token_id < vocab_size:
+            raise ValueError("eos_token_id must be within the tokenizer vocabulary")
 
-        self.config = cfg
-        self.token_embedding = nn.Embedding(cfg.vocab_size, cfg.embed_dim)
-        self.input_projection = nn.Linear(cfg.embed_dim, cfg.context_dim)
-        self.recurrent = nn.GRUCell(cfg.context_dim, cfg.context_dim)
-        self.output_norm = nn.LayerNorm(cfg.context_dim)
-        self.output_head = nn.Linear(cfg.context_dim, cfg.vocab_size)
+        self.config = replace(
+            cfg,
+            vocab_size=vocab_size,
+            eos_token_id=eos_token_id,
+        )
+        self.token_embedding = nn.Embedding(vocab_size, self.config.embed_dim)
+        self.input_projection = nn.Linear(self.config.embed_dim, self.config.context_dim)
+        self.recurrent = nn.GRUCell(self.config.context_dim, self.config.context_dim)
+        self.output_norm = nn.LayerNorm(self.config.context_dim)
+        self.output_head = nn.Linear(self.config.context_dim, vocab_size)
+
+    @classmethod
+    def config_for_training(cls, examples: list[Any]) -> dict[str, Any]:
+        del examples
+        return {"tokenizer_name": "o200k_base"}
 
     def _tokens(self, example: Any) -> torch.Tensor:
         prompt = "\n".join(str(value) for value in example.inputs)
-        text = f"{prompt}\nANSWER:{example.target}"
-        values = [byte % self.config.vocab_size for byte in text.encode("utf-8")]
-        if len(values) < 2:
-            values.append(0)
+        text = f"{prompt}{self.config.target_prefix}{example.target}"
+        values = self.tokenizer.encode_training_text(text)
         return torch.tensor(values, dtype=torch.long, device=self.token_embedding.weight.device)
+
+    def _sequence_logits(self, tokens: torch.Tensor) -> torch.Tensor:
+        """Return teacher-forced logits for every next-token target."""
+        tokens = self._validate_tokens(tokens)
+        context_state = self.initialize_context_state().to(device=tokens.device)
+        runtime = self.bind_adaptation_state(self, self.initialize_adaptation_state())
+        logits: list[torch.Tensor] = []
+        for token in tokens[:-1]:
+            next_logits, context_state = self.predict_next_token(token, context_state, runtime)
+            logits.append(next_logits)
+        return torch.stack(logits)
 
     def training_loss(self, example: Any) -> torch.Tensor:
         tokens = self._tokens(example)
-        logits = self.run(tokens, adapt=False)
-        return F.cross_entropy(logits.unsqueeze(0), tokens[-1].unsqueeze(0))
+        logits = self._sequence_logits(tokens)
+        return F.cross_entropy(logits, tokens[1:])
 
     def evaluate(self, examples: list[Any]) -> EvaluationResult:
         self.eval()
         total_loss = 0.0
+        total_tokens = 0
         correct = 0
         with torch.no_grad():
             for example in examples:
                 tokens = self._tokens(example)
-                logits = self.run(tokens, adapt=False)
-                target = tokens[-1]
-                loss = F.cross_entropy(logits.unsqueeze(0), target.unsqueeze(0))
-                total_loss += float(loss)
-                correct += int(int(logits.argmax().item()) == int(target.item()))
-        count = max(1, len(examples))
+                logits = self._sequence_logits(tokens)
+                targets = tokens[1:]
+                loss = F.cross_entropy(logits, targets)
+                total_loss += float(loss) * targets.numel()
+                total_tokens += targets.numel()
+                correct += int((logits.argmax(dim=-1) == targets).sum().item())
+        count = max(1, total_tokens)
         return EvaluationResult(total_loss / count, correct / count)
 
     def invoke(self, input_packet: dict[str, Any], state: dict[str, Any] | None = None) -> dict[str, Any]:
         text = self._text_from_input(input_packet)
-        token_ids = self._encode(text)
+        prompt = self._encode(f"{text}{self.config.target_prefix}")
         adaptation_state = (
             self.load_adaptation_state(state)
             if state is not None
             else self.initialize_adaptation_state()
         )
         with torch.no_grad():
-            logits = self.run(token_ids, adaptation_state, adapt=True)
-        token_id = int(logits.argmax().item())
+            generated, final_state = self.generate_with_state(
+                prompt,
+                self.config.max_new_tokens,
+                adaptation_state,
+                adapt=True,
+            )
+        generated_ids = [int(token_id) for token_id in generated.detach().cpu().tolist()]
         return {
-            # Keep the legacy text field stable for callers that consume raw
-            # vocabulary IDs, while making the output contract explicit.
-            "text": str(token_id),
+            "text": self.tokenizer.decode_generated(generated_ids),
             "metadata": {
-                "outputFormat": "token-id",
-                "tokenId": token_id,
-                "encoding": "utf8-byte-modulo",
-                "vocabSize": self.config.vocab_size,
+                "outputFormat": "text",
+                "tokenizer": self.config.tokenizer_name,
+                "tokenIds": generated_ids,
+                "eosTokenId": self.config.eos_token_id,
+                "stoppedAtEos": bool(
+                    generated_ids and generated_ids[-1] == self.config.eos_token_id
+                ),
             },
-            "state": json_state(self.snapshot_adaptation_state(self.initialize_adaptation_state())),
+            "state": json_state(self.snapshot_adaptation_state(final_state.adaptation_state)),
         }
 
     @staticmethod
@@ -170,9 +211,9 @@ class Borealis(ArchitectureModel):
         return "\n".join(texts)
 
     def _encode(self, text: str) -> torch.Tensor:
-        values = [byte % self.config.vocab_size for byte in text.encode("utf-8")]
-        if len(values) < 2:
-            values.append(0)
+        values = self.tokenizer.encode(text)
+        if len(values) < 1:
+            values.append(self.config.eos_token_id or 0)
         return torch.tensor(values, dtype=torch.long, device=self.token_embedding.weight.device)
 
     # ── Pseudocode contract ────────────────────────────────────────────────────
@@ -384,7 +425,7 @@ class Borealis(ArchitectureModel):
         if max_new_tokens < 0:
             raise ValueError("max_new_tokens must be non-negative")
         if eos_token_id is not None and not 0 <= eos_token_id < self.config.vocab_size:
-            raise ValueError("eos_token_id must be within the configured vocabulary")
+            raise ValueError("eos_token_id must be within the tokenizer vocabulary")
         stop_token_id = self.config.eos_token_id if eos_token_id is None else eos_token_id
 
         prompt = self._validate_prompt_tokens(prompt_token_ids)
@@ -445,10 +486,10 @@ class Borealis(ArchitectureModel):
         return final_logits
 
     def causal_loss(self, token_ids: torch.Tensor) -> torch.Tensor:
-        """Return differentiable causal loss without exposing training telemetry."""
+        """Return differentiable teacher-forced loss over every next-token target."""
         tokens = self._validate_tokens(token_ids)
-        logits = self.run(tokens, adapt=False)
-        return F.cross_entropy(logits.unsqueeze(0), tokens[-1].unsqueeze(0))
+        logits = self._sequence_logits(tokens)
+        return F.cross_entropy(logits, tokens[1:])
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
         """Return the final next-token logits for Trainer-style callers."""

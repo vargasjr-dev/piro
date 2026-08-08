@@ -1,11 +1,8 @@
 from pathlib import Path
 
-import torch
-
 from architectures._common import load_architecture
 from architectures.borealis.model import Borealis
 from sources._common.training import load_source_examples
-
 
 REPO_ROOT = Path(__file__).parents[1]
 
@@ -56,7 +53,7 @@ def test_canonical_entrypoint_resolves_to_one_architecture_class():
 
 def test_model_class_owns_training_loss_and_evaluation_contract():
     architecture = load_architecture("architectures/borealis/main.py")
-    model = architecture.from_config({"vocab_size": 8, "embed_dim": 4, "context_dim": 6})
+    model = architecture.from_config({"tokenizer_name": "byte", "vocab_size": 257, "embed_dim": 4, "context_dim": 6})
     example = type("Example", (), {"inputs": ("hello",), "target": "world", "metadata": {}})()
     loss = model.training_loss(example)
     assert loss.ndim == 0
