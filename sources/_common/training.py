@@ -35,8 +35,9 @@ def source_module(source_path: str) -> Any:
     """Load the packaged source entrypoint from its canonical path suffix."""
     normalized = source_path.strip().strip("/")
     marker = "/sources/"
-    if marker in f"/{normalized}":
-        normalized = normalized.split(marker, maxsplit=1)[1]
+    normalized_path = f"/{normalized}"
+    if marker in normalized_path:
+        normalized = normalized_path.split(marker, maxsplit=1)[1]
         normalized = f"sources/{normalized}"
     if normalized.endswith(".py"):
         normalized = normalized[:-3]
