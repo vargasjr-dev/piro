@@ -116,6 +116,7 @@ export async function POST(
       output: modalTextToPiroOutput(result.text),
       durationMs: result.durationMs,
       state: result.state,
+      metadata: result.metadata,
     });
   } catch (error) {
     if (error instanceof ModalInferenceError) {

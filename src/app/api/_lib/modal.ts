@@ -5,13 +5,21 @@ type ModalInferenceResponse = {
   error?: unknown;
   durationMs?: unknown;
   state?: unknown;
+  metadata?: unknown;
 };
 
 export type ModalInferenceResult = {
   text: string;
   durationMs: number;
   state: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
 };
+
+function recordOrNull(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
 
 export async function invokeModalInference(
   endpoint: string,
@@ -54,10 +62,8 @@ export async function invokeModalInference(
     text: typeof payload?.text === "string" ? payload.text : "",
     durationMs:
       typeof payload?.durationMs === "number" ? payload.durationMs : 0,
-    state:
-      payload?.state !== null && typeof payload?.state === "object"
-        ? (payload.state as Record<string, unknown>)
-        : null,
+    state: recordOrNull(payload?.state),
+    metadata: recordOrNull(payload?.metadata),
   };
 }
 

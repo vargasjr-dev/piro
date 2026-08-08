@@ -89,7 +89,6 @@ sequence. If no EOS token is configured, `max_new_tokens` is the hard cap and th
 caller accepts cap-only termination. Ties use the lowest token ID because
 generation uses `torch.argmax`.
 
-
 `generate_with_state()` returns both the generated token IDs and the
 post-invocation `BorealisGenerationState`. Its adaptation state has been
 consolidated and cleared at the invocation boundary, while its context state is
@@ -110,4 +109,8 @@ serialization contract.
 
 The model is token-ID based for this experiment. Tokenization and text decoding
 belong outside the core architecture so synthetic tasks can use tiny vocabularies
-and the recurrent state behavior remains measurable.
+and the recurrent state behavior remains measurable. The HTTP invocation boundary
+returns the legacy token ID in `text` and labels it with metadata:
+`outputFormat="token-id"`, `encoding="utf8-byte-modulo"`, and `vocabSize`.
+Callers must not present that ID as a natural-language answer without an
+experiment-specific decoder.

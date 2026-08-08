@@ -140,8 +140,17 @@ class Borealis(ArchitectureModel):
         )
         with torch.no_grad():
             logits = self.run(token_ids, adaptation_state, adapt=True)
+        token_id = int(logits.argmax().item())
         return {
-            "text": str(int(logits.argmax().item())),
+            # Keep the legacy text field stable for callers that consume raw
+            # vocabulary IDs, while making the output contract explicit.
+            "text": str(token_id),
+            "metadata": {
+                "outputFormat": "token-id",
+                "tokenId": token_id,
+                "encoding": "utf8-byte-modulo",
+                "vocabSize": self.config.vocab_size,
+            },
             "state": json_state(self.snapshot_adaptation_state(self.initialize_adaptation_state())),
         }
 
