@@ -7,7 +7,11 @@ import { isAdmin } from "~/lib/admin";
 import { db } from "../../../../../data/db";
 import { dataset, trainingRun, user } from "../../../../../data/schema";
 import { deriveTrainingRunMetrics } from "~/lib/training-run-metrics";
-import { formatAge, formatDate } from "~/lib/training-run-admin";
+import {
+  formatAge,
+  formatArchitecturePath,
+  formatDate,
+} from "~/lib/training-run-admin";
 import { AdminShell } from "../AdminShell";
 
 export const dynamic = "force-dynamic";
@@ -125,7 +129,7 @@ export default async function AdminTrainingPage({
                           {run.id}
                         </div>
                         <div className="mt-1 text-xs text-amber-200/45">
-                          {run.architecturePath}
+                          {formatArchitecturePath(run.architecturePath)}
                         </div>
                       </td>
                       <td className="px-5 py-4">

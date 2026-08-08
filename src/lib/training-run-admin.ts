@@ -36,6 +36,25 @@ export function formatAge(value: Date | null, now = new Date()): string {
 
 export function formatDate(value: Date | null): string {
   return value
-    ? value.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+    ? value.toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "America/New_York",
+        timeZoneName: "short",
+      })
     : "—";
+}
+
+export function formatArchitecturePath(value: string | null): string {
+  if (!value) return "—";
+  return value.match(/(?:^|\/)architectures\/([^/]+)\/main\.py$/)?.[1] ?? value;
+}
+
+export function formatSourcePath(value: string | null): string {
+  if (!value) return "—";
+  const sourcesIndex = value.indexOf("/sources/");
+  return sourcesIndex >= 0 ? value.slice(sourcesIndex + 1) : value;
 }
