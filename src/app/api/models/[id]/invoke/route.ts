@@ -120,11 +120,33 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof ModalInferenceError) {
+      let endpointHost = "unknown";
+      try {
+        endpointHost = new URL(visibleModel.inferenceEndpoint).host;
+      } catch {
+        // Keep diagnostics safe if the persisted endpoint is malformed.
+      }
+
+      console.error("[model-invoke] Modal inference failed", {
+        modelId: visibleModel.id,
+        architecture,
+        endpointHost,
+        upstreamStatus: error.upstreamStatus,
+        upstreamError: error.message.slice(0, 500),
+      });
+
       return Response.json(
         { error: "Model inference failed" },
         { status: 502 },
       );
     }
+
+    console.error("[model-invoke] Unexpected inference failure", {
+      modelId: visibleModel.id,
+      architecture,
+      error:
+        error instanceof Error ? error.message.slice(0, 500) : String(error),
+    });
 
     return Response.json({ error: "Model inference failed" }, { status: 502 });
   }
