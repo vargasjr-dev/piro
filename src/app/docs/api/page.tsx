@@ -43,7 +43,8 @@ export default function ApiDocsPage() {
           </div>
           <p className="mt-4 max-w-3xl text-sm leading-relaxed text-amber-300/65 sm:text-base">
             Run a pretrained Piro model on one observation. Send a PiroInput
-            packet and receive the model output.
+            packet and receive the model output. Use either the model UUID or
+            model key in the route.
           </p>
         </div>
 
