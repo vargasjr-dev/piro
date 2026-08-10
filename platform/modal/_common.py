@@ -58,6 +58,7 @@ image = (
         "fastapi[standard]>=0.110.0",
         "boto3>=1.34.0",
         "pydantic>=2.0",
+        "tiktoken>=0.13.0",
     )
     .add_local_python_source("architectures")
     .add_local_python_source("sources")
