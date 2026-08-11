@@ -14,6 +14,7 @@ import {
   piroInputSchema,
 } from "../../../_lib/contracts";
 import { invokeModalInference, ModalInferenceError } from "../../../_lib/modal";
+import { PIRO_INFERENCE_ENDPOINT } from "~/lib/inference";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -33,7 +34,6 @@ export async function POST(
   const [visibleModel] = await db
     .select({
       id: model.id,
-      inferenceEndpoint: model.inferenceEndpoint,
       weightsR2Key: model.weightsR2Key,
       architecturePath: trainingRun.architecturePath,
     })
@@ -68,7 +68,7 @@ export async function POST(
     return Response.json({ error: "Model not found" }, { status: 404 });
   }
 
-  if (!visibleModel.inferenceEndpoint || !visibleModel.weightsR2Key) {
+  if (!visibleModel.weightsR2Key) {
     return Response.json(
       { error: "Model inference is not available" },
       { status: 409 },
@@ -105,7 +105,7 @@ export async function POST(
 
   try {
     const result = await invokeModalInference(
-      visibleModel.inferenceEndpoint,
+      PIRO_INFERENCE_ENDPOINT,
       visibleModel.id,
       architecture,
       parsed.data,
@@ -120,17 +120,10 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof ModalInferenceError) {
-      let endpointHost = "unknown";
-      try {
-        endpointHost = new URL(visibleModel.inferenceEndpoint).host;
-      } catch {
-        // Keep diagnostics safe if the persisted endpoint is malformed.
-      }
-
       console.error("[model-invoke] Modal inference failed", {
         modelId: visibleModel.id,
         architecture,
-        endpointHost,
+        endpointHost: new URL(PIRO_INFERENCE_ENDPOINT).host,
         upstreamStatus: error.upstreamStatus,
         upstreamError: error.message.slice(0, 500),
       });

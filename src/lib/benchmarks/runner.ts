@@ -37,7 +37,6 @@ async function resolveTargets(
         .select({
           id: model.id,
           name: model.name,
-          inferenceEndpoint: model.inferenceEndpoint,
         })
         .from(model)
         .where(
@@ -99,17 +98,7 @@ async function resolveTargets(
       });
     }
     if (trainingById[item.id]) {
-      if (!item.inferenceEndpoint) {
-        return {
-          name: item.name,
-          targetKey: item.id,
-          isStub: true,
-          generate: async () => {
-            throw new Error(`No inference endpoint for model ${item.name}`);
-          },
-        };
-      }
-      return makePiroModelAdapter(item.id, item.name, item.inferenceEndpoint);
+      return makePiroModelAdapter(item.id, item.name);
     }
     return {
       name: item.name,
@@ -132,7 +121,8 @@ export async function runEvaluation(
   const ranAt = new Date();
 
   try {
-    if (!targetFilter.length) throw new Error("Evaluation targets are required");
+    if (!targetFilter.length)
+      throw new Error("Evaluation targets are required");
 
     const [datasetRow] = await db
       .select()

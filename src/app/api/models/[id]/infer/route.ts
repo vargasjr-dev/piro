@@ -21,6 +21,7 @@ import {
 } from "../../../_lib/hosted";
 import { invokeModalInference, ModalInferenceError } from "../../../_lib/modal";
 import { getHostedModel } from "~/lib/hosted-models";
+import { PIRO_INFERENCE_ENDPOINT } from "~/lib/inference";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -46,7 +47,6 @@ export async function POST(
         .select({
           id: model.id,
           userId: model.userId,
-          inferenceEndpoint: model.inferenceEndpoint,
           weightsR2Key: model.weightsR2Key,
         })
         .from(model)
@@ -129,7 +129,7 @@ export async function POST(
     }
   }
 
-  if (!modelRow!.inferenceEndpoint || !modelRow!.weightsR2Key) {
+  if (!modelRow!.weightsR2Key) {
     return Response.json(
       { error: "This model is not ready for inference yet." },
       { status: 409 },
@@ -159,7 +159,7 @@ export async function POST(
 
   try {
     const result = await invokeModalInference(
-      modelRow!.inferenceEndpoint,
+      PIRO_INFERENCE_ENDPOINT,
       modelRow!.id,
       architecture,
       { parts: parsed.data.parts },

@@ -1,3 +1,4 @@
+import { PIRO_INFERENCE_ENDPOINT } from "~/lib/inference";
 import type { GenerateResult, ModelAdapter, SequenceOptions } from "./types";
 import type { ChatTargetConfig } from "./targets";
 
@@ -149,7 +150,6 @@ interface ModalInferResponse {
 export function makePiroModelAdapter(
   modelId: string,
   modelName: string,
-  inferenceEndpoint: string,
 ): ModelAdapter {
   return {
     name: modelName,
@@ -159,7 +159,6 @@ export function makePiroModelAdapter(
     async generate(prompt: string): Promise<GenerateResult> {
       const response = await requestModal({
         modelId,
-        inferenceEndpoint,
         prompt,
       });
       return {
@@ -189,7 +188,6 @@ export function makePiroModelAdapter(
       for (const input of inputs) {
         const response = await requestModal({
           modelId,
-          inferenceEndpoint,
           input,
           state,
         });
@@ -211,19 +209,17 @@ export function makePiroModelAdapter(
 
 async function requestModal({
   modelId,
-  inferenceEndpoint,
   prompt,
   input,
   state,
 }: {
   modelId: string;
-  inferenceEndpoint: string;
   prompt?: string;
   input?: string;
   state?: ModalState;
 }): Promise<ModalInferResponse> {
   const secret = process.env.MODAL_WEBHOOK_SECRET ?? "";
-  const res = await fetch(inferenceEndpoint, {
+  const res = await fetch(PIRO_INFERENCE_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

@@ -45,7 +45,6 @@ async function getLatestGlobalModel() {
         eq(deployment.enabled, true),
         isNull(deployment.targetUserId),
         isNull(model.archivedAt),
-        isNotNull(model.inferenceEndpoint),
         isNotNull(model.weightsR2Key),
       ),
     )

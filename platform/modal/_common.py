@@ -24,8 +24,6 @@ HEARTBEAT_INTERVAL_SECONDS = 30
 GPU_RATE_USD_PER_SECOND = 0.000164
 CPU_RATE_USD_PER_CORE_SECOND = 0.0000131
 MEMORY_RATE_USD_PER_GIB_SECOND = 0.00000222
-INFER_ENDPOINT = "https://dvargasfuertes--piro-inference-infer.modal.run"
-
 # Each entrypoint is deployed as its own Modal App so its lifecycle and hardware
 # profile can evolve independently.
 TRAINING_APP = "piro-training"
