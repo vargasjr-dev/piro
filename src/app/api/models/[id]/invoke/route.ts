@@ -29,7 +29,7 @@ export async function POST(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id: modelId } = await params;
+  const { id: modelKey } = await params;
   const [visibleModel] = await db
     .select({
       id: model.id,
@@ -43,7 +43,7 @@ export async function POST(
     .leftJoin(trainingRun, eq(trainingRun.id, modelTrainingRun.trainingRunId))
     .where(
       and(
-        eq(model.id, modelId),
+        or(eq(model.id, modelKey), eq(model.name, modelKey)),
         isNull(model.archivedAt),
         eq(deployment.enabled, true),
         or(
