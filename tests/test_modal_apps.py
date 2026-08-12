@@ -1,6 +1,5 @@
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 MODAL_DIR = Path(__file__).parents[1] / "platform" / "modal"
 
@@ -49,6 +48,12 @@ def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     assert 'r2.get_object(Bucket=R2_BUCKET, Key=manifest_key)' in source
     assert 'Integrity check failed' in source
     assert 'shutil.rmtree(temp_dir, ignore_errors=True)' in source
+
+
+def test_training_image_installs_architecture_runtime_dependencies():
+    common = (MODAL_DIR / "_common.py").read_text()
+
+    assert '"tiktoken>=0.13.0"' in common
 
 
 def test_modal_images_only_package_existing_local_python_sources():
