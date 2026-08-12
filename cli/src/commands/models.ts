@@ -54,6 +54,31 @@ export async function modelsDeploy(modelId: string): Promise<void> {
   );
 }
 
+export async function modelsDelete(modelId: string): Promise<void> {
+  const config = resolveConfig();
+  const response = await piroFetch(
+    config,
+    `/api/admin/models/${encodeURIComponent(modelId)}`,
+    { method: "DELETE" },
+  );
+
+  if (!response.ok) {
+    fail(response.status, response.body, "model deletion failed");
+  }
+
+  const result = z
+    .object({ deleted: z.object({ id: z.string(), name: z.string() }) })
+    .safeParse(response.body);
+  if (!result.success) {
+    console.error("Error: deletion response was invalid");
+    process.exit(1);
+  }
+
+  console.log(
+    `Deleted model ${result.data.deleted.name} (${result.data.deleted.id})`,
+  );
+}
+
 export async function modelsUpload(
   model: string,
   revision: string,

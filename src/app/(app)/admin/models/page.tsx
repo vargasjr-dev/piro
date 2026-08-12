@@ -12,6 +12,7 @@ import {
 } from "../../../../../data/schema";
 import { createAdminDeployment } from "../actions";
 import { AdminShell } from "../AdminShell";
+import { DeleteModelControl } from "./DeleteModelControl";
 
 export const dynamic = "force-dynamic";
 
@@ -54,13 +55,18 @@ export default async function AdminModelsPage() {
 
   return (
     <AdminShell current="Models">
-      <div className="mb-8">
-        <h1 className="text-3xl font-black tracking-tight text-amber-50 sm:text-4xl">
-          Models
-        </h1>
-        <p className="mt-3 text-sm text-amber-200/55">
-          Pretrained Piro models available for deployment.
-        </p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight text-amber-50 sm:text-4xl">
+            Models
+          </h1>
+          <p className="mt-3 text-sm text-amber-200/55">
+            Pretrained Piro models available for deployment.
+          </p>
+        </div>
+        <DeleteModelControl
+          models={models.map((item) => ({ id: item.id, name: item.name }))}
+        />
       </div>
       {models.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-amber-900/25 bg-amber-900/5 px-5 py-12 text-center text-sm text-amber-200/55">
