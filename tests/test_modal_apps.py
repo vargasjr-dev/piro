@@ -52,6 +52,21 @@ def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     assert 'shutil.rmtree(temp_dir, ignore_errors=True)' in source
 
 
+def test_training_workflow_collects_authenticated_diagnostics_after_deploy_failure():
+    workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "modal-deploy.yml").read_text()
+    assert "modal deploy platform/modal/training.py --timestamps" in workflow
+    assert "id: deploy" in workflow
+    assert "modal app logs piro-training" in workflow
+    assert "modal app history piro-training --json" in workflow
+    assert "MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}" in workflow
+    assert "MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}" in workflow
+    assert "borealis-training-diagnostics-${{ github.sha }}" in workflow
+    assert "training-deploy.log" in workflow
+    assert "training-app.log" in workflow
+    assert "training-history.json" in workflow
+    assert "if: always()" in workflow
+
+
 def test_gemma_workflow_collects_diagnostics_after_readiness_failure():
     workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "modal-deploy.yml").read_text()
     assert "modal deploy platform/modal/gemma.py --timestamps" in workflow
