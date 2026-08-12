@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections import defaultdict
-
 from sources._common.training import load_source_examples
 from sources.language_modeling import DatasetSpec, SourceRow, generate_language_modeling_dataset
 
@@ -91,6 +89,6 @@ def test_language_modeling_entrypoint_decodes_text_examples():
     )
 
     assert len(examples) == 1
-    assert examples[0].metadata["task"] == "language_modeling"
+    assert examples[0].continuation_prefix == ""
     assert examples[0].inputs[0].startswith(("web sample", "math sample"))
     assert examples[0].target == ""

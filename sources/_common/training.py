@@ -14,6 +14,7 @@ class Example:
 
     inputs: tuple[Any, ...]
     target: Any
+    continuation_prefix: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

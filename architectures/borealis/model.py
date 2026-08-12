@@ -141,7 +141,11 @@ class Borealis(ArchitectureModel):
         texts = [
             str(value)
             for example in examples
-            for value in (*example.inputs, example.target, "\nANSWER:")
+            for value in (
+                *example.inputs,
+                getattr(example, "continuation_prefix", "\nANSWER:"),
+                example.target,
+            )
         ]
         tokenizer = BorealisTokenizer.fit(texts, max_vocab_size=8192)
         return {
@@ -151,10 +155,8 @@ class Borealis(ArchitectureModel):
 
     def _tokens(self, example: Any) -> torch.Tensor:
         prompt = "\n".join(str(value) for value in example.inputs)
-        if example.metadata.get("task") == "language_modeling":
-            text = f"{prompt}{example.target}"
-        else:
-            text = f"{prompt}{self.config.target_prefix}{example.target}"
+        continuation_prefix = getattr(example, "continuation_prefix", self.config.target_prefix)
+        text = f"{prompt}{continuation_prefix}{example.target}"
         values = self.tokenizer.encode_training_text(text)
         return torch.tensor(values, dtype=torch.long, device=self.token_embedding.weight.device)
 

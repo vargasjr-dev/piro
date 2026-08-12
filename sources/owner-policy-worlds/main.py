@@ -16,6 +16,7 @@ def load_training_data(*, r2_client, bucket, prefix, split, limit):
         Example(
             inputs=input_texts(record),
             target=record["answerIndex"],
+            continuation_prefix="\nANSWER:",
             metadata={"task": "owner_policy"},
         )
         for record in records
