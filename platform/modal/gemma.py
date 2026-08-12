@@ -25,6 +25,8 @@ vllm_image = (
         add_python="3.12",
     )
     .entrypoint([])
+    .env({"PYTHONPATH": "/root/platform/modal"})
+    .add_local_dir("platform/modal", remote_path="/root/platform/modal")
     .pip_install(f"vllm=={VLLM_VERSION}", "boto3>=1.34.0")
     .env(
         {
