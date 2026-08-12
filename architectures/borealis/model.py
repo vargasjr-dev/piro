@@ -128,7 +128,10 @@ class Borealis(ArchitectureModel):
 
     def _tokens(self, example: Any) -> torch.Tensor:
         prompt = "\n".join(str(value) for value in example.inputs)
-        text = f"{prompt}{self.config.target_prefix}{example.target}"
+        if example.metadata.get("task") == "language_modeling":
+            text = f"{prompt}{example.target}"
+        else:
+            text = f"{prompt}{self.config.target_prefix}{example.target}"
         values = self.tokenizer.encode_training_text(text)
         return torch.tensor(values, dtype=torch.long, device=self.token_embedding.weight.device)
 
