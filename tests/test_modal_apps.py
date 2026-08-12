@@ -41,6 +41,8 @@ def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     assert 'modal.Volume.from_name("piro-gemma-huggingface-cache"' in source
     assert 'modal.Volume.from_name("piro-gemma-vllm-cache"' in source
     assert 'secrets=[piro_secrets]' in source
+    assert '.env({"PYTHONPATH": "/root/platform/modal"})' in source
+    assert '.add_local_dir("platform/modal", remote_path="/root/platform/modal")' in source
     assert 'HF_HUB_OFFLINE": "1"' in source
     assert 'TRANSFORMERS_OFFLINE": "1"' in source
     assert 'MODEL_PREFIX = f"models/{MODEL_NAME.replace('/', '--')}/{MODEL_REVISION}"' in source
