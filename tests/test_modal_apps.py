@@ -58,6 +58,8 @@ def test_gemma_workflow_collects_diagnostics_after_readiness_failure():
     assert "GEMMA_ENDPOINT: https://dvargasfuertes--piro-gemma-vllm-server.us-east.modal.direct/v1/models" in workflow
     assert "modal app logs piro-gemma-vllm" in workflow
     assert "modal app history piro-gemma-vllm --json" in workflow
+    assert workflow.count("MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}") >= 5
+    assert workflow.count("MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}") >= 5
     assert "gemma-deployment-diagnostics-${{ github.sha }}" in workflow
     assert "gemma-readiness.log" in workflow
     assert workflow.count("if: always()") >= 2
