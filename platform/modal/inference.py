@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 
 import modal
@@ -25,6 +26,7 @@ def is_supported_architecture(value: object) -> bool:
 class Infer:
     @modal.enter()
     def setup(self):
+        setup_started_at = time.perf_counter()
         import io
         import json
         import os
@@ -41,8 +43,13 @@ class Infer:
         self._torch = torch
         self._load_architecture = load_architecture
         self._cache: dict[tuple[str, str], tuple[Any, dict[str, Any]]] = {}
+        self._container_setup_ms = round(
+            (time.perf_counter() - setup_started_at) * 1000
+        )
 
-        print("[piro-infer] container ready")
+        print(
+            f"[piro-infer] container ready containerSetupMs={self._container_setup_ms}"
+        )
 
     def _load(self, model_id: str, architecture: str):
         """Load a model class through its canonical architecture entrypoint."""
@@ -51,8 +58,9 @@ class Infer:
 
         cache_key = (model_id, architecture)
         if cache_key in self._cache:
-            return self._cache[cache_key]
+            return self._cache[cache_key], True, 0
 
+        load_started_at = time.perf_counter()
         conn = self._psycopg2.connect(self._os.environ["DATABASE_URL"])
         cur = conn.cursor()
         cur.execute(
@@ -92,11 +100,13 @@ class Infer:
         model.load_model_state(state)
         model.eval()
         self._cache[cache_key] = (model, cfg)
+        model_load_ms = round((time.perf_counter() - load_started_at) * 1000)
         print(
             f"[piro-infer] loaded {model_id} ({architecture}, "
-            f"{model.parameter_count()} params) from R2 {r2_prefix}/"
+            f"{model.parameter_count()} params) from R2 {r2_prefix}/ "
+            f"modelLoadMs={model_load_ms}"
         )
-        return self._cache[cache_key]
+        return self._cache[cache_key], False, model_load_ms
 
     @modal.method()
     def generate(
@@ -105,22 +115,51 @@ class Infer:
         architecture: str,
         input_packet: dict[str, Any],
         state: dict[str, Any] | None = None,
+        request_id: str | None = None,
     ) -> dict:
         """Dispatch one structured PiroInput packet to the architecture model."""
-        import time
-
-        t0 = time.time()
+        worker_started_at = time.perf_counter()
         try:
-            model, _cfg = self._load(model_id, architecture)
+            (model, _cfg), cache_hit, model_load_ms = self._load(
+                model_id, architecture
+            )
+            invoke_started_at = time.perf_counter()
             result = model.invoke(input_packet, state)
+            model_invoke_ms = round((time.perf_counter() - invoke_started_at) * 1000)
             if not isinstance(result, dict):
                 raise ValueError("Architecture invocation must return an object")
+            duration_ms = round((time.perf_counter() - worker_started_at) * 1000)
+            timings = {
+                "requestId": request_id,
+                "workerMs": duration_ms,
+                "modelLoadMs": model_load_ms,
+                "modelInvokeMs": model_invoke_ms,
+                "containerSetupMs": self._container_setup_ms,
+                "cacheHit": cache_hit,
+            }
+            print(
+                f"[piro-infer] requestTiming requestId={request_id or 'none'} "
+                f"modelId={model_id} architecture={architecture} "
+                f"workerMs={duration_ms} modelLoadMs={model_load_ms} "
+                f"modelInvokeMs={model_invoke_ms} cacheHit={cache_hit}"
+            )
             return {
                 **result,
-                "durationMs": int((time.time() - t0) * 1000),
+                "durationMs": duration_ms,
+                "timings": timings,
             }
         except Exception as exc:
-            return {"text": "", "error": str(exc), "durationMs": 0}
+            duration_ms = round((time.perf_counter() - worker_started_at) * 1000)
+            return {
+                "text": "",
+                "error": str(exc),
+                "durationMs": 0,
+                "timings": {
+                    "requestId": request_id,
+                    "workerMs": duration_ms,
+                    "containerSetupMs": self._container_setup_ms,
+                },
+            }
 
 
 @app.function(image=image, secrets=[piro_secrets])
@@ -139,6 +178,7 @@ def infer(body: dict) -> dict:
     architecture = body.get("architecture")
     parts = body.get("parts")
     state = body.get("state")
+    request_id = body.get("request_id")
     if not isinstance(model_id, str) or not model_id:
         raise HTTPException(status_code=400, detail="model_id required")
     if not is_supported_architecture(architecture):
@@ -156,10 +196,28 @@ def infer(body: dict) -> dict:
     if state is not None and not isinstance(state, dict):
         raise HTTPException(status_code=400, detail="state must be an object")
 
+    endpoint_started_at = time.perf_counter()
     inferrer = Infer()
-    return inferrer.generate.remote(
+    result = inferrer.generate.remote(
         model_id=model_id,
         architecture=architecture,
         input_packet={"parts": parts},
         state=state,
+        request_id=request_id if isinstance(request_id, str) else None,
     )
+    modal_endpoint_ms = round((time.perf_counter() - endpoint_started_at) * 1000)
+    timings = result.get("timings") if isinstance(result, dict) else None
+    if not isinstance(timings, dict):
+        timings = {}
+    worker_ms = timings.get("workerMs")
+    queue_ms = (
+        max(0, modal_endpoint_ms - worker_ms)
+        if isinstance(worker_ms, int | float)
+        else None
+    )
+    result["timings"] = {
+        **timings,
+        "modalEndpointMs": modal_endpoint_ms,
+        **({"modalQueueMs": queue_ms} if queue_ms is not None else {}),
+    }
+    return result

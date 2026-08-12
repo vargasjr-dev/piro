@@ -14,6 +14,7 @@ import {
   piroInputSchema,
 } from "../../../_lib/contracts";
 import { invokeModalInference, ModalInferenceError } from "../../../_lib/modal";
+import { elapsedMs, type InferenceTimings } from "../../../_lib/timings";
 import { PIRO_INFERENCE_ENDPOINT } from "~/lib/inference";
 
 export const runtime = "nodejs";
@@ -25,12 +26,18 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const routeStartedAt = performance.now();
+  const requestId = crypto.randomUUID();
+
+  const authStartedAt = performance.now();
   const auth = await validateApiKey(extractBearer(request) ?? "");
+  const authMs = elapsedMs(authStartedAt);
   if (!auth) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id: modelKey } = await params;
+  const modelLookupStartedAt = performance.now();
   const [visibleModel] = await db
     .select({
       id: model.id,
@@ -63,6 +70,7 @@ export async function POST(
       ),
     )
     .limit(1);
+  const modelLookupMs = elapsedMs(modelLookupStartedAt);
 
   if (!visibleModel) {
     return Response.json({ error: "Model not found" }, { status: 404 });
@@ -85,6 +93,7 @@ export async function POST(
     );
   }
 
+  const validationStartedAt = performance.now();
   let body: unknown;
   try {
     body = await request.json();
@@ -93,6 +102,7 @@ export async function POST(
   }
 
   const parsed = piroInputSchema.safeParse(body);
+  const inputValidationMs = elapsedMs(validationStartedAt);
   if (!parsed.success) {
     return Response.json(
       {
@@ -103,6 +113,13 @@ export async function POST(
     );
   }
 
+  const baseTimings: InferenceTimings = {
+    requestId,
+    authMs,
+    modelLookupMs,
+    inputValidationMs,
+  };
+
   try {
     const result = await invokeModalInference(
       PIRO_INFERENCE_ENDPOINT,
@@ -110,22 +127,43 @@ export async function POST(
       architecture,
       parsed.data,
       process.env.MODAL_WEBHOOK_SECRET ?? "",
+      null,
+      fetch,
+      requestId,
     );
+    const timings = {
+      ...baseTimings,
+      ...result.timings,
+      routeMs: elapsedMs(routeStartedAt),
+    };
+    console.info("[model-invoke] completed", {
+      requestId,
+      architecture,
+      timings,
+    });
 
     return Response.json({
       output: modalTextToPiroOutput(result.text),
       durationMs: result.durationMs,
       state: result.state,
       metadata: result.metadata,
+      timings,
     });
   } catch (error) {
     if (error instanceof ModalInferenceError) {
       console.error("[model-invoke] Modal inference failed", {
+        requestId,
         modelId: visibleModel.id,
         architecture,
         endpointHost: new URL(PIRO_INFERENCE_ENDPOINT).host,
         upstreamStatus: error.upstreamStatus,
         upstreamError: error.message.slice(0, 500),
+        timings: {
+          ...baseTimings,
+          ...error.performance?.timings,
+          modalHttpMs: error.performance?.modalHttpMs,
+          routeMs: elapsedMs(routeStartedAt),
+        },
       });
 
       return Response.json(
@@ -135,6 +173,7 @@ export async function POST(
     }
 
     console.error("[model-invoke] Unexpected inference failure", {
+      requestId,
       modelId: visibleModel.id,
       architecture,
       error:

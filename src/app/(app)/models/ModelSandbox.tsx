@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { InferenceTimings } from "~/app/api/_lib/timings";
 
 type SandboxMessage = {
   id: string;
@@ -8,6 +9,7 @@ type SandboxMessage = {
   text: string;
   sentAt: number;
   durationMs?: number | null;
+  timings?: InferenceTimings | null;
   metadata?: Record<string, unknown> | null;
   pending?: boolean;
   error?: boolean;
@@ -32,6 +34,7 @@ type InferResponse = {
   };
   state?: Record<string, unknown> | null;
   durationMs?: number;
+  timings?: InferenceTimings | null;
   metadata?: Record<string, unknown> | null;
   error?: string;
 };
@@ -101,6 +104,7 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
       );
     }
 
+    const browserStartedAt = performance.now();
     try {
       const response = await fetch(
         `/api/models/${encodeURIComponent(modelId)}/infer`,
@@ -148,6 +152,13 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
         text: formatModelOutput(output, body.metadata ?? null),
         sentAt: receivedAt,
         durationMs: body.durationMs ?? null,
+        timings: {
+          ...(body.timings ?? {}),
+          browserE2eMs: Math.max(
+            0,
+            Math.round(performance.now() - browserStartedAt),
+          ),
+        },
         metadata: body.metadata ?? null,
       });
       setState(body.state ?? null);
@@ -203,9 +214,60 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
                   !message.pending &&
                   message.durationMs !== undefined &&
                   message.durationMs !== null && (
-                    <p className="mt-2 text-[10px] text-amber-500/45">
-                      {formatDuration(message.durationMs)}
-                    </p>
+                    <div className="mt-2 text-[10px] text-amber-500/45">
+                      <p>{formatDuration(message.durationMs)}</p>
+                      {message.timings && (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-amber-500/55">
+                            Timing details
+                          </summary>
+                          <dl className="mt-1 space-y-0.5 text-amber-500/45">
+                            {message.timings.browserE2eMs !== undefined && (
+                              <div className="flex justify-between gap-3">
+                                <dt>Browser</dt>
+                                <dd>
+                                  {formatDuration(message.timings.browserE2eMs)}
+                                </dd>
+                              </div>
+                            )}
+                            {message.timings.routeMs !== undefined && (
+                              <div className="flex justify-between gap-3">
+                                <dt>Route</dt>
+                                <dd>
+                                  {formatDuration(message.timings.routeMs)}
+                                </dd>
+                              </div>
+                            )}
+                            {message.timings.modalQueueMs !== undefined && (
+                              <div className="flex justify-between gap-3">
+                                <dt>Queue</dt>
+                                <dd>
+                                  {formatDuration(message.timings.modalQueueMs)}
+                                </dd>
+                              </div>
+                            )}
+                            {message.timings.modelLoadMs !== undefined && (
+                              <div className="flex justify-between gap-3">
+                                <dt>Load</dt>
+                                <dd>
+                                  {formatDuration(message.timings.modelLoadMs)}
+                                </dd>
+                              </div>
+                            )}
+                            {message.timings.modelInvokeMs !== undefined && (
+                              <div className="flex justify-between gap-3">
+                                <dt>Invoke</dt>
+                                <dd>
+                                  {formatDuration(
+                                    message.timings.modelInvokeMs,
+                                  )}
+                                </dd>
+                              </div>
+                            )}
+                          </dl>
+                        </details>
+                      )}
+                    </div>
                   )}
               </div>
               {message.role === "user" && (
