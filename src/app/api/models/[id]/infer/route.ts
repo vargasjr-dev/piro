@@ -20,6 +20,7 @@ import {
   HostedInferenceError,
 } from "../../../_lib/hosted";
 import { invokeModalInference, ModalInferenceError } from "../../../_lib/modal";
+import { elapsedMs, type InferenceTimings } from "../../../_lib/timings";
 import { getHostedModel } from "~/lib/hosted-models";
 import { PIRO_INFERENCE_ENDPOINT } from "~/lib/inference";
 
@@ -34,12 +35,18 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const routeStartedAt = performance.now();
+  const requestId = crypto.randomUUID();
   const { id } = await params;
+
+  const authStartedAt = performance.now();
   const session = await auth.api.getSession({ headers: await headers() });
+  const authMs = elapsedMs(authStartedAt);
   if (!session) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const modelLookupStartedAt = performance.now();
   const hostedModel = isAdmin(session) ? getHostedModel(id) : undefined;
   const [modelRow] = hostedModel
     ? []
@@ -52,11 +59,13 @@ export async function POST(
         .from(model)
         .where(and(eq(model.id, id), isNull(model.archivedAt)))
         .limit(1);
+  const modelLookupMs = elapsedMs(modelLookupStartedAt);
 
   if (!hostedModel && !modelRow) {
     return Response.json({ error: "Model not found" }, { status: 404 });
   }
 
+  const deploymentLookupStartedAt = performance.now();
   const [visibleDeployment] = hostedModel
     ? []
     : await db
@@ -84,11 +93,13 @@ export async function POST(
           ),
         )
         .limit(1);
+  const lookupMs = modelLookupMs + elapsedMs(deploymentLookupStartedAt);
 
   if (!hostedModel && !visibleDeployment) {
     return Response.json({ error: "Model not found" }, { status: 404 });
   }
 
+  const validationStartedAt = performance.now();
   let body: unknown;
   try {
     body = await request.json();
@@ -100,6 +111,7 @@ export async function POST(
   }
 
   const parsed = browserInferenceSchema.safeParse(body);
+  const inputValidationMs = elapsedMs(validationStartedAt);
   if (!parsed.success) {
     return Response.json(
       { error: "Invalid PiroInput", issues: z.treeifyError(parsed.error) },
@@ -107,16 +119,33 @@ export async function POST(
     );
   }
 
+  const baseTimings: InferenceTimings = {
+    requestId,
+    authMs,
+    modelLookupMs: lookupMs,
+    inputValidationMs,
+  };
+
   if (hostedModel) {
     try {
       const result = await invokeHostedInference(hostedModel, {
         parts: parsed.data.parts,
+      });
+      const timings = {
+        ...baseTimings,
+        routeMs: elapsedMs(routeStartedAt),
+      };
+      console.info("[model-infer] completed", {
+        requestId,
+        modelType: "hosted",
+        timings,
       });
       return Response.json({
         output: modalTextToPiroOutput(result.text),
         durationMs: result.durationMs,
         state: null,
         metadata: null,
+        timings,
       });
     } catch (error) {
       if (error instanceof HostedInferenceError) {
@@ -136,6 +165,7 @@ export async function POST(
     );
   }
 
+  const architectureLookupStartedAt = performance.now();
   const [trainingLink] = await db
     .select({ trainingRunId: modelTrainingRun.trainingRunId })
     .from(modelTrainingRun)
@@ -148,6 +178,7 @@ export async function POST(
         .where(eq(trainingRun.id, trainingLink.trainingRunId))
         .limit(1)
     : [];
+  const architectureLookupMs = elapsedMs(architectureLookupStartedAt);
 
   const architecture = architectureFromPath(run?.architecturePath ?? "");
   if (!architecture) {
@@ -165,19 +196,57 @@ export async function POST(
       { parts: parsed.data.parts },
       process.env.MODAL_WEBHOOK_SECRET ?? "",
       parsed.data.state ?? null,
+      fetch,
+      requestId,
     );
+    const timings = {
+      ...baseTimings,
+      modelLookupMs: lookupMs + architectureLookupMs,
+      ...result.timings,
+      routeMs: elapsedMs(routeStartedAt),
+    };
+    console.info("[model-infer] completed", {
+      requestId,
+      modelType: "modal",
+      architecture,
+      timings,
+    });
 
     return Response.json({
       output: modalTextToPiroOutput(result.text),
       durationMs: result.durationMs,
       state: result.state,
       metadata: result.metadata,
+      timings,
     });
   } catch (error) {
     if (error instanceof ModalInferenceError) {
-      return Response.json({ error: error.message }, { status: 502 });
+      console.error("[model-infer] Modal inference failed", {
+        requestId,
+        architecture,
+        endpointHost: new URL(PIRO_INFERENCE_ENDPOINT).host,
+        upstreamStatus: error.upstreamStatus,
+        upstreamError: error.message.slice(0, 500),
+        timings: {
+          ...baseTimings,
+          modelLookupMs: lookupMs + architectureLookupMs,
+          ...error.performance?.timings,
+          modalHttpMs: error.performance?.modalHttpMs,
+          routeMs: elapsedMs(routeStartedAt),
+        },
+      });
+      return Response.json(
+        { error: "Model inference failed" },
+        { status: 502 },
+      );
     }
 
+    console.error("[model-infer] Unexpected inference failure", {
+      requestId,
+      architecture,
+      error:
+        error instanceof Error ? error.message.slice(0, 500) : String(error),
+    });
     return Response.json({ error: "Model inference failed" }, { status: 502 });
   }
 }
