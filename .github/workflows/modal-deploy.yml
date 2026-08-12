@@ -177,6 +177,9 @@ jobs:
           exit 1
       - name: Collect Gemma diagnostics
         if: always()
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
         run: |
           set +e
           modal app logs piro-gemma-vllm \
