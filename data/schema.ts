@@ -310,8 +310,6 @@ export const model = pgTable(
      * Null = weights not yet stored (model predates R2 storage or hasn't finished training).
      */
     weightsR2Key: text("weightsR2Key"),
-    /** URL of the inference endpoint for this model (e.g. Modal /infer URL). Null = no inference available. */
-    inferenceEndpoint: text("inferenceEndpoint"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     /**
      * Set when the model is archived. Archived models are hidden from the

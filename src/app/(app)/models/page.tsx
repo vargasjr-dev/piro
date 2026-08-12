@@ -126,7 +126,6 @@ export default async function ModelsPage() {
   const globalSelectFields = {
     ...privateSelectFields,
     weightsR2Key: model.weightsR2Key,
-    inferenceEndpoint: model.inferenceEndpoint,
   };
 
   const [privateModels, globalModels] = await Promise.all([
@@ -193,7 +192,7 @@ export default async function ModelsPage() {
       createdAt: item.createdAt.toISOString(),
     }));
   const pretrainedModelOptions: PretrainedModelOption[] = globalModels
-    .filter((item) => item.weightsR2Key && item.inferenceEndpoint)
+    .filter((item) => item.weightsR2Key)
     .slice(0, 3)
     .map(({ id, name }) => ({ id, name }));
 

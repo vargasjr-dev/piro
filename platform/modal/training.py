@@ -12,7 +12,6 @@ from _common import (
     EVAL_INTERVAL_STEPS,
     GPU_RATE_USD_PER_SECOND,
     HEARTBEAT_INTERVAL_SECONDS,
-    INFER_ENDPOINT,
     MEMORY_RATE_USD_PER_GIB_SECOND,
     R2_BUCKET,
     TRAINING_APP,
@@ -445,8 +444,8 @@ class Trainer:
             cur.execute(
                 """
                 INSERT INTO model (id, "userId", name, "parameterCount", "weightsR2Key",
-                                   "inferenceEndpoint", "createdAt")
-                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                                   "createdAt")
+                VALUES (%s, %s, %s, %s, %s, NOW())
                 """,
                 (
                     model_id,
@@ -454,7 +453,6 @@ class Trainer:
                     resolved_name,
                     model.parameter_count(),
                     r2_prefix,
-                    INFER_ENDPOINT,
                 ),
             )
             cur.execute(

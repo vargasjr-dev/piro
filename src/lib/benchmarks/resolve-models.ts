@@ -30,7 +30,6 @@ export async function resolveModelTargets(rawTargets: string[]): Promise<{
         id: model.id,
         name: model.name,
         weightsR2Key: model.weightsR2Key,
-        inferenceEndpoint: model.inferenceEndpoint,
       })
       .from(model)
       .where(inArray(model.id, uuids)),

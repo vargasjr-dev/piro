@@ -65,7 +65,6 @@ export async function POST(request: Request) {
       name: model.name,
       parameterCount: model.parameterCount,
       weightsR2Key: model.weightsR2Key,
-      inferenceEndpoint: model.inferenceEndpoint,
       trainingRunId: modelTrainingRun.trainingRunId,
     })
     .from(deployment)
@@ -79,7 +78,6 @@ export async function POST(request: Request) {
         isNull(deployment.targetUserId),
         isNull(model.archivedAt),
         isNotNull(model.weightsR2Key),
-        isNotNull(model.inferenceEndpoint),
       ),
     )
     .limit(1);
@@ -101,7 +99,6 @@ export async function POST(request: Request) {
         description: `${sourceModel.name} private deployment`,
         parameterCount: sourceModel.parameterCount,
         weightsR2Key: sourceModel.weightsR2Key,
-        inferenceEndpoint: sourceModel.inferenceEndpoint,
       })
       .returning();
 

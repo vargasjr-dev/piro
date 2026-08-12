@@ -27,7 +27,6 @@ export default async function AdminModelsPage() {
         name: model.name,
         description: model.description,
         parameterCount: model.parameterCount,
-        inferenceEndpoint: model.inferenceEndpoint,
         weightsR2Key: model.weightsR2Key,
         createdAt: model.createdAt,
         ownerName: user.name,
@@ -70,7 +69,7 @@ export default async function AdminModelsPage() {
       ) : (
         <div className="space-y-3">
           {models.map((item) => {
-            const ready = Boolean(item.inferenceEndpoint && item.weightsR2Key);
+            const ready = Boolean(item.weightsR2Key);
             const globalKey = `${item.id}:global`;
             return (
               <article

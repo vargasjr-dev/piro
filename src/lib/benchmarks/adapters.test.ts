@@ -20,12 +20,10 @@ test("GPT Associative Recall sequence uses one request per input and aggregates 
       });
     };
 
-    const result = await makeGPTAdapter("gpt-5-nano").generateSequence!([
-      "key_017 = value_014",
-      "token_005_027",
-      "token_011_003",
-      "key_017",
-    ], { systemPrompt: "dataset-owned protocol" });
+    const result = await makeGPTAdapter("gpt-5-nano").generateSequence!(
+      ["key_017 = value_014", "token_005_027", "token_011_003", "key_017"],
+      { systemPrompt: "dataset-owned protocol" },
+    );
 
     assert.equal(requests.length, 4);
     assert.deepEqual(
@@ -74,11 +72,8 @@ test("Piro Associative Recall sequence passes returned state to the next request
       });
     };
 
-    const result = await makePiroModelAdapter(
-      "model-1",
-      "piro-ctm",
-      "https://modal.test/infer",
-    ).generateSequence!([
+    const result = await makePiroModelAdapter("model-1", "piro-ctm")
+      .generateSequence!([
       "key_017 = value_014",
       "token_005_027",
       "token_011_003",
