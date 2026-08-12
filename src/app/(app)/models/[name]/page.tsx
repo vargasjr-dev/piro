@@ -7,8 +7,13 @@ import { isAdmin } from "~/lib/admin";
 import { getHostedModelByRouteKey } from "~/lib/hosted-models";
 import { db } from "../../../../../data/db";
 import { deployment, model } from "../../../../../data/schema";
+import GlobalDeploymentControls from "../GlobalDeploymentControls";
 import ModelSandbox from "../ModelSandbox";
-import { disablePrivateDeployment } from "../actions";
+import {
+  deleteGlobalDeployment,
+  disableGlobalDeployment,
+  disablePrivateDeployment,
+} from "../actions";
 
 export default async function ModelSandboxPage({
   params,
@@ -19,9 +24,28 @@ export default async function ModelSandboxPage({
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
 
-  const hostedModel = isAdmin(session)
-    ? getHostedModelByRouteKey(name)
-    : undefined;
+  const adminSession = isAdmin(session);
+  const hostedModel = adminSession ? getHostedModelByRouteKey(name) : undefined;
+  const privateDeployment = and(
+    eq(deployment.isAdmin, false),
+    eq(deployment.enabled, true),
+    eq(deployment.createdByUserId, session.user.id),
+    eq(model.userId, session.user.id),
+  );
+  const globalDeployment = and(
+    eq(deployment.isAdmin, true),
+    or(
+      isNull(deployment.targetUserId),
+      eq(deployment.targetUserId, session.user.id),
+    ),
+  );
+  const visibleDeployment = adminSession
+    ? or(privateDeployment, globalDeployment)
+    : or(
+        privateDeployment,
+        and(globalDeployment, eq(deployment.enabled, true)),
+      );
+
   const [modelRow] = hostedModel
     ? []
     : await db
@@ -29,9 +53,11 @@ export default async function ModelSandboxPage({
           id: model.id,
           name: model.name,
           parameterCount: model.parameterCount,
-          createdAt: model.createdAt,
+          createdAt: deployment.createdAt,
           deploymentId: deployment.id,
           isGlobal: deployment.isAdmin,
+          targetUserId: deployment.targetUserId,
+          enabled: deployment.enabled,
         })
         .from(model)
         .innerJoin(deployment, eq(deployment.modelId, model.id))
@@ -39,21 +65,7 @@ export default async function ModelSandboxPage({
           and(
             eq(model.name, name),
             isNull(model.archivedAt),
-            eq(deployment.enabled, true),
-            or(
-              and(
-                eq(deployment.isAdmin, false),
-                eq(deployment.createdByUserId, session.user.id),
-                eq(model.userId, session.user.id),
-              ),
-              and(
-                eq(deployment.isAdmin, true),
-                or(
-                  isNull(deployment.targetUserId),
-                  eq(deployment.targetUserId, session.user.id),
-                ),
-              ),
-            ),
+            visibleDeployment,
           ),
         )
         .orderBy(desc(deployment.isAdmin), desc(deployment.createdAt))
@@ -69,6 +81,8 @@ export default async function ModelSandboxPage({
         createdAt: new Date(0),
         deploymentId: null,
         isGlobal: true,
+        targetUserId: null,
+        enabled: true,
       }
     : modelRow!;
 
@@ -83,6 +97,13 @@ export default async function ModelSandboxPage({
 
   const canDisablePrivateDeployment = Boolean(
     !hostedModel && !resolvedModel.isGlobal && resolvedModel.deploymentId,
+  );
+  const canManageGlobalDeployment = Boolean(
+    adminSession &&
+    !hostedModel &&
+    resolvedModel.isGlobal &&
+    resolvedModel.deploymentId &&
+    resolvedModel.targetUserId === null,
   );
 
   return (
@@ -114,6 +135,14 @@ export default async function ModelSandboxPage({
                 Disable
               </button>
             </form>
+          )}
+          {canManageGlobalDeployment && (
+            <GlobalDeploymentControls
+              deploymentId={resolvedModel.deploymentId!}
+              enabled={resolvedModel.enabled}
+              disableAction={disableGlobalDeployment}
+              deleteAction={deleteGlobalDeployment}
+            />
           )}
         </div>
 
