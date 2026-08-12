@@ -5,11 +5,13 @@ from architectures.borealis.model import (
     BorealisAdaptationState,
     BorealisConfig,
 )
+from architectures.borealis.tokenizer import BorealisTokenizer
 
 
 def small_model(**overrides) -> Borealis:
     config = {
         "tokenizer_name": "byte",
+        "tokenizer_merges": None,
         "vocab_size": 257,
         "embed_dim": 8,
         "context_dim": 12,
@@ -310,3 +312,43 @@ def test_invoke_returns_decoded_text_and_tokenizer_metadata():
     assert result["text"] == "oo"
     assert result["metadata"]["outputFormat"] == "text"
     assert result["metadata"]["tokenizer"] == "byte"
+
+
+def test_byte_bpe_fits_lossless_compact_tokenizer():
+    tokenizer = BorealisTokenizer.fit(
+        ["Alice owns a customer success plan. 🛰️", "ANSWER: retention"],
+        max_vocab_size=512,
+    )
+
+    assert tokenizer.name == "byte_bpe"
+    assert tokenizer.vocab_size <= 512
+    text = "Alice owns a customer success plan. 🛰️"
+    assert tokenizer.decode(tokenizer.encode(text)) == text
+
+
+def test_training_config_persists_fitted_tokenizer():
+    examples = [
+        type(
+            "Example",
+            (),
+            {
+                "inputs": ("Alice owns a customer success plan. " * 4,),
+                "target": "retention retention",
+            },
+        )(),
+    ]
+
+    config = Borealis.config_for_training(examples)
+
+    assert config["tokenizer_name"] == "byte_bpe"
+    assert config["tokenizer_merges"]
+    tokenizer = BorealisTokenizer(config["tokenizer_name"], config["tokenizer_merges"])
+    assert tokenizer.decode(tokenizer.encode("Alice owns a customer success plan.")) == (
+        "Alice owns a customer success plan."
+    )
+
+
+def test_output_head_reuses_token_embedding_weights():
+    model = small_model()
+
+    assert model.output_head.weight is model.token_embedding.weight
