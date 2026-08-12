@@ -4,6 +4,7 @@
  *
  * Usage:
  *   piro models deploy <model-id>
+  piro models delete <model-id> --yes
  *
  * Auth:
  *   PIRO_API_KEY=<key>  (required)
@@ -24,7 +25,7 @@ import {
   trainingGet,
   trainingList,
 } from "./commands/training.js";
-import { modelsDeploy, modelsUpload } from "./commands/models.js";
+import { modelsDelete, modelsDeploy, modelsUpload } from "./commands/models.js";
 
 const [, , subject, verb, ...rest] = process.argv;
 
@@ -55,7 +56,10 @@ function usage(msg?: string): never {
   console.error("  piro evals list");
   console.error("  piro evals get <id>");
   console.error("  piro models deploy <model-id>");
-  console.error("  piro models upload <huggingface-model> --revision <revision>");
+  console.error("  piro models delete <model-id> --yes");
+  console.error(
+    "  piro models upload <huggingface-model> --revision <revision>",
+  );
   console.error("  piro training list");
   console.error("  piro training get <id>");
   console.error(
@@ -153,6 +157,14 @@ switch (subject) {
         const modelId = arg(rest, 0);
         if (!modelId) usage("model id is required");
         await modelsDeploy(modelId);
+        break;
+      }
+      case "delete": {
+        const modelId = arg(rest, 0);
+        if (!modelId) usage("model id is required");
+        if (!rest.includes("--yes"))
+          usage("--yes is required to delete a model");
+        await modelsDelete(modelId);
         break;
       }
       case "upload": {
