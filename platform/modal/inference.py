@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import time
+import traceback
 from typing import Any
 
 import modal
@@ -150,6 +151,14 @@ class Infer:
             }
         except Exception as exc:
             duration_ms = round((time.perf_counter() - worker_started_at) * 1000)
+            traceback_text = "".join(traceback.format_exception(exc))[-4000:]
+            print(
+                f"[piro-infer] inferenceError requestId={request_id or 'none'} "
+                f"modelId={model_id} architecture={architecture} "
+                f"workerMs={duration_ms} error={str(exc)[-1000:]}\n"
+                f"[piro-infer] inferenceTraceback requestId={request_id or 'none'}\n"
+                f"{traceback_text}"
+            )
             return {
                 "text": "",
                 "error": str(exc),
