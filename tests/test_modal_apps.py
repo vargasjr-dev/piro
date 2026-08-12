@@ -50,6 +50,19 @@ def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     assert 'shutil.rmtree(temp_dir, ignore_errors=True)' in source
 
 
+def test_gemma_workflow_collects_diagnostics_after_readiness_failure():
+    workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "modal-deploy.yml").read_text()
+    assert "modal deploy platform/modal/gemma.py --timestamps" in workflow
+    assert "id: deploy" in workflow
+    assert "if: steps.deploy.outcome == 'success'" in workflow
+    assert "GEMMA_ENDPOINT: https://dvargasfuertes--piro-gemma-vllm-server.us-east.modal.direct/v1/models" in workflow
+    assert "modal app logs piro-gemma-vllm" in workflow
+    assert "modal app history piro-gemma-vllm --json" in workflow
+    assert "gemma-deployment-diagnostics-${{ github.sha }}" in workflow
+    assert "gemma-readiness.log" in workflow
+    assert workflow.count("if: always()") >= 2
+
+
 def test_training_image_installs_architecture_runtime_dependencies():
     common = (MODAL_DIR / "_common.py").read_text()
 

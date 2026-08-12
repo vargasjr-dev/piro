@@ -144,7 +144,61 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv tool install modal
-      - run: modal deploy platform/modal/gemma.py
+      - name: Deploy Gemma with timestamped output
+        id: deploy
+        run: |
+          set -o pipefail
+          modal deploy platform/modal/gemma.py --timestamps 2>&1 | tee gemma-deploy.log
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      - name: Smoke-test Gemma readiness
+        if: steps.deploy.outcome == 'success'
+        env:
+          GEMMA_ENDPOINT: https://dvargasfuertes--piro-gemma-vllm-server.us-east.modal.direct/v1/models
+        run: |
+          set -euo pipefail
+          : > gemma-health.json
+          : > gemma-health.headers
+          : > gemma-readiness.log
+          for attempt in $(seq 1 30); do
+            status="$(curl --silent --show-error --max-time 10 \
+              --dump-header gemma-health.headers \
+              --output gemma-health.json \
+              --write-out '%{http_code}' \
+              "$GEMMA_ENDPOINT" || true)"
+            echo "Gemma readiness attempt ${attempt}/30: HTTP ${status}" | tee -a gemma-readiness.log
+            if [ "$status" = "200" ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Gemma did not become ready within 10 minutes." >&2
+          exit 1
+      - name: Collect Gemma diagnostics
+        if: always()
+        run: |
+          set +e
+          modal app logs piro-gemma-vllm \
+            --tail 2000 \
+            --since 2h \
+            --timestamps \
+            --show-container-id \
+            --show-function-id \
+            > gemma-app.log 2>&1
+          modal app history piro-gemma-vllm --json > gemma-history.json 2>&1
+          set -e
+      - name: Upload Gemma diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemma-deployment-diagnostics-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            gemma-deploy.log
+            gemma-health.headers
+            gemma-health.json
+            gemma-readiness.log
+            gemma-app.log
+            gemma-history.json
