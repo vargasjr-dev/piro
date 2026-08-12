@@ -15,12 +15,11 @@ def load_training_data(*, r2_client, bucket, prefix, split, limit):
     examples = []
     for record in records:
         metadata = dict(record.get("metadata", {}))
-        if metadata.get("task") != "language_modeling":
-            raise ValueError("language-modeling records must declare task=language_modeling")
         examples.append(
             Example(
                 inputs=input_texts(record),
                 target=record.get("target", ""),
+                continuation_prefix="",
                 metadata=metadata,
             )
         )

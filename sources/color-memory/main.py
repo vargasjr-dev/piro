@@ -19,6 +19,7 @@ def load_training_data(*, r2_client, bucket, prefix, split, limit):
             Example(
                 inputs=texts,
                 target=record["answer"],
+                continuation_prefix="\nANSWER:",
                 metadata={
                     "task": "color_memory",
                     "split": record.get("metadata", {}).get("split"),

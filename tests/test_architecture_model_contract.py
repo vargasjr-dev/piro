@@ -40,6 +40,7 @@ def test_source_entrypoint_decodes_owner_policy_examples_without_runner_knowledg
     )
     assert examples[0].inputs == ("history", "query")
     assert examples[0].target == 2
+    assert examples[0].continuation_prefix == "\nANSWER:"
     assert examples[0].metadata["task"] == "owner_policy"
 
 

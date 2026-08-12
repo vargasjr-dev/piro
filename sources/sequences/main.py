@@ -16,6 +16,7 @@ def load_training_data(*, r2_client, bucket, prefix, split, limit):
         Example(
             inputs=(record.get("prompt", ""),),
             target=record.get("label"),
+            continuation_prefix="\nANSWER:",
             metadata={"task": "sorting"},
         )
         for record in records
