@@ -31,7 +31,8 @@ from architectures.borealis.tokenizer import BorealisTokenizer
 @dataclass
 class BorealisConfig:
     vocab_size: int | None = None
-    tokenizer_name: str | None = "o200k_base"
+    tokenizer_name: str | None = "byte_bpe"
+    tokenizer_merges: list[list[int]] | None = None
     target_prefix: str = "\nANSWER:"
     max_new_tokens: int = 32
     embed_dim: int = 32
@@ -39,6 +40,20 @@ class BorealisConfig:
     adaptation_learning_rate: float = 0.1
     consolidation_rate: float = 0.25
     eos_token_id: int | None = None
+
+
+class TiedOutputHead(nn.Module):
+    """Project context into embedding space and reuse token embeddings as logits."""
+
+    def __init__(self, embedding: nn.Embedding, context_dim: int) -> None:
+        super().__init__()
+        self.weight = embedding.weight
+        self.projection = nn.Linear(context_dim, embedding.embedding_dim)
+        self.bias = nn.Parameter(torch.zeros(embedding.num_embeddings))
+
+    def forward(self, context: torch.Tensor) -> torch.Tensor:
+        projected = self.projection(context)
+        return F.linear(projected, self.weight, self.bias)
 
 
 @dataclass
@@ -92,7 +107,7 @@ class Borealis(ArchitectureModel):
         tokenizer_name = cfg.tokenizer_name
         if tokenizer_name is None:
             raise ValueError("tokenizer_name is required for the language-model path")
-        self.tokenizer = BorealisTokenizer(tokenizer_name)
+        self.tokenizer = BorealisTokenizer(tokenizer_name, cfg.tokenizer_merges)
         vocab_size = self.tokenizer.vocab_size
         if cfg.vocab_size is not None and cfg.vocab_size != vocab_size:
             raise ValueError("vocab_size must match the selected tokenizer vocabulary")
@@ -119,12 +134,20 @@ class Borealis(ArchitectureModel):
         self.input_projection = nn.Linear(self.config.embed_dim, self.config.context_dim)
         self.recurrent = nn.GRUCell(self.config.context_dim, self.config.context_dim)
         self.output_norm = nn.LayerNorm(self.config.context_dim)
-        self.output_head = nn.Linear(self.config.context_dim, vocab_size)
+        self.output_head = TiedOutputHead(self.token_embedding, self.config.context_dim)
 
     @classmethod
     def config_for_training(cls, examples: list[Any]) -> dict[str, Any]:
-        del examples
-        return {"tokenizer_name": "o200k_base"}
+        texts = [
+            str(value)
+            for example in examples
+            for value in (*example.inputs, example.target, "\nANSWER:")
+        ]
+        tokenizer = BorealisTokenizer.fit(texts, max_vocab_size=8192)
+        return {
+            "tokenizer_name": tokenizer.name,
+            "tokenizer_merges": [list(pair) for pair in tokenizer.merges],
+        }
 
     def _tokens(self, example: Any) -> torch.Tensor:
         prompt = "\n".join(str(value) for value in example.inputs)
@@ -222,7 +245,7 @@ class Borealis(ArchitectureModel):
         """Initialize run-local adaptation state from the durable model shape."""
         return BorealisAdaptationState(
             output_bias=torch.zeros(
-                self.config.vocab_size,
+                self._vocab_size(),
                 device=self.output_head.weight.device,
                 dtype=self.output_head.weight.dtype,
             )
@@ -424,7 +447,7 @@ class Borealis(ArchitectureModel):
         """Greedily generate tokens and return the post-invocation state."""
         if max_new_tokens < 0:
             raise ValueError("max_new_tokens must be non-negative")
-        if eos_token_id is not None and not 0 <= eos_token_id < self.config.vocab_size:
+        if eos_token_id is not None and not 0 <= eos_token_id < self._vocab_size():
             raise ValueError("eos_token_id must be within the tokenizer vocabulary")
         stop_token_id = self.config.eos_token_id if eos_token_id is None else eos_token_id
 
@@ -495,11 +518,17 @@ class Borealis(ArchitectureModel):
         """Return the final next-token logits for Trainer-style callers."""
         return self.run(token_ids, adapt=False)
 
+    def _vocab_size(self) -> int:
+        vocab_size = self.config.vocab_size
+        if vocab_size is None:
+            raise RuntimeError("resolved Borealis configuration is missing vocab_size")
+        return vocab_size
+
     def _validate_prompt_tokens(self, token_ids: torch.Tensor) -> torch.Tensor:
         if token_ids.ndim != 1 or token_ids.numel() < 1:
             raise ValueError("expected a one-dimensional prompt with at least one token")
         tokens = token_ids.to(device=self.token_embedding.weight.device, dtype=torch.long)
-        if bool((tokens < 0).any()) or bool((tokens >= self.config.vocab_size).any()):
+        if bool((tokens < 0).any()) or bool((tokens >= self._vocab_size()).any()):
             raise ValueError("token ids must be within the configured vocabulary")
         return tokens
 
@@ -512,7 +541,7 @@ class Borealis(ArchitectureModel):
         if token.ndim != 0:
             raise ValueError("expected one scalar token")
         token = token.to(device=self.token_embedding.weight.device, dtype=torch.long)
-        if bool(token < 0) or bool(token >= self.config.vocab_size):
+        if bool(token < 0) or bool(token >= self._vocab_size()):
             raise ValueError("token id must be within the configured vocabulary")
         return token
 

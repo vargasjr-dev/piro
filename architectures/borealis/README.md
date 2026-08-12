@@ -59,7 +59,8 @@ unverified output would be self-training, not ordinary next-token supervision.
 ```text
 context_state
   -> LayerNorm
-  -> durable output_head
+  -> context-to-embedding projection
+  -> tied token-embedding readout
   -> adaptation output-bias overlay
   -> vocabulary logits
 ```
@@ -109,9 +110,11 @@ serialization contract.
 
 ## Tokenizer and text boundary
 
-Borealis now follows a real language-model path. Production configuration uses the
-reversible `o200k_base` BPE tokenizer from `tiktoken`; the tokenizer name is stored
-in `BorealisConfig` and therefore in every persisted training configuration.
+Borealis follows a real language-model path. Production training fits a
+reversible byte-fallback BPE tokenizer capped at an 8,192-token vocabulary from
+the source-decoded examples. Its merge table is stored in `BorealisConfig` and
+therefore in every persisted training configuration, so serving reconstructs the
+same tokenizer without depending on the training corpus being present.
 
 Training constructs complete sequences as:
 
@@ -126,4 +129,5 @@ BPE tokenizer before returning the API response. Token IDs remain diagnostic
 metadata, while `text` is always decoded model output.
 
 The `byte` tokenizer name is retained only as a small reversible test fixture; it is
-not the production tokenizer.
+not the production tokenizer. `o200k_base` remains supported for explicitly
+persisted legacy experiments, but new Borealis training uses `byte_bpe`.
