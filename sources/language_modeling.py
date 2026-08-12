@@ -10,15 +10,14 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import hashlib
 import json
 import random
-import re
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator
+from typing import Any, Callable, Iterator
 
 DATASET_VIEWER_URL = "https://datasets-server.huggingface.co/rows"
 DOLMA_URLS = "https://huggingface.co/datasets/allenai/dolma/resolve/main/urls/v1_7.txt?download=true"
@@ -282,9 +281,18 @@ def generate_language_modeling_dataset(
     records: list[dict[str, Any]] = []
     cursors: dict[tuple[str, str], int] = {}
     totals: dict[str, int | None] = {}
+    train_counts = _allocate_counts(train_samples, mixture)
 
-    for split, count in (("train", train_samples), ("eval", eval_samples)):
-        counts = _allocate_counts(count, mixture)
+    for split, count, split_counts in ((
+        "train",
+        train_samples,
+        train_counts,
+    ), (
+        "eval",
+        eval_samples,
+        _allocate_counts(eval_samples, mixture),
+    )):
+        counts = split_counts
         order = [index for index, amount in enumerate(counts) for _ in range(amount)]
         rng.shuffle(order)
         produced = 0
@@ -295,7 +303,8 @@ def generate_language_modeling_dataset(
             spec_index = order[produced % len(order)]
             spec = mixture[spec_index]
             key = (spec.name, split)
-            offset = cursors.get(key, 0)
+            default_offset = 0 if split == "train" else train_counts[spec_index]
+            offset = cursors.get(key, default_offset)
             rows, total = fetcher(spec, offset, 8)
             if total is not None:
                 totals[spec.name] = total
