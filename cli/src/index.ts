@@ -24,6 +24,7 @@ import {
   trainingEstimate,
   trainingGet,
   trainingList,
+  trainingResume,
 } from "./commands/training.js";
 import { modelsDelete, modelsDeploy, modelsUpload } from "./commands/models.js";
 
@@ -62,6 +63,7 @@ function usage(msg?: string): never {
   );
   console.error("  piro training list");
   console.error("  piro training get <id>");
+  console.error("  piro training resume <id>");
   console.error(
     "  piro training estimate [--max-steps <n>] [--seconds-per-step <n>] [--gpu <type>]",
   );
@@ -189,6 +191,12 @@ switch (subject) {
         const id = arg(rest, 0);
         if (!id) usage("training run id is required");
         await trainingGet(id);
+        break;
+      }
+      case "resume": {
+        const id = arg(rest, 0);
+        if (!id) usage("training run id is required");
+        await trainingResume(id);
         break;
       }
       case "estimate":
