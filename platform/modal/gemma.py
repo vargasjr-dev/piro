@@ -25,8 +25,6 @@ vllm_image = (
         add_python="3.12",
     )
     .entrypoint([])
-    .env({"PYTHONPATH": "/root/platform/modal"})
-    .add_local_dir("platform/modal", remote_path="/root/platform/modal")
     .pip_install(f"vllm=={VLLM_VERSION}", "boto3>=1.34.0")
     .env(
         {
@@ -34,8 +32,10 @@ vllm_image = (
             "HF_HUB_OFFLINE": "1",
             "TRANSFORMERS_OFFLINE": "1",
             "VLLM_LOG_STATS_INTERVAL": "1",
+            "PYTHONPATH": "/root/platform/modal",
         }
     )
+    .add_local_dir("platform/modal", remote_path="/root/platform/modal")
 )
 
 hf_cache = modal.Volume.from_name("piro-gemma-huggingface-cache", create_if_missing=True)
