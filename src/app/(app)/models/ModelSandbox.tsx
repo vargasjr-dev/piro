@@ -29,6 +29,8 @@ type ModelSandboxProps = {
 };
 
 type InferResponse = {
+  status?: "warming_up";
+  retryAfterMs?: number;
   output?: {
     parts?: Array<{ type?: string; text?: string }>;
   };
@@ -38,6 +40,19 @@ type InferResponse = {
   metadata?: Record<string, unknown> | null;
   error?: string;
 };
+
+type ReadinessResponse = {
+  status?: "ready" | "warming_up";
+  retryAfterMs?: number;
+  error?: string;
+};
+
+const HOSTED_WARMUP_TIMEOUT_MS = 120_000;
+const HOSTED_WARMUP_POLL_MS = 5_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function formatDuration(durationMs: number): string {
   if (durationMs < 1000) return `${durationMs}ms`;
@@ -106,34 +121,62 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
 
     const browserStartedAt = performance.now();
     try {
-      const response = await fetch(
-        `/api/models/${encodeURIComponent(modelId)}/infer`,
-        {
+      const inferUrl = `/api/models/${encodeURIComponent(modelId)}/infer`;
+      const readinessUrl = `/api/models/${encodeURIComponent(modelId)}/ready`;
+      const infer = async (): Promise<InferResponse | null> => {
+        const response = await fetch(inferUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             parts: [{ type: "text", text }],
             state,
           }),
-        },
-      );
-      const responseText = await response.text();
-      let body: InferResponse | null = null;
-      try {
-        body = JSON.parse(responseText) as InferResponse;
-      } catch {
-        // Surface a useful HTTP error when the server returns a non-JSON failure page.
-      }
-      if (!response.ok) {
-        const message =
-          body?.error ?? `Inference failed (HTTP ${response.status})`;
-        setError(message);
-        finishAssistant({
-          text: message,
-          sentAt: Date.now(),
-          error: true,
         });
-        return;
+        const responseText = await response.text();
+        let body: InferResponse | null = null;
+        try {
+          body = JSON.parse(responseText) as InferResponse;
+        } catch {
+          // Surface a useful HTTP error when the server returns a non-JSON failure page.
+        }
+        if (!response.ok) {
+          const message =
+            body?.error ?? `Inference failed (HTTP ${response.status})`;
+          throw new Error(message);
+        }
+        return body;
+      };
+
+      let body = await infer();
+      if (body?.status === "warming_up") {
+        const warmupStartedAt = Date.now();
+        while (Date.now() - warmupStartedAt < HOSTED_WARMUP_TIMEOUT_MS) {
+          await sleep(Math.max(HOSTED_WARMUP_POLL_MS, body.retryAfterMs ?? 0));
+          const readinessResponse = await fetch(readinessUrl);
+          const readinessBody = (await readinessResponse
+            .json()
+            .catch(() => null)) as ReadinessResponse | null;
+          if (!readinessResponse.ok) {
+            throw new Error(
+              readinessBody?.error ??
+                `Readiness check failed (HTTP ${readinessResponse.status})`,
+            );
+          }
+          if (readinessBody?.status === "ready") {
+            body = await infer();
+            if (body?.status !== "warming_up") break;
+            continue;
+          }
+          body = {
+            status: "warming_up",
+            retryAfterMs: readinessBody?.retryAfterMs,
+          };
+        }
+        if (body?.status === "warming_up") {
+          throw new Error(
+            "Hosted model is still warming up. Please try again in a moment.",
+          );
+        }
       }
       if (!body) {
         const message = "Inference returned an invalid response.";

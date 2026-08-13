@@ -16,6 +16,7 @@ import {
   piroInputSchema,
 } from "../../../_lib/contracts";
 import {
+  checkHostedReadiness,
   invokeHostedInference,
   HostedInferenceError,
 } from "../../../_lib/hosted";
@@ -128,6 +129,16 @@ export async function POST(
 
   if (hostedModel) {
     try {
+      const readiness = await checkHostedReadiness(hostedModel);
+      if (readiness.status === "warming_up") {
+        return Response.json(readiness, {
+          status: 200,
+          headers: {
+            "Retry-After": String(readiness.retryAfterMs / 1000),
+          },
+        });
+      }
+
       const result = await invokeHostedInference(hostedModel, {
         parts: parsed.data.parts,
       });
@@ -149,6 +160,18 @@ export async function POST(
       });
     } catch (error) {
       if (error instanceof HostedInferenceError) {
+        if (error.upstreamStatus === 503) {
+          return Response.json(
+            {
+              status: "warming_up",
+              retryAfterMs: 5_000,
+            },
+            {
+              status: 200,
+              headers: { "Retry-After": "5" },
+            },
+          );
+        }
         return Response.json({ error: error.message }, { status: 502 });
       }
       return Response.json(

@@ -1,10 +1,14 @@
 import type { PiroInput } from "./contracts";
 
-type HostedInferenceConfig = {
+export type HostedInferenceConfig = {
   endpoint: string;
   apiModelName: string;
   apiKeyEnvVar?: string | null;
 };
+
+export type HostedReadinessResult =
+  | { status: "ready" }
+  | { status: "warming_up"; retryAfterMs: number };
 
 type HostedChatResponse = {
   choices?: Array<{ message?: { content?: unknown } }>;
@@ -18,6 +22,39 @@ export type HostedInferenceResult = {
   text: string;
   durationMs: number;
 };
+
+export async function checkHostedReadiness(
+  config: HostedInferenceConfig,
+  fetchImpl: typeof fetch = fetch,
+): Promise<HostedReadinessResult> {
+  const apiKey = config.apiKeyEnvVar
+    ? process.env[config.apiKeyEnvVar]
+    : undefined;
+  if (config.apiKeyEnvVar && !apiKey) {
+    throw new HostedInferenceError(
+      `${config.apiKeyEnvVar} is not configured`,
+      500,
+    );
+  }
+
+  const response = await fetchImpl(
+    `${config.endpoint.replace(/\/$/, "")}/models`,
+    {
+      headers: {
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
+  if (response.ok) return { status: "ready" };
+  if (response.status === 503) {
+    return { status: "warming_up", retryAfterMs: 5_000 };
+  }
+  throw new HostedInferenceError(
+    `Hosted readiness failed with status ${response.status}`,
+    response.status,
+  );
+}
 
 export async function invokeHostedInference(
   config: HostedInferenceConfig,
