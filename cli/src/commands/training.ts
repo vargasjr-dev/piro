@@ -83,6 +83,18 @@ export async function trainingGet(id: string): Promise<void> {
   console.log(JSON.stringify(response.body, null, 2));
 }
 
+export async function trainingResume(id: string): Promise<void> {
+  const config = resolveConfig();
+  const response = await piroFetch(
+    config,
+    `/api/training-runs/${encodeURIComponent(id)}/resume`,
+    { method: "POST", body: "{}" },
+  );
+  if (!response.ok)
+    fail(response.status, response.body, "training run resume failed");
+  console.log(JSON.stringify(response.body, null, 2));
+}
+
 export async function trainingEstimate(opts: EstimateOptions): Promise<void> {
   const maxSteps = positiveNumber(opts.maxSteps, 5000, "max-steps");
   if (!Number.isInteger(maxSteps)) {

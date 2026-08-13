@@ -145,3 +145,29 @@ def test_training_dispatch_has_a_bounded_timeout():
     source = (Path(__file__).parents[1] / "src" / "app" / "api" / "training-runs" / "route.ts").read_text()
     assert "signal: AbortSignal.timeout(30_000)" in source
     assert 'Modal trigger timed out after 30 seconds.' in source
+
+
+def test_training_resume_api_and_cli_surface():
+    route = (
+        Path(__file__).parents[1]
+        / "src"
+        / "app"
+        / "api"
+        / "training-runs"
+        / "[id]"
+        / "resume"
+        / "route.ts"
+    ).read_text()
+    cli_training = (
+        Path(__file__).parents[1] / "cli" / "src" / "commands" / "training.ts"
+    ).read_text()
+    cli_index = (Path(__file__).parents[1] / "cli" / "src" / "index.ts").read_text()
+
+    assert "export async function POST" in route
+    assert 'eq(trainingRun.status, "error")' in route
+    assert 'resume: true' in route
+    assert "TRAINING_WORKER_LEASE_MS" in route
+    assert 'method: "POST"' in cli_training
+    assert '/resume' in cli_training
+    assert 'case "resume"' in cli_index
+    assert 'piro training resume <id>' in cli_index
