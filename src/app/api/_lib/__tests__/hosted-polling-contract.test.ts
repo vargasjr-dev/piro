@@ -6,6 +6,10 @@ const inferRouteSource = readFileSync(
   fileURLToPath(new URL("../../models/[id]/infer/route.ts", import.meta.url)),
   "utf8",
 );
+const readinessRouteSource = readFileSync(
+  fileURLToPath(new URL("../../models/[id]/ready/route.ts", import.meta.url)),
+  "utf8",
+);
 const sandboxSource = readFileSync(
   fileURLToPath(
     new URL("../../../(app)/models/ModelSandbox.tsx", import.meta.url),
@@ -18,6 +22,12 @@ describe("hosted cold-start polling contract", () => {
     expect(inferRouteSource).toContain('status: "warming_up"');
     expect(inferRouteSource).toContain('headers: { "Retry-After": "5" }');
     expect(inferRouteSource).toContain("error.upstreamStatus === 503");
+  });
+
+  test("keeps an upstream 503 as a successful warming-up readiness response", () => {
+    expect(readinessRouteSource).toContain("error.upstreamStatus === 503");
+    expect(readinessRouteSource).toContain("status: 200");
+    expect(readinessRouteSource).toContain('headers: { "Retry-After": "5" }');
   });
 
   test("polls readiness before retrying the original inference", () => {

@@ -32,6 +32,16 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof HostedInferenceError) {
+      if (error.upstreamStatus === 503) {
+        const warmingUp = {
+          status: "warming_up",
+          retryAfterMs: 5_000,
+        } as const;
+        return Response.json(warmingUp, {
+          status: 200,
+          headers: { "Retry-After": "5" },
+        });
+      }
       return Response.json({ error: error.message }, { status: 502 });
     }
     return Response.json(
