@@ -52,6 +52,7 @@ export function serializeTrainingRun(
     checkpointR2Key: run.checkpointR2Key,
     checkpointStep: run.checkpointStep,
     checkpointAt: run.checkpointAt?.toISOString() ?? null,
+    resumeAttempts: run.resumeAttempts,
     queuedAt: run.queuedAt.toISOString(),
     startedAt: run.startedAt?.toISOString() ?? null,
     completedAt: run.completedAt?.toISOString() ?? null,
