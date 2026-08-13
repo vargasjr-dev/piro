@@ -17,6 +17,7 @@ MODEL_DIR = Path("/root/.cache/huggingface/piro-models") / (
 )
 VLLM_PORT = 8000
 VLLM_VERSION = "0.21.0"
+CHAT_TEMPLATE_PATH = "/root/platform/modal/gemma-chat-template.jinja"
 DOWNLOAD_CHUNK_BYTES = 8 * 1024 * 1024
 
 vllm_image = (
@@ -201,6 +202,8 @@ class Server:
             "1",
             "--max-model-len",
             "2048",
+            "--chat-template",
+            CHAT_TEMPLATE_PATH,
             "--enforce-eager",
             "--limit-mm-per-prompt",
             json.dumps({"image": 0, "video": 0, "audio": 0}),
