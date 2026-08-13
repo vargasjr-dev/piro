@@ -65,6 +65,8 @@ export async function POST(
       startedAt: now,
       heartbeatAt: now,
       timeoutAt,
+      workerDiagnosticsJson: null,
+      failureDetailsJson: null,
       completedAt: null,
     })
     .where(

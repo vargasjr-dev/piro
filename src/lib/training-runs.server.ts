@@ -40,6 +40,8 @@ export function serializeTrainingRun(
     stepHistoryJson: run.stepHistoryJson,
     ...liveMetrics,
     error: run.error,
+    workerDiagnosticsJson: run.workerDiagnosticsJson,
+    failureDetailsJson: run.failureDetailsJson,
     heartbeatAt: run.heartbeatAt?.toISOString() ?? null,
     timeoutAt: run.timeoutAt?.toISOString() ?? null,
     runtimeMs: run.runtimeMs,

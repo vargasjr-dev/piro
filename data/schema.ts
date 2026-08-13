@@ -263,6 +263,10 @@ export const trainingRun = pgTable(
     finalValAccuracy: real("finalValAccuracy"),
     stepHistoryJson: text("stepHistoryJson"),
     error: text("error"),
+    /** Structured worker lifecycle snapshot, including the last known phase. */
+    workerDiagnosticsJson: text("workerDiagnosticsJson"),
+    /** Structured exception or reconciliation details for the latest failure. */
+    failureDetailsJson: text("failureDetailsJson"),
     /** Last worker heartbeat; used to reconcile platform-level terminations. */
     heartbeatAt: timestamp("heartbeatAt"),
     /** Application deadline before Modal's hard execution timeout. */

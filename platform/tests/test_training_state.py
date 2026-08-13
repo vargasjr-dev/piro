@@ -2,7 +2,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from platform_training_state import HEARTBEAT_SQL, send_heartbeat
+from platform_training_state import (
+    HEARTBEAT_DIAGNOSTICS_SQL,
+    HEARTBEAT_SQL,
+    send_heartbeat,
+)
 
 
 class FakeCursor:
@@ -61,3 +65,22 @@ def test_send_heartbeat_reports_lost_lease_without_committing():
     assert connection.rollbacks == 1
     assert connection.closed is True
     assert connection.cursor_instance.closed is True
+
+
+def test_send_heartbeat_persists_worker_diagnostics():
+    connection = FakeConnection(rowcount=1)
+    diagnostics = '{"phase":"training","step":38}'
+
+    result = send_heartbeat(
+        lambda _: connection,
+        "database-url",
+        "run-id",
+        diagnostics_json=diagnostics,
+    )
+
+    assert result is True
+    assert connection.cursor_instance.executed == (
+        HEARTBEAT_DIAGNOSTICS_SQL,
+        (diagnostics, "run-id"),
+    )
+    assert connection.commits == 1

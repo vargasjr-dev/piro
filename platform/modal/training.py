@@ -68,7 +68,9 @@ class Trainer:
         import json
         import os
         import random
+        import socket
         import threading
+        import traceback
         import uuid as _uuid
         from datetime import datetime, timedelta
 
@@ -114,17 +116,46 @@ class Trainer:
             if resume
             else started_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
         )
+        worker_id = os.environ.get("MODAL_TASK_ID") or socket.gethostname()
+        diagnostics_lock = threading.Lock()
+        diagnostics_state = {
+            "schemaVersion": 1,
+            "runId": run_id,
+            "workerId": worker_id,
+            "pid": os.getpid(),
+            "resume": resume,
+            "resumeAttempts": resume_attempts,
+            "maxSteps": max_steps,
+            "phase": "starting",
+            "step": checkpoint_step,
+            "checkpointStep": checkpoint_step,
+            "checkpointKey": checkpoint_key,
+            "updatedAt": now.isoformat(),
+        }
 
+        def _diagnostics_json() -> str:
+            with diagnostics_lock:
+                return json.dumps(diagnostics_state, separators=(",", ":"))
+
+        def _set_diagnostics(phase: str, **updates: object) -> None:
+            with diagnostics_lock:
+                diagnostics_state.update(updates)
+                diagnostics_state["phase"] = phase
+                diagnostics_state["updatedAt"] = datetime.now(UTC).isoformat()
+
+        initial_diagnostics = _diagnostics_json()
         if resume:
             cur.execute(
-                'UPDATE training_run SET "heartbeatAt" = %s WHERE id = %s AND status = %s',
-                (now, run_id, "running"),
+                'UPDATE training_run SET "heartbeatAt" = %s, "workerDiagnosticsJson" = %s, '
+                '"failureDetailsJson" = NULL WHERE id = %s AND status = %s',
+                (now, initial_diagnostics, run_id, "running"),
             )
         else:
             cur.execute(
                 'UPDATE training_run SET status = %s, "startedAt" = %s, "heartbeatAt" = %s, '
                 '"timeoutAt" = %s, "resourceType" = %s, "gpuType" = %s, "cpuCores" = %s, '
-                '"memoryMb" = %s WHERE id = %s AND status = %s',
+                '"memoryMb" = %s, "workerDiagnosticsJson" = %s, "failureDetailsJson" = NULL '
+                'WHERE id = %s AND status = %s',
                 (
                     "running",
                     started_at,
@@ -134,6 +165,7 @@ class Trainer:
                     TRAINING_GPU,
                     TRAINING_CPU,
                     TRAINING_MEMORY_MB,
+                    initial_diagnostics,
                     run_id,
                     "queued",
                 ),
@@ -157,6 +189,7 @@ class Trainer:
                 "database_url": os.environ["DATABASE_URL"],
                 "run_id": run_id,
                 "interval_seconds": HEARTBEAT_INTERVAL_SECONDS,
+                "diagnostics": _diagnostics_json,
             },
             name=f"piro-heartbeat-{run_id[:8]}",
             daemon=True,
@@ -174,6 +207,7 @@ class Trainer:
         model = None
         optimizer = None
         try:
+            _set_diagnostics("loading_data")
             random.seed(seed)
             torch.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
@@ -198,6 +232,7 @@ class Trainer:
             if not train_data:
                 raise ValueError("training dataset is empty")
 
+            _set_diagnostics("building_model", trainExamples=len(train_data), evalExamples=len(val_data))
             model_config = architecture_class.config_for_training(train_data)
             model = architecture_class.from_config(model_config).to(device)
             optimizer = torch.optim.Adam(model.parameters(), **model.optimizer_kwargs())
@@ -231,7 +266,9 @@ class Trainer:
             def _load_checkpoint() -> None:
                 nonlocal history, order, cursor, start_step
                 if not checkpoint_key:
+                    _set_diagnostics("checkpoint_ready", checkpointStep=0)
                     return
+                _set_diagnostics("loading_checkpoint", checkpointStep=checkpoint_step, checkpointKey=checkpoint_key)
                 response = r2.get_object(Bucket=R2_BUCKET, Key=checkpoint_key)
                 payload = torch.load(
                     io.BytesIO(response["Body"].read()),
@@ -260,9 +297,16 @@ class Trainer:
                 torch.set_rng_state(payload["torchRandomState"].cpu())
                 if device.type == "cuda" and payload.get("cudaRandomState") is not None:
                     torch.cuda.set_rng_state_all(payload["cudaRandomState"])
+                _set_diagnostics(
+                    "checkpoint_ready",
+                    step=start_step,
+                    checkpointStep=start_step,
+                    checkpointKey=checkpoint_key,
+                )
                 print(f"[piro] resumed run {run_id} from checkpoint step {start_step}")
 
             def _save_checkpoint(step: int) -> None:
+                _set_diagnostics("checkpointing", step=step)
                 if device.type == "cuda":
                     torch.cuda.synchronize(device)
                 payload = {
@@ -320,6 +364,12 @@ class Trainer:
                     conn.rollback()
                     raise RuntimeError("training run became terminal while checkpointing")
                 conn.commit()
+                _set_diagnostics(
+                    "training",
+                    step=step,
+                    checkpointStep=step,
+                    checkpointKey=key,
+                )
 
             def _next_batch() -> list:
                 nonlocal cursor
@@ -336,9 +386,11 @@ class Trainer:
                 print(f"[piro] run {run_id} initialized checkpoint at step 0")
 
             for step in range(start_step + 1, max_steps + 1):
+                _set_diagnostics("training", step=step)
                 now = datetime.now(UTC)
                 if now + timedelta(seconds=CHECKPOINT_SAFETY_SECONDS) >= timeout_at:
                     _save_checkpoint(step - 1)
+                    _set_diagnostics("handoff", step=step - 1)
                     handoff_at = datetime.now(UTC)
                     if resume_attempts >= MAX_AUTO_RESUME_ATTEMPTS:
                         runtime_ms = max(
@@ -349,6 +401,7 @@ class Trainer:
                             """
                             UPDATE training_run
                             SET status = %s, error = %s, "completedAt" = %s,
+                                "workerDiagnosticsJson" = %s, "failureDetailsJson" = %s,
                                 "runtimeMs" = %s, "costUsd" = %s, "costBasis" = %s
                             WHERE id = %s AND status = 'running'
                             """,
@@ -359,6 +412,13 @@ class Trainer:
                                     f"{step - 1}; automatic resume limit reached."
                                 ),
                                 handoff_at,
+                                _diagnostics_json(),
+                                json.dumps({
+                                    "kind": "deadline",
+                                    "phase": "handoff",
+                                    "step": step - 1,
+                                    "observedAt": handoff_at.isoformat(),
+                                }, separators=(",", ":")),
                                 runtime_ms,
                                 _estimate_cost_usd(runtime_ms),
                                 "modal_standard_estimate",
@@ -378,10 +438,12 @@ class Trainer:
                         UPDATE training_run
                         SET "timeoutAt" = %s, "heartbeatAt" = %s,
                             "resumeAttempts" = "resumeAttempts" + 1,
+                            "workerDiagnosticsJson" = %s,
+                            "failureDetailsJson" = NULL,
                             error = NULL, "completedAt" = NULL
                         WHERE id = %s AND status = 'running'
                         """,
-                        (next_timeout_at, handoff_at, run_id),
+                        (next_timeout_at, handoff_at, _diagnostics_json(), run_id),
                     )
                     if cur.rowcount != 1:
                         conn.rollback()
@@ -403,7 +465,8 @@ class Trainer:
                             """
                             UPDATE training_run
                             SET status = %s, error = %s, "completedAt" = %s,
-                                "heartbeatAt" = %s
+                                "heartbeatAt" = %s, "workerDiagnosticsJson" = %s,
+                                "failureDetailsJson" = %s
                             WHERE id = %s AND status = 'running'
                             """,
                             (
@@ -414,6 +477,13 @@ class Trainer:
                                 ),
                                 handoff_at,
                                 handoff_at,
+                                _diagnostics_json(),
+                                json.dumps({
+                                    "kind": "automatic_resume_dispatch",
+                                    "phase": "handoff",
+                                    "step": step - 1,
+                                    "observedAt": handoff_at.isoformat(),
+                                }, separators=(",", ":")),
                                 run_id,
                             ),
                         )
@@ -425,10 +495,12 @@ class Trainer:
                     )
                     return
 
+                _set_diagnostics("optimizer_step", step=step)
                 train_loss = model.train_step(_next_batch(), optimizer)
                 _ensure_lease()
                 should_evaluate = step % EVAL_INTERVAL_STEPS == 0 or step == max_steps
                 if should_evaluate:
+                    _set_diagnostics("evaluation", step=step)
                     evaluation = model.evaluate(val_data)
                     history.append(
                         {
@@ -446,6 +518,7 @@ class Trainer:
                 if step % CHECKPOINT_INTERVAL_STEPS == 0 or step == max_steps:
                     _save_checkpoint(step)
 
+            _set_diagnostics("publishing_model", step=max_steps)
             model_id = str(_uuid.uuid4())
             state = {
                 key: value.detach().cpu() for key, value in model.state_dict().items()
@@ -525,6 +598,7 @@ class Trainer:
                 (str(_uuid.uuid4()), model_id, run_id),
             )
             conn.commit()
+            _set_diagnostics("complete", step=max_steps)
             print(
                 f"[piro] run {run_id} complete — model_id={model_id} "
                 f"name={resolved_name!r} weights_bytes={len(pt_bytes)}"
@@ -536,19 +610,39 @@ class Trainer:
                 0,
                 int((min(completed_at, timeout_at) - started_at).total_seconds() * 1000),
             )
+            _set_diagnostics(
+                "failed",
+                errorType=type(exc).__name__,
+                errorMessage=str(exc)[:2000],
+            )
+            failure_details = json.dumps(
+                {
+                    "kind": "worker_exception",
+                    "exceptionType": type(exc).__name__,
+                    "message": str(exc)[:2000],
+                    "traceback": traceback.format_exc(limit=50)[-12000:],
+                    "phase": diagnostics_state.get("phase"),
+                    "step": diagnostics_state.get("step"),
+                    "observedAt": completed_at.isoformat(),
+                },
+                separators=(",", ":"),
+            )
             cur.execute(
                 """
                 UPDATE training_run
                 SET status = %s, error = %s, "completedAt" = %s,
-                    "heartbeatAt" = %s, "runtimeMs" = %s, "costUsd" = %s,
-                    "costBasis" = %s
+                    "heartbeatAt" = %s, "workerDiagnosticsJson" = %s,
+                    "failureDetailsJson" = %s, "runtimeMs" = %s,
+                    "costUsd" = %s, "costBasis" = %s
                 WHERE id = %s AND status = 'running'
                 """,
                 (
                     "error",
-                    str(exc),
+                    str(exc)[:2000],
                     completed_at,
                     completed_at,
+                    _diagnostics_json(),
+                    failure_details,
                     runtime_ms,
                     _estimate_cost_usd(runtime_ms),
                     "modal_standard_estimate",
