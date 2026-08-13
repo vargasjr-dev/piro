@@ -118,6 +118,23 @@ def test_modal_images_own_the_shared_module_import_path():
     assert "@app.cls(\n    image=image," in training
 
 
+def test_training_auto_resumes_from_deadline_checkpoint_with_a_bounded_limit():
+    common = (MODAL_DIR / "_common.py").read_text()
+    training = (MODAL_DIR / "training.py").read_text()
+    schema = (Path(__file__).parents[1] / "data" / "schema.ts").read_text()
+    serializer = (Path(__file__).parents[1] / "src" / "lib" / "training-runs.server.ts").read_text()
+
+    assert "MAX_AUTO_RESUME_ATTEMPTS = 8" in common
+    assert '"resumeAttempts" FROM training_run WHERE id = %s' in training
+    assert '"resumeAttempts" = "resumeAttempts" + 1' in training
+    assert 'scheduled automatic resume attempt' in training
+    assert 'resume=True' in training
+    assert 'now + timedelta(seconds=TRAINING_DEADLINE_SECONDS)' in training
+    assert 'automatic resume limit reached' in training
+    assert 'resumeAttempts: integer("resumeAttempts").notNull().default(0)' in schema
+    assert 'resumeAttempts: run.resumeAttempts' in serializer
+
+
 def test_training_checkpoints_after_every_optimizer_step():
     source = (MODAL_DIR / "_common.py").read_text()
 

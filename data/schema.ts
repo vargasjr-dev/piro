@@ -281,6 +281,8 @@ export const trainingRun = pgTable(
     checkpointR2Key: text("checkpointR2Key"),
     checkpointStep: integer("checkpointStep"),
     checkpointAt: timestamp("checkpointAt"),
+    /** Number of automatic checkpoint-to-worker handoffs already requested. */
+    resumeAttempts: integer("resumeAttempts").notNull().default(0),
     queuedAt: timestamp("queuedAt").notNull().defaultNow(),
     startedAt: timestamp("startedAt"),
     completedAt: timestamp("completedAt"),

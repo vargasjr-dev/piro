@@ -13,6 +13,7 @@ from _common import (
     GPU_RATE_USD_PER_SECOND,
     HEARTBEAT_INTERVAL_SECONDS,
     MEMORY_RATE_USD_PER_GIB_SECOND,
+    MAX_AUTO_RESUME_ATTEMPTS,
     R2_BUCKET,
     TRAINING_APP,
     TRAINING_CPU,
@@ -96,8 +97,8 @@ class Trainer:
         conn = psycopg2.connect(os.environ["DATABASE_URL"])
         cur = conn.cursor()
         cur.execute(
-            'SELECT "userId", "checkpointR2Key", "checkpointStep", "startedAt", "timeoutAt" '
-            "FROM training_run WHERE id = %s",
+            'SELECT "userId", "checkpointR2Key", "checkpointStep", "startedAt", "timeoutAt", '
+            '"resumeAttempts" FROM training_run WHERE id = %s',
             (run_id,),
         )
         row = cur.fetchone()
@@ -107,9 +108,10 @@ class Trainer:
         persisted_started_at = row[3] if row else None
         now = datetime.now(UTC)
         started_at = persisted_started_at or now
+        resume_attempts: int = int(row[5] or 0) if row else 0
         timeout_at = (
-            row[4]
-            if resume and row and row[4]
+            now + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
+            if resume
             else started_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
         )
 
@@ -337,30 +339,90 @@ class Trainer:
                 now = datetime.now(UTC)
                 if now + timedelta(seconds=CHECKPOINT_SAFETY_SECONDS) >= timeout_at:
                     _save_checkpoint(step - 1)
-                    completed_at = datetime.now(UTC)
-                    runtime_ms = max(
-                        0,
-                        int((min(completed_at, timeout_at) - started_at).total_seconds() * 1000),
-                    )
+                    handoff_at = datetime.now(UTC)
+                    if resume_attempts >= MAX_AUTO_RESUME_ATTEMPTS:
+                        runtime_ms = max(
+                            0,
+                            int((min(handoff_at, timeout_at) - started_at).total_seconds() * 1000),
+                        )
+                        cur.execute(
+                            """
+                            UPDATE training_run
+                            SET status = %s, error = %s, "completedAt" = %s,
+                                "runtimeMs" = %s, "costUsd" = %s, "costBasis" = %s
+                            WHERE id = %s AND status = 'running'
+                            """,
+                            (
+                                "error",
+                                (
+                                    "Training deadline reached; checkpoint saved at step "
+                                    f"{step - 1}; automatic resume limit reached."
+                                ),
+                                handoff_at,
+                                runtime_ms,
+                                _estimate_cost_usd(runtime_ms),
+                                "modal_standard_estimate",
+                                run_id,
+                            ),
+                        )
+                        conn.commit()
+                        print(
+                            f"[piro] run {run_id} checkpointed at step {step - 1}; "
+                            "automatic resume limit reached"
+                        )
+                        return
+
+                    next_timeout_at = handoff_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
                     cur.execute(
                         """
                         UPDATE training_run
-                        SET status = %s, error = %s, "completedAt" = %s,
-                            "runtimeMs" = %s, "costUsd" = %s, "costBasis" = %s
+                        SET "timeoutAt" = %s, "heartbeatAt" = %s,
+                            "resumeAttempts" = "resumeAttempts" + 1,
+                            error = NULL, "completedAt" = NULL
                         WHERE id = %s AND status = 'running'
                         """,
-                        (
-                            "error",
-                            f"Training deadline reached; checkpoint saved at step {step - 1}.",
-                            completed_at,
-                            runtime_ms,
-                            _estimate_cost_usd(runtime_ms),
-                            "modal_standard_estimate",
-                            run_id,
-                        ),
+                        (next_timeout_at, handoff_at, run_id),
                     )
+                    if cur.rowcount != 1:
+                        conn.rollback()
+                        raise RuntimeError("training run became terminal before automatic resume")
                     conn.commit()
-                    print(f"[piro] run {run_id} checkpointed at step {step - 1}; deadline reached")
+                    try:
+                        Trainer().run.spawn(
+                            run_id=run_id,
+                            model_name=model_name,
+                            architecture_path=architecture_path,
+                            source_path=source_path,
+                            dataset_r2_prefix=dataset_r2_prefix,
+                            max_steps=max_steps,
+                            seed=seed,
+                            resume=True,
+                        )
+                    except BaseException:
+                        cur.execute(
+                            """
+                            UPDATE training_run
+                            SET status = %s, error = %s, "completedAt" = %s,
+                                "heartbeatAt" = %s
+                            WHERE id = %s AND status = 'running'
+                            """,
+                            (
+                                "error",
+                                (
+                                    "Training deadline reached; checkpoint saved at step "
+                                    f"{step - 1}, but automatic resume dispatch failed."
+                                ),
+                                handoff_at,
+                                handoff_at,
+                                run_id,
+                            ),
+                        )
+                        conn.commit()
+                        raise
+                    print(
+                        f"[piro] run {run_id} checkpointed at step {step - 1}; "
+                        f"scheduled automatic resume attempt {resume_attempts + 1}"
+                    )
                     return
 
                 train_loss = model.train_step(_next_batch(), optimizer)
