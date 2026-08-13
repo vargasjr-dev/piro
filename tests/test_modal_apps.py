@@ -35,6 +35,9 @@ def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     assert 'MODEL_NAME = "google/gemma-3-270m"' in source
     assert 'MODEL_REVISION = "9b0cfec892e2bc2afd938c98eabe4e4a7b1e0ca1"' in source
     assert 'VLLM_VERSION = "0.21.0"' in source
+    assert 'CHAT_TEMPLATE_PATH = "/root/platform/modal/gemma-chat-template.jinja"' in source
+    assert '"--chat-template"' in source
+    assert "<start_of_turn>model\\n" in (MODAL_DIR / "gemma-chat-template.jinja").read_text()
     assert '"/v1/chat/completions"' not in source
     assert 'routing_region="us-east"' in source
     assert '"--served-model-name"' in source

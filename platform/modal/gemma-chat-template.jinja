@@ -1,0 +1,23 @@
+{%- set ns = namespace(system='', first_user=true) -%}
+{%- for message in messages -%}
+  {%- if message['role'] == 'system' -%}
+    {%- set ns.system = message['content'] | trim -%}
+  {%- endif -%}
+{%- endfor -%}
+{{- bos_token -}}
+{%- for message in messages -%}
+  {%- if message['role'] == 'user' -%}
+    {{- '<start_of_turn>user\n' -}}
+    {%- if ns.first_user and ns.system -%}
+      {{- ns.system + '\n\n' -}}
+    {%- endif -%}
+    {{- message['content'] | trim -}}
+    {{- '<end_of_turn>\n' -}}
+    {%- set ns.first_user = false -%}
+  {%- elif message['role'] == 'assistant' -%}
+    {{- '<start_of_turn>model\n' + message['content'] | trim + '<end_of_turn>\n' -}}
+  {%- endif -%}
+{%- endfor -%}
+{%- if add_generation_prompt -%}
+  {{- '<start_of_turn>model\n' -}}
+{%- endif -%}
