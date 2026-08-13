@@ -64,6 +64,8 @@ export async function GET(
           checkpointAt: reconciled.checkpointAt?.toISOString() ?? null,
           history,
           ...liveMetrics,
+          workerDiagnosticsJson: reconciled.workerDiagnosticsJson,
+          failureDetailsJson: reconciled.failureDetailsJson,
           status: reconciled.status,
         });
         if (progressPayload !== lastProgressSignature) {
@@ -83,6 +85,8 @@ export async function GET(
               runtimeMs: reconciled.runtimeMs,
               costUsd: reconciled.costUsd,
               costBasis: reconciled.costBasis,
+              workerDiagnosticsJson: reconciled.workerDiagnosticsJson,
+              failureDetailsJson: reconciled.failureDetailsJson,
               ...liveMetrics,
             }),
           );

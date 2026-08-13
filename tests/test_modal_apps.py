@@ -171,3 +171,36 @@ def test_training_resume_api_and_cli_surface():
     assert '/resume' in cli_training
     assert 'case "resume"' in cli_index
     assert 'piro training resume <id>' in cli_index
+
+def test_training_failure_diagnostics_are_persisted_and_exposed():
+    training = (MODAL_DIR / "training.py").read_text()
+    heartbeat = (MODAL_DIR.parent / "platform_training_state.py").read_text()
+    schema = (Path(__file__).parents[1] / "data" / "schema.ts").read_text()
+    serializer = (Path(__file__).parents[1] / "src" / "lib" / "training-runs.server.ts").read_text()
+    observability = (
+        Path(__file__).parents[1]
+        / "src"
+        / "lib"
+        / "training-run-observability.server.ts"
+    ).read_text()
+    stream = (
+        Path(__file__).parents[1]
+        / "src"
+        / "app"
+        / "api"
+        / "training-runs"
+        / "[id]"
+        / "stream"
+        / "route.ts"
+    ).read_text()
+
+    assert 'workerDiagnosticsJson: text("workerDiagnosticsJson")' in schema
+    assert 'failureDetailsJson: text("failureDetailsJson")' in schema
+    assert '"workerDiagnosticsJson" = %s' in training
+    assert '"failureDetailsJson" = %s' in training
+    assert 'traceback.format_exc(limit=50)' in training
+    assert 'HEARTBEAT_DIAGNOSTICS_SQL' in heartbeat
+    assert "workerDiagnosticsJson: run.workerDiagnosticsJson" in serializer
+    assert "failureDetailsJson: run.failureDetailsJson" in serializer
+    assert "workerDiagnostics" in observability
+    assert "failureDetailsJson" in stream

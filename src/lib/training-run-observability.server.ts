@@ -12,6 +12,30 @@ const GPU_RATE_USD_PER_SECOND: Record<string, number> = {
 const CPU_RATE_USD_PER_CORE_SECOND = 0.0000131;
 const MEMORY_RATE_USD_PER_GIB_SECOND = 0.00000222;
 
+function parseWorkerDiagnostics(value: string | null) {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as Record<string, unknown>;
+  } catch {
+    return { raw: value };
+  }
+}
+
+function failureDetailsJson(
+  kind: string,
+  reason: string,
+  run: typeof trainingRun.$inferSelect,
+  observedAt: Date,
+) {
+  return JSON.stringify({
+    kind,
+    reason,
+    observedAt: observedAt.toISOString(),
+    lastHeartbeatAt: run.heartbeatAt?.toISOString() ?? null,
+    workerDiagnostics: parseWorkerDiagnostics(run.workerDiagnosticsJson),
+  });
+}
+
 function estimateCostUsd(
   run: typeof trainingRun.$inferSelect,
   end: Date,
@@ -43,6 +67,12 @@ export async function reconcileStaleTrainingRun(
       .set({
         status: "error",
         error: "Training worker was not started before the dispatch deadline.",
+        failureDetailsJson: failureDetailsJson(
+          "queue_timeout",
+          "Training worker was not started before the dispatch deadline.",
+          run,
+          now,
+        ),
         completedAt: now,
         heartbeatAt: now,
       })
@@ -62,9 +92,16 @@ export async function reconcileStaleTrainingRun(
 
   if (!pastDeadline && !heartbeatExpired) return run;
 
+  const workerDiagnostics = parseWorkerDiagnostics(run.workerDiagnosticsJson);
+  const phase = workerDiagnostics?.phase;
+  const step = workerDiagnostics?.step;
+  const context =
+    phase || step !== undefined
+      ? ` Last known phase=${String(phase ?? "unknown")}, step=${String(step ?? "unknown")}.`
+      : "";
   const error = pastDeadline
-    ? "Training worker exceeded its execution deadline and was reconciled by the API."
-    : "Training worker stopped heartbeating and was reconciled by the API.";
+    ? `Training worker exceeded its execution deadline and was reconciled by the API.${context}`
+    : `Training worker stopped heartbeating and was reconciled by the API.${context}`;
   // Reconciliation can happen long after the worker was killed. Cap the
   // recorded runtime and cost at the declared deadline so stale API reads do
   // not bill the run for hours of non-observed execution.
@@ -75,6 +112,12 @@ export async function reconcileStaleTrainingRun(
     .set({
       status: "error",
       error,
+      failureDetailsJson: failureDetailsJson(
+        pastDeadline ? "deadline_reconciliation" : "heartbeat_reconciliation",
+        error,
+        run,
+        now,
+      ),
       completedAt: now,
       runtimeMs,
       costUsd: estimateCostUsd(run, end),
