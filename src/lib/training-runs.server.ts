@@ -5,6 +5,7 @@ import { extractBearer, validateApiKey } from "~/lib/api-auth";
 import { db } from "../../data/db";
 import { trainingRun } from "../../data/schema";
 import { deriveTrainingRunMetrics } from "./training-run-metrics";
+import { exposeTrainingRunEvents } from "./training-run-events";
 
 export { reconcileStaleTrainingRun } from "./training-run-observability.server";
 
@@ -26,6 +27,7 @@ export function serializeTrainingRun(
   now = new Date(),
 ) {
   const liveMetrics = deriveTrainingRunMetrics(run, now);
+  const workerEventExposure = exposeTrainingRunEvents(run.workerEventLogJson);
   return {
     id: run.id,
     modelName: run.modelName,
@@ -43,6 +45,7 @@ export function serializeTrainingRun(
     workerDiagnosticsJson: run.workerDiagnosticsJson,
     failureDetailsJson: run.failureDetailsJson,
     workerEventLogJson: run.workerEventLogJson,
+    ...workerEventExposure,
     heartbeatAt: run.heartbeatAt?.toISOString() ?? null,
     timeoutAt: run.timeoutAt?.toISOString() ?? null,
     runtimeMs: run.runtimeMs,

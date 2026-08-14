@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   appendTrainingRunEventJson,
+  exposeTrainingRunEvents,
   parseTrainingRunEvents,
   trainingRunEvent,
 } from "../training-run-events";
@@ -32,5 +33,17 @@ describe("training-run-events", () => {
     expect(event.event).toBe("dispatch_failed");
     expect(event.status).toBe(503);
     expect(typeof event.observedAt).toBe("string");
+  });
+
+  test("exposes the full history and its latest event", () => {
+    const exposure = exposeTrainingRunEvents(
+      JSON.stringify([
+        { event: "worker_method_entered" },
+        { event: "training_completed" },
+      ]),
+    );
+    expect(exposure.workerEvents).toHaveLength(2);
+    expect(exposure.workerEvents[0]?.event).toBe("worker_method_entered");
+    expect(exposure.lastWorkerEvent?.event).toBe("training_completed");
   });
 });
