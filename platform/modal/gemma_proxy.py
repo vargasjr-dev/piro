@@ -367,8 +367,6 @@ def main() -> None:
         "1",
         "--max-model-len",
         "2048",
-        "--chat-template",
-        "/root/platform/modal/gemma-chat-template.jinja",
         "--enforce-eager",
         "--limit-mm-per-prompt",
         json.dumps({"image": 0, "video": 0, "audio": 0}),

@@ -6,7 +6,7 @@ import { getBenchmarkTarget } from "./targets";
 test("Gemma benchmark target uses the configured Modal OpenAI-compatible endpoint", async () => {
   const config = getBenchmarkTarget("gemma:google/gemma-3-270m");
   assert.ok(config);
-  assert.equal(config.apiModelName, "google/gemma-3-270m");
+  assert.equal(config.apiModelName, "google/gemma-3-270m-it");
   assert.equal(
     config.endpoint,
     "https://dvargasfuertes--piro-gemma-vllm-server.us-east.modal.direct/v1",
@@ -28,7 +28,7 @@ test("Gemma benchmark target uses the configured Modal OpenAI-compatible endpoin
 
     const result = await makeChatAdapter(config).generate("key_017");
     assert.equal(requests[0]?.url, `${config.endpoint}/chat/completions`);
-    assert.equal(requests[0]?.body.model, "google/gemma-3-270m");
+    assert.equal(requests[0]?.body.model, "google/gemma-3-270m-it");
     assert.equal(result.inputTokens, 11);
     assert.equal(result.outputTokens, 2);
     assert.equal(result.tokenAccounting, "not_applicable");

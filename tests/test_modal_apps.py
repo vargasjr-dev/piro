@@ -32,12 +32,10 @@ def test_training_does_not_persist_infrastructure_endpoint():
 def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     source = (MODAL_DIR / "gemma.py").read_text()
     assert 'APP_NAME = "piro-gemma-vllm"' in source
-    assert 'MODEL_NAME = "google/gemma-3-270m"' in source
-    assert 'MODEL_REVISION = "9b0cfec892e2bc2afd938c98eabe4e4a7b1e0ca1"' in source
+    assert 'MODEL_NAME = "google/gemma-3-270m-it"' in source
+    assert 'MODEL_REVISION = "ac82b4e820549b854eebf28ce6dedaf9fdfa17b3"' in source
     assert 'VLLM_VERSION = "0.21.0"' in source
-    assert 'CHAT_TEMPLATE_PATH = "/root/platform/modal/gemma-chat-template.jinja"' in source
-    assert '"--chat-template"' in source
-    assert "<start_of_turn>model\\n" in (MODAL_DIR / "gemma-chat-template.jinja").read_text()
+    assert '"--chat-template"' not in source
     assert '"/v1/chat/completions"' not in source
     assert 'routing_region="us-east"' in source
     assert 'gpu="A10"' in source
