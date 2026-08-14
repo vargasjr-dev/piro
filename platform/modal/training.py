@@ -70,11 +70,13 @@ class Trainer:
         seed: int,
         resume: bool = False,
     ) -> None:
+        import faulthandler
         import io
         import json
         import os
         import random
         import socket
+        import sys
         import threading
         import traceback
         import uuid as _uuid
@@ -86,6 +88,7 @@ class Trainer:
 
         torch = self._torch
         device = None
+        faulthandler.enable(file=sys.stderr, all_threads=True)
         print(f"[piro] run {run_id} entered worker method", flush=True)
 
         def _estimate_cost_usd(runtime_ms: int) -> float:
@@ -292,6 +295,79 @@ class Trainer:
             if lease_lost.is_set():
                 raise RuntimeError("training run lease was lost while the worker was running")
 
+        checkpoint_watchdog_stop = threading.Event()
+        checkpoint_stage_lock = threading.Lock()
+        checkpoint_stage = {"name": None, "startedAt": None}
+        checkpoint_watchdog_thread = None
+        checkpoint_watchdog_active = False
+
+        def _set_checkpoint_stage(name: str | None) -> None:
+            started_at = datetime.now(UTC).isoformat() if name else None
+            with checkpoint_stage_lock:
+                checkpoint_stage["name"] = name
+                checkpoint_stage["startedAt"] = started_at
+            _set_diagnostics(
+                diagnostics_state.get("phase", "building_model"),
+                checkpointStage=name,
+                checkpointStageStartedAt=started_at,
+            )
+
+        def _checkpoint_watchdog() -> None:
+            while not checkpoint_watchdog_stop.wait(30):
+                with checkpoint_stage_lock:
+                    name = checkpoint_stage["name"]
+                    started = checkpoint_stage["startedAt"]
+                if not name:
+                    continue
+                elapsed_seconds = None
+                if started:
+                    elapsed_seconds = round(
+                        max(
+                            0,
+                            (
+                                datetime.now(UTC)
+                                - datetime.fromisoformat(str(started))
+                            ).total_seconds(),
+                        ),
+                        1,
+                    )
+                _persist_event(
+                    "checkpoint_restore_watchdog",
+                    stage=name,
+                    elapsedSeconds=elapsed_seconds,
+                )
+                faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+
+        def _start_checkpoint_watchdog() -> None:
+            nonlocal checkpoint_watchdog_thread, checkpoint_watchdog_active
+            checkpoint_watchdog_active = True
+            _set_checkpoint_stage("starting")
+            _persist_event("checkpoint_restore_watchdog_armed")
+            faulthandler.dump_traceback_later(
+                60,
+                repeat=True,
+                file=sys.stderr,
+            )
+            checkpoint_watchdog_thread = threading.Thread(
+                target=_checkpoint_watchdog,
+                name=f"piro-checkpoint-watchdog-{run_id[:8]}",
+                daemon=True,
+            )
+            checkpoint_watchdog_thread.start()
+
+        def _stop_checkpoint_watchdog(*, record_event: bool = True) -> None:
+            nonlocal checkpoint_watchdog_active
+            if not checkpoint_watchdog_active:
+                return
+            checkpoint_watchdog_active = False
+            checkpoint_watchdog_stop.set()
+            faulthandler.cancel_dump_traceback_later()
+            _set_checkpoint_stage(None)
+            if checkpoint_watchdog_thread is not None:
+                checkpoint_watchdog_thread.join(timeout=5)
+            if record_event:
+                _persist_event("checkpoint_restore_watchdog_stopped")
+
         model = None
         optimizer = None
         try:
@@ -385,10 +461,14 @@ class Trainer:
 
             def _load_checkpoint() -> None:
                 nonlocal history, order, cursor, start_step
+                _start_checkpoint_watchdog()
                 if not checkpoint_key:
+                    _persist_event("checkpoint_restore_started", checkpointStep=0)
                     _set_diagnostics("checkpoint_ready", checkpointStep=0)
+                    _persist_event("checkpoint_ready", checkpointStep=0)
+                    _stop_checkpoint_watchdog()
                     return
-                payload = checkpoint_payload
+
                 if payload is None:
                     _set_diagnostics("loading_checkpoint", checkpointStep=checkpoint_step, checkpointKey=checkpoint_key)
                     response = r2.get_object(Bucket=R2_BUCKET, Key=checkpoint_key)
@@ -405,27 +485,49 @@ class Trainer:
                 }.items():
                     if checkpoint_config.get(key) != expected:
                         raise RuntimeError(f"checkpoint {key} does not match this run")
+                _persist_event("checkpoint_restore_started", checkpointStep=checkpoint_step)
+                _set_checkpoint_stage("model_state")
                 model.load_model_state(payload["model"])
+                _persist_event("checkpoint_model_state_loaded", checkpointStep=checkpoint_step)
+                _set_checkpoint_stage("optimizer_state")
                 optimizer.load_state_dict(payload["optimizer"])
-                _persist_event("checkpoint_restored", checkpointStep=checkpoint_step)
+                _persist_event("checkpoint_optimizer_state_loaded", checkpointStep=checkpoint_step)
+                _set_checkpoint_stage("runtime_state")
                 model.load_checkpoint_state(payload.get("runtime", {}))
+                _persist_event("checkpoint_runtime_state_loaded", checkpointStep=checkpoint_step)
+                _set_checkpoint_stage("optimizer_device")
                 _restore_optimizer_device()
+                _persist_event("checkpoint_optimizer_device_restored", checkpointStep=checkpoint_step)
+                _set_checkpoint_stage("history_state")
                 history = list(payload.get("history", []))
                 order = list(payload.get("order", order))
                 cursor = int(payload.get("cursor", 0))
                 start_step = int(payload.get("step", checkpoint_step))
+                _persist_event("checkpoint_progress_state_loaded", checkpointStep=start_step)
+                _set_checkpoint_stage("dataset_order")
                 if len(order) != len(train_data):
                     raise RuntimeError("checkpoint dataset ordering does not match current data")
+                _persist_event("checkpoint_dataset_order_validated", checkpointStep=start_step)
+                _set_checkpoint_stage("python_rng")
                 random.setstate(payload["pythonRandomState"])
+                _persist_event("checkpoint_python_rng_restored", checkpointStep=start_step)
+                _set_checkpoint_stage("torch_rng")
                 torch.set_rng_state(payload["torchRandomState"].cpu())
+                _persist_event("checkpoint_torch_rng_restored", checkpointStep=start_step)
                 if device.type == "cuda" and payload.get("cudaRandomState") is not None:
+                    _set_checkpoint_stage("cuda_rng")
                     torch.cuda.set_rng_state_all(payload["cudaRandomState"])
+                    torch.cuda.synchronize(device)
+                    _persist_event("checkpoint_cuda_rng_restored", checkpointStep=start_step)
+                _persist_event("checkpoint_restored", checkpointStep=start_step)
                 _set_diagnostics(
-                    "checkpoint_ready",
+
                     step=start_step,
                     checkpointStep=start_step,
                     checkpointKey=checkpoint_key,
                 )
+                _persist_event("checkpoint_ready", checkpointStep=start_step)
+                _stop_checkpoint_watchdog()
                 print(f"[piro] resumed run {run_id} from checkpoint step {start_step}")
 
             def _save_checkpoint(step: int) -> None:
@@ -788,6 +890,7 @@ class Trainer:
             raise
 
         finally:
+            _stop_checkpoint_watchdog(record_event=False)
             _stop_heartbeat()
             cur.close()
             conn.close()
