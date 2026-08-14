@@ -267,6 +267,8 @@ export const trainingRun = pgTable(
     workerDiagnosticsJson: text("workerDiagnosticsJson"),
     /** Structured exception or reconciliation details for the latest failure. */
     failureDetailsJson: text("failureDetailsJson"),
+    /** Bounded append-only worker startup and failure events for postmortem debugging. */
+    workerEventLogJson: text("workerEventLogJson"),
     /** Last worker heartbeat; used to reconcile platform-level terminations. */
     heartbeatAt: timestamp("heartbeatAt"),
     /** Application deadline before Modal's hard execution timeout. */

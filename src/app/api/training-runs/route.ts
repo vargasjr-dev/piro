@@ -21,6 +21,10 @@ import {
   hasTrainingRunsRemaining,
 } from "~/lib/billing";
 import { isAdmin } from "~/lib/admin";
+import {
+  appendTrainingRunEventSql,
+  trainingRunEvent,
+} from "~/lib/training-run-events";
 
 // ── GET /api/training-runs ────────────────────────────────────────────────────
 
@@ -132,6 +136,7 @@ export async function POST(request: Request) {
 
   const id = randomUUID();
   const configJson = JSON.stringify({ architecturePath, datasetId, maxSteps });
+  const createdEventLogJson = JSON.stringify([trainingRunEvent("run_created")]);
 
   await db.insert(trainingRun).values({
     id,
@@ -142,6 +147,7 @@ export async function POST(request: Request) {
     status: "queued",
     maxSteps,
     configJson,
+    workerEventLogJson: createdEventLogJson,
   });
 
   // Increment the quota counter atomically
@@ -158,6 +164,13 @@ export async function POST(request: Request) {
   // ── Trigger Modal training worker ─────────────────────────────────────────
   const modalEndpoint = process.env.MODAL_TRAINING_ENDPOINT;
   let dispatchError: string | null = null;
+  const dispatchStartedEvent = trainingRunEvent("dispatch_started");
+  await db
+    .update(trainingRun)
+    .set({
+      workerEventLogJson: appendTrainingRunEventSql(dispatchStartedEvent),
+    })
+    .where(and(eq(trainingRun.id, id), eq(trainingRun.status, "queued")));
   if (!modalEndpoint) {
     dispatchError = "MODAL_TRAINING_ENDPOINT is not configured.";
   } else {
@@ -196,6 +209,11 @@ export async function POST(request: Request) {
         status: "error",
         error: dispatchError,
         completedAt: new Date(),
+        workerEventLogJson: appendTrainingRunEventSql(
+          trainingRunEvent("dispatch_failed", {
+            error: dispatchError.slice(0, 500),
+          }),
+        ),
       })
       .where(and(eq(trainingRun.id, id), eq(trainingRun.status, "queued")));
 
@@ -210,6 +228,15 @@ export async function POST(request: Request) {
     }
     return Response.json({ error: dispatchError, id }, { status: 503 });
   }
+
+  await db
+    .update(trainingRun)
+    .set({
+      workerEventLogJson: appendTrainingRunEventSql(
+        trainingRunEvent("dispatch_succeeded"),
+      ),
+    })
+    .where(and(eq(trainingRun.id, id), eq(trainingRun.status, "queued")));
 
   return Response.json({ id }, { status: 201 });
 }

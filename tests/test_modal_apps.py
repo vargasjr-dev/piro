@@ -200,11 +200,21 @@ def test_training_failure_diagnostics_are_persisted_and_exposed():
 
     assert 'workerDiagnosticsJson: text("workerDiagnosticsJson")' in schema
     assert 'failureDetailsJson: text("failureDetailsJson")' in schema
+    assert 'workerEventLogJson: text("workerEventLogJson")' in schema
+    assert '"workerEventLogJson" = %s' in heartbeat
+    assert 'persist_worker_event' in training
+    assert 'worker_method_entered' in training
+    assert 'worker_startup_failed' in training
+    assert 'container setup failed' in training
+    assert 'flush=True' in training
     assert '"workerDiagnosticsJson" = %s' in training
     assert '"failureDetailsJson" = %s' in training
     assert 'traceback.format_exc(limit=50)' in training
     assert 'HEARTBEAT_DIAGNOSTICS_SQL' in heartbeat
     assert "workerDiagnosticsJson: run.workerDiagnosticsJson" in serializer
     assert "failureDetailsJson: run.failureDetailsJson" in serializer
-    assert "workerDiagnostics" in observability
+    assert "workerEventLogJson: run.workerEventLogJson" in serializer
+    assert "workerEvents" in observability
+    assert "lastWorkerEvent" in observability
+    assert "workerEventLogJson" in stream
     assert "failureDetailsJson" in stream

@@ -42,6 +42,7 @@ export function serializeTrainingRun(
     error: run.error,
     workerDiagnosticsJson: run.workerDiagnosticsJson,
     failureDetailsJson: run.failureDetailsJson,
+    workerEventLogJson: run.workerEventLogJson,
     heartbeatAt: run.heartbeatAt?.toISOString() ?? null,
     timeoutAt: run.timeoutAt?.toISOString() ?? null,
     runtimeMs: run.runtimeMs,

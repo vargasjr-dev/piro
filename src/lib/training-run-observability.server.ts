@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../../data/db";
 import { trainingRun } from "../../data/schema";
+import { parseTrainingRunEvents } from "./training-run-events";
 
 const STALE_RUN_GRACE_MS = 5 * 60 * 1000;
 const DEFAULT_QUEUE_TIMEOUT_MS = 10 * 60 * 1000;
@@ -27,12 +28,16 @@ function failureDetailsJson(
   run: typeof trainingRun.$inferSelect,
   observedAt: Date,
 ) {
+  const workerEvents = parseTrainingRunEvents(run.workerEventLogJson);
+  const lastWorkerEvent = workerEvents.at(-1) ?? null;
   return JSON.stringify({
     kind,
     reason,
     observedAt: observedAt.toISOString(),
     lastHeartbeatAt: run.heartbeatAt?.toISOString() ?? null,
     workerDiagnostics: parseWorkerDiagnostics(run.workerDiagnosticsJson),
+    workerEvents,
+    lastWorkerEvent,
   });
 }
 
@@ -95,10 +100,15 @@ export async function reconcileStaleTrainingRun(
   const workerDiagnostics = parseWorkerDiagnostics(run.workerDiagnosticsJson);
   const phase = workerDiagnostics?.phase;
   const step = workerDiagnostics?.step;
+  const lastWorkerEvent = parseTrainingRunEvents(run.workerEventLogJson).at(-1);
+  const eventContext =
+    lastWorkerEvent && typeof lastWorkerEvent === "object"
+      ? ` Last worker event=${String((lastWorkerEvent as Record<string, unknown>).event ?? "unknown")} at ${String((lastWorkerEvent as Record<string, unknown>).observedAt ?? "unknown")}.`
+      : "";
   const context =
     phase || step !== undefined
-      ? ` Last known phase=${String(phase ?? "unknown")}, step=${String(step ?? "unknown")}.`
-      : "";
+      ? ` Last known phase=${String(phase ?? "unknown")}, step=${String(step ?? "unknown")}.${eventContext}`
+      : eventContext;
   const error = pastDeadline
     ? `Training worker exceeded its execution deadline and was reconciled by the API.${context}`
     : `Training worker stopped heartbeating and was reconciled by the API.${context}`;

@@ -66,6 +66,7 @@ export async function GET(
           ...liveMetrics,
           workerDiagnosticsJson: reconciled.workerDiagnosticsJson,
           failureDetailsJson: reconciled.failureDetailsJson,
+          workerEventLogJson: reconciled.workerEventLogJson,
           status: reconciled.status,
         });
         if (progressPayload !== lastProgressSignature) {
@@ -87,6 +88,7 @@ export async function GET(
               costBasis: reconciled.costBasis,
               workerDiagnosticsJson: reconciled.workerDiagnosticsJson,
               failureDetailsJson: reconciled.failureDetailsJson,
+              workerEventLogJson: reconciled.workerEventLogJson,
               ...liveMetrics,
             }),
           );
@@ -104,6 +106,9 @@ export async function GET(
               runtimeMs: reconciled.runtimeMs,
               costUsd: reconciled.costUsd,
               costBasis: reconciled.costBasis,
+              workerDiagnosticsJson: reconciled.workerDiagnosticsJson,
+              failureDetailsJson: reconciled.failureDetailsJson,
+              workerEventLogJson: reconciled.workerEventLogJson,
               ...liveMetrics,
             }),
           );
