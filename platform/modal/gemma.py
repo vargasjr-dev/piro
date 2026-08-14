@@ -42,7 +42,7 @@ vllm_image = (
             "HF_XET_HIGH_PERFORMANCE": "1",
             "HF_HUB_OFFLINE": "1",
             "TRANSFORMERS_OFFLINE": "1",
-            # FlashInfer's sampler is unreliable on the T4's compute capability;
+            # FlashInfer's sampler is unreliable on older GPU compute capabilities;
             # use vLLM's native sampler for stable generation.
             "VLLM_USE_FLASHINFER_SAMPLER": "0",
             "VLLM_LOG_STATS_INTERVAL": "1",
@@ -84,7 +84,7 @@ def _manifest_files(manifest: dict) -> list[dict]:
 
 @app.server(
     image=vllm_image,
-    gpu="T4",
+    gpu="A10",
     scaledown_window=15 * 60,
     startup_timeout=10 * 60,
     volumes={
