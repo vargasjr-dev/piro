@@ -40,6 +40,9 @@ vllm_image = (
             "HF_XET_HIGH_PERFORMANCE": "1",
             "HF_HUB_OFFLINE": "1",
             "TRANSFORMERS_OFFLINE": "1",
+            # FlashInfer's sampler is unreliable on the T4's compute capability;
+            # use vLLM's native sampler for stable generation.
+            "VLLM_USE_FLASHINFER_SAMPLER": "0",
             "VLLM_LOG_STATS_INTERVAL": "1",
             "PYTHONPATH": "/root/platform/modal",
         }
