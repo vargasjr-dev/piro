@@ -15,6 +15,7 @@ if _REMOTE_MODAL_DIR not in sys.path:
     sys.path.insert(0, _REMOTE_MODAL_DIR)
 
 from _common import R2_BUCKET, _r2_client, piro_secrets
+from gemma_proxy import VllmSupervisor, create_proxy_server
 
 APP_NAME = "piro-gemma-vllm"
 MODEL_NAME = "google/gemma-3-270m"
@@ -24,6 +25,7 @@ MODEL_DIR = Path("/root/.cache/huggingface/piro-models") / (
     f"{MODEL_NAME.replace('/', '--')}-{MODEL_REVISION}"
 )
 VLLM_PORT = 8000
+VLLM_UPSTREAM_PORT = 8001
 VLLM_VERSION = "0.21.0"
 CHAT_TEMPLATE_PATH = "/root/platform/modal/gemma-chat-template.jinja"
 DOWNLOAD_CHUNK_BYTES = 8 * 1024 * 1024
@@ -196,8 +198,6 @@ class Server:
 
     @modal.enter()
     def start(self):
-        import subprocess
-
         model_dir = self._hydrate_model()
         command = [
             "vllm",
@@ -206,9 +206,9 @@ class Server:
             "--served-model-name",
             MODEL_NAME,
             "--host",
-            "0.0.0.0",
+            "127.0.0.1",
             "--port",
-            str(VLLM_PORT),
+            str(VLLM_UPSTREAM_PORT),
             "--tensor-parallel-size",
             "1",
             "--max-model-len",
@@ -219,9 +219,21 @@ class Server:
             "--limit-mm-per-prompt",
             json.dumps({"image": 0, "video": 0, "audio": 0}),
         ]
-        print(*command)
-        self.process = subprocess.Popen(command)
+        print("[piro-gemma] launching supervised vLLM", *command, flush=True)
+        self.supervisor = VllmSupervisor(
+            command,
+            Path("/tmp/piro-gemma/vllm.log"),
+            MODEL_NAME,
+            MODEL_REVISION,
+        )
+        self.proxy, self.proxy_thread = create_proxy_server(
+            self.supervisor,
+            VLLM_UPSTREAM_PORT,
+            VLLM_PORT,
+        )
 
     @modal.exit()
     def stop(self):
-        self.process.terminate()
+        self.proxy.shutdown()
+        self.proxy.server_close()
+        self.supervisor.stop()

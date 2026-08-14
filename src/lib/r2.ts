@@ -153,6 +153,40 @@ export async function r2Get(key: string): Promise<string | null> {
   }
 }
 
+export interface R2ObjectInfo {
+  key: string;
+  size: number;
+  lastModified: Date | null;
+}
+
+export async function r2ListObjects(prefix: string): Promise<R2ObjectInfo[]> {
+  const client = getR2Client();
+  const objects: R2ObjectInfo[] = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const list: ListObjectsV2CommandOutput = await client.send(
+      new ListObjectsV2Command({
+        Bucket: BUCKET(),
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      }),
+    );
+    for (const object of list.Contents ?? []) {
+      if (object.Key) {
+        objects.push({
+          key: object.Key,
+          size: object.Size ?? 0,
+          lastModified: object.LastModified ?? null,
+        });
+      }
+    }
+    continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return objects;
+}
+
 /**
  * Delete all objects under a given prefix.
  * Used when an integration is disconnected.
