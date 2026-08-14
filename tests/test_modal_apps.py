@@ -44,6 +44,8 @@ def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     assert 'modal.Volume.from_name("piro-gemma-huggingface-cache"' in source
     assert 'modal.Volume.from_name("piro-gemma-vllm-cache"' in source
     assert 'secrets=[piro_secrets]' in source
+    assert 'sys.path.insert(0, _REMOTE_MODAL_DIR)' in source
+    assert '_REMOTE_MODAL_DIR = "/root/platform/modal"' in source
     assert '.env({"PYTHONPATH": "/root/platform/modal"})' in source or '"PYTHONPATH": "/root/platform/modal"' in source
     assert '.add_local_dir("platform/modal", remote_path="/root/platform/modal")' in source
     assert source.index('.add_local_dir("platform/modal", remote_path="/root/platform/modal")') > source.index('.pip_install(f"vllm=={VLLM_VERSION}", "boto3>=1.34.0")')
