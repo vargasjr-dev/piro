@@ -100,7 +100,7 @@ class Trainer:
         cur = conn.cursor()
         cur.execute(
             'SELECT "userId", "checkpointR2Key", "checkpointStep", "startedAt", "timeoutAt", '
-            '"resumeAttempts" FROM training_run WHERE id = %s',
+            '"resumeAttempts", "configJson" FROM training_run WHERE id = %s',
             (run_id,),
         )
         row = cur.fetchone()
@@ -111,6 +111,11 @@ class Trainer:
         now = datetime.now(UTC)
         started_at = persisted_started_at or now
         resume_attempts: int = int(row[5] or 0) if row else 0
+        persisted_config = row[6] if row and row[6] else None
+        if isinstance(persisted_config, str):
+            persisted_config = json.loads(persisted_config)
+        if persisted_config is not None and not isinstance(persisted_config, dict):
+            raise RuntimeError("training run configJson must be an object")
         timeout_at = (
             now + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
             if resume
@@ -232,8 +237,32 @@ class Trainer:
             if not train_data:
                 raise ValueError("training dataset is empty")
 
+            checkpoint_payload: dict | None = None
+            if checkpoint_key:
+                _set_diagnostics("loading_checkpoint", checkpointStep=checkpoint_step, checkpointKey=checkpoint_key)
+                response = r2.get_object(Bucket=R2_BUCKET, Key=checkpoint_key)
+                checkpoint_payload = torch.load(
+                    io.BytesIO(response["Body"].read()),
+                    map_location=device,
+                    weights_only=False,
+                )
+                checkpoint_envelope = checkpoint_payload.get("config", {})
+                for key, expected in {
+                    "architecturePath": architecture_path,
+                    "sourcePath": source_path,
+                    "datasetR2Prefix": dataset_r2_prefix,
+                }.items():
+                    if checkpoint_envelope.get(key) != expected:
+                        raise RuntimeError(f"checkpoint {key} does not match this run")
+
             _set_diagnostics("building_model", trainExamples=len(train_data), evalExamples=len(val_data))
-            model_config = architecture_class.config_for_training(train_data)
+            model_config = dict(persisted_config or {}) if resume else {}
+            if not model_config:
+                model_config = dict((checkpoint_payload or {}).get("config", {}).get("modelConfig", {}))
+            if checkpoint_key and not model_config:
+                raise RuntimeError("resume checkpoint is missing the persisted model configuration")
+            if not model_config:
+                model_config = architecture_class.config_for_training(train_data)
             model = architecture_class.from_config(model_config).to(device)
             optimizer = torch.optim.Adam(model.parameters(), **model.optimizer_kwargs())
 
@@ -268,13 +297,15 @@ class Trainer:
                 if not checkpoint_key:
                     _set_diagnostics("checkpoint_ready", checkpointStep=0)
                     return
-                _set_diagnostics("loading_checkpoint", checkpointStep=checkpoint_step, checkpointKey=checkpoint_key)
-                response = r2.get_object(Bucket=R2_BUCKET, Key=checkpoint_key)
-                payload = torch.load(
-                    io.BytesIO(response["Body"].read()),
-                    map_location=device,
-                    weights_only=False,
-                )
+                payload = checkpoint_payload
+                if payload is None:
+                    _set_diagnostics("loading_checkpoint", checkpointStep=checkpoint_step, checkpointKey=checkpoint_key)
+                    response = r2.get_object(Bucket=R2_BUCKET, Key=checkpoint_key)
+                    payload = torch.load(
+                        io.BytesIO(response["Body"].read()),
+                        map_location=device,
+                        weights_only=False,
+                    )
                 checkpoint_config = payload.get("config", {})
                 for key, expected in {
                     "architecturePath": architecture_path,
@@ -329,6 +360,7 @@ class Trainer:
                         "architecturePath": architecture_path,
                         "sourcePath": source_path,
                         "datasetR2Prefix": dataset_r2_prefix,
+                        "modelConfig": model.config_dict(),
                     },
                 }
                 buffer = io.BytesIO()

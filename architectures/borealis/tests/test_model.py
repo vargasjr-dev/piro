@@ -326,6 +326,12 @@ def test_byte_bpe_fits_lossless_compact_tokenizer():
     assert tokenizer.decode(tokenizer.encode(text)) == text
 
 
+def test_byte_bpe_fit_preserves_deterministic_merge_order():
+    tokenizer = BorealisTokenizer.fit(["ababa", "ababb"], max_vocab_size=300)
+
+    assert tokenizer.merges == ((97, 98), (256, 256))
+
+
 def test_training_config_persists_fitted_tokenizer():
     examples = [
         type(

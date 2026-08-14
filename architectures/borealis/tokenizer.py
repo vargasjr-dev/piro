@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
-from collections import Counter
+import dataclasses
+import heapq
 from collections.abc import Iterable, Sequence
 
 import tiktoken
+
+
+@dataclasses.dataclass(eq=False)
+class _TokenNode:
+    token: int
+    position: int
+    previous: _TokenNode | None = None
+    next: _TokenNode | None = None
+    alive: bool = True
 
 BYTE_VOCAB_SIZE = 256
 DEFAULT_MAX_VOCAB_SIZE = 8192
@@ -64,26 +74,101 @@ class BorealisTokenizer:
         *,
         max_vocab_size: int = DEFAULT_MAX_VOCAB_SIZE,
     ) -> BorealisTokenizer:
-        """Fit deterministic merges from raw text while retaining byte fallback."""
+        """Fit deterministic merges from raw text while retaining byte fallback.
+
+        Pair counts are maintained over linked token sequences. Each merge only
+        touches the pairs adjacent to the replaced occurrences, avoiding the
+        full-corpus recount and rewrite that made large fits unbounded.
+        """
         if max_vocab_size <= BYTE_VOCAB_SIZE:
             raise ValueError("max_vocab_size must leave room for learned BPE tokens and EOS")
 
-        sequences = [list(text.encode("utf-8")) for text in texts if text]
+        sequences = [
+            [_TokenNode(token, position) for position, token in enumerate(text.encode("utf-8"))]
+            for text in texts
+            if text
+        ]
+        occurrences: dict[tuple[int, int], set[_TokenNode]] = {}
+        generations: dict[tuple[int, int], int] = {}
+
+        def add_occurrence(left: _TokenNode | None) -> None:
+            if left is None or not left.alive or left.next is None or not left.next.alive:
+                return
+            pair = (left.token, left.next.token)
+            occurrences.setdefault(pair, set()).add(left)
+
+        def remove_occurrence(left: _TokenNode | None) -> None:
+            if left is None:
+                return
+            pair = (left.token, left.next.token) if left.next is not None else None
+            if pair is None:
+                return
+            pair_occurrences = occurrences.get(pair)
+            if pair_occurrences is None:
+                return
+            pair_occurrences.discard(left)
+            generations[pair] = generations.get(pair, 0) + 1
+            if not pair_occurrences:
+                del occurrences[pair]
+
+        for sequence in sequences:
+            for index in range(len(sequence) - 1):
+                sequence[index].next = sequence[index + 1]
+                sequence[index + 1].previous = sequence[index]
+                add_occurrence(sequence[index])
+
+        heap = [(-len(nodes), pair, generations.get(pair, 0)) for pair, nodes in occurrences.items()]
+        heapq.heapify(heap)
         merges: list[tuple[int, int]] = []
-        while BYTE_VOCAB_SIZE + len(merges) + 1 < max_vocab_size:
-            counts = Counter(
-                pair
-                for sequence in sequences
-                for pair in zip(sequence, sequence[1:])
-            )
-            if not counts:
-                break
-            pair, count = min(counts.items(), key=lambda item: (-item[1], item[0]))
+        while BYTE_VOCAB_SIZE + len(merges) + 1 < max_vocab_size and heap:
+            negative_count, pair, generation = heapq.heappop(heap)
+            pair_occurrences = occurrences.get(pair)
+            count = len(pair_occurrences) if pair_occurrences is not None else 0
+            if generation != generations.get(pair, 0) or count != -negative_count:
+                continue
             if count < 2:
                 break
+
+            token_id = BYTE_VOCAB_SIZE + len(merges)
+            changed_pairs: set[tuple[int, int]] = set()
+            candidates = sorted(pair_occurrences, key=lambda node: node.position)
+            for left in candidates:
+                right = left.next
+                if (
+                    not left.alive
+                    or right is None
+                    or not right.alive
+                    or (left.token, right.token) != pair
+                ):
+                    continue
+
+                previous = left.previous
+                following = right.next
+                for neighbor in (previous, left, right):
+                    if neighbor is not None and neighbor.next is not None:
+                        changed_pairs.add((neighbor.token, neighbor.next.token))
+                    remove_occurrence(neighbor)
+                left.token = token_id
+                left.next = following
+                if following is not None:
+                    following.previous = left
+                right.alive = False
+                right.previous = None
+                right.next = None
+                add_occurrence(previous)
+                add_occurrence(left)
+                for neighbor in (previous, left):
+                    if neighbor is not None and neighbor.next is not None:
+                        changed_pairs.add((neighbor.token, neighbor.next.token))
+
             merges.append(pair)
-            token_id = BYTE_VOCAB_SIZE + len(merges) - 1
-            sequences = [cls._replace_pair(sequence, pair, token_id) for sequence in sequences]
+            for changed_pair in changed_pairs:
+                changed_count = len(occurrences.get(changed_pair, ()))
+                if changed_count:
+                    heapq.heappush(
+                        heap,
+                        (-changed_count, changed_pair, generations.get(changed_pair, 0)),
+                    )
 
         return cls("byte_bpe", merges)
 

@@ -125,8 +125,10 @@ def test_training_auto_resumes_from_deadline_checkpoint_with_a_bounded_limit():
     serializer = (Path(__file__).parents[1] / "src" / "lib" / "training-runs.server.ts").read_text()
 
     assert "MAX_AUTO_RESUME_ATTEMPTS = 8" in common
-    assert '"resumeAttempts" FROM training_run WHERE id = %s' in training
+    assert '"resumeAttempts", "configJson" FROM training_run WHERE id = %s' in training
     assert '"resumeAttempts" = "resumeAttempts" + 1' in training
+    assert '"modelConfig": model.config_dict()' in training
+    assert 'resume checkpoint is missing the persisted model configuration' in training
     assert 'scheduled automatic resume attempt' in training
     assert 'resume=True' in training
     assert 'now + timedelta(seconds=TRAINING_DEADLINE_SECONDS)' in training
