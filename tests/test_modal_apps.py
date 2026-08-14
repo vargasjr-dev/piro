@@ -210,6 +210,11 @@ def test_training_failure_diagnostics_are_persisted_and_exposed():
     assert '"workerDiagnosticsJson" = %s' in training
     assert '"failureDetailsJson" = %s' in training
     assert 'traceback.format_exc(limit=50)' in training
+    assert 'faulthandler.dump_traceback_later' in training
+    assert 'checkpoint_restore_watchdog' in training
+    assert 'checkpoint_restore_started' in training
+    assert 'checkpoint_ready' in training
+    assert 'checkpoint_cuda_rng_restored' in training
     assert 'HEARTBEAT_DIAGNOSTICS_SQL' in heartbeat
     assert "workerDiagnosticsJson: run.workerDiagnosticsJson" in serializer
     assert "failureDetailsJson: run.failureDetailsJson" in serializer
