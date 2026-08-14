@@ -52,6 +52,10 @@ def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     assert 'HF_HUB_OFFLINE": "1"' in source
     assert 'TRANSFORMERS_OFFLINE": "1"' in source
     assert '"VLLM_USE_FLASHINFER_SAMPLER": "0"' in source
+    assert "from gemma_proxy import VllmSupervisor, create_proxy_server" in source
+    assert "VLLM_UPSTREAM_PORT = 8001" in source
+    assert '"--host",\n            "127.0.0.1"' in source
+    assert '"/tmp/piro-gemma/vllm.log"' in source
     assert "MODEL_PREFIX = f\"models/{MODEL_NAME.replace('/', '--')}/{MODEL_REVISION}\"" in source
     assert '"--revision"' not in source
     assert 'r2.get_object(Bucket=R2_BUCKET, Key=manifest_key)' in source
@@ -74,6 +78,22 @@ def test_training_workflow_collects_authenticated_diagnostics_after_deploy_failu
     assert "if: always()" in workflow
 
 
+def test_gemma_proxy_captures_redacted_failure_diagnostics():
+    source = (MODAL_DIR / "gemma_proxy.py").read_text()
+    assert "CUDA_LAUNCH_BLOCKING" in source
+    assert "TORCH_SHOW_CPP_STACKTRACES" in source
+    assert "PYTHONFAULTHANDLER" in source
+    assert "bodySha256" in source
+    assert "messageContentBytes" in source
+    assert '"recentVllmLogs"' in source
+    assert '"text": response' not in source
+    assert 'DIAGNOSTICS_PREFIX = "diagnostics/gemma/"' in source
+    assert "inference_http_error" in source
+    assert "vllm_process_exit" in source
+    assert "self._log_thread.join(timeout=2)" in source
+    assert "_last_capture_by_kind" in source
+
+
 def test_gemma_workflow_collects_diagnostics_after_readiness_failure():
     workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "modal-deploy.yml").read_text()
     assert "modal deploy platform/modal/gemma.py --timestamps" in workflow
@@ -89,6 +109,15 @@ def test_gemma_workflow_collects_diagnostics_after_readiness_failure():
     assert "Smoke-test Gemma generation" in workflow
     assert "gemma-generation.json" in workflow
     assert workflow.count("if: always()") >= 2
+
+
+def test_gemma_admin_diagnostics_surface_is_protected_and_discoverable():
+    listing = (Path(__file__).parents[1] / "src/app/api/admin/gemma-diagnostics/route.ts").read_text()
+    download = (Path(__file__).parents[1] / "src/app/api/admin/gemma-diagnostics/[...key]/route.ts").read_text()
+    navigation = (Path(__file__).parents[1] / "src/app/(app)/admin/AdminShell.tsx").read_text()
+    assert "requestAuth.isAdmin" in listing
+    assert "requestAuth.isAdmin" in download
+    assert '"/admin/gemma-diagnostics"' in navigation
 
 
 def test_training_image_installs_architecture_runtime_dependencies():
