@@ -51,7 +51,8 @@ def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     assert source.index('.add_local_dir("platform/modal", remote_path="/root/platform/modal")') > source.index('.pip_install(f"vllm=={VLLM_VERSION}", "boto3>=1.34.0")')
     assert 'HF_HUB_OFFLINE": "1"' in source
     assert 'TRANSFORMERS_OFFLINE": "1"' in source
-    assert 'MODEL_PREFIX = f"models/{MODEL_NAME.replace('/', '--')}/{MODEL_REVISION}"' in source
+    assert '"VLLM_USE_FLASHINFER_SAMPLER": "0"' in source
+    assert "MODEL_PREFIX = f\"models/{MODEL_NAME.replace('/', '--')}/{MODEL_REVISION}\"" in source
     assert '"--revision"' not in source
     assert 'r2.get_object(Bucket=R2_BUCKET, Key=manifest_key)' in source
     assert 'Integrity check failed' in source
@@ -85,6 +86,8 @@ def test_gemma_workflow_collects_diagnostics_after_readiness_failure():
     assert workflow.count("MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}") >= 5
     assert "gemma-deployment-diagnostics-${{ github.sha }}" in workflow
     assert "gemma-readiness.log" in workflow
+    assert "Smoke-test Gemma generation" in workflow
+    assert "gemma-generation.json" in workflow
     assert workflow.count("if: always()") >= 2
 
 

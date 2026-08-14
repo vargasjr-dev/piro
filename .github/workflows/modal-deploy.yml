@@ -206,6 +206,23 @@ jobs:
           done
           echo "Gemma did not become ready within 10 minutes." >&2
           exit 1
+      - name: Smoke-test Gemma generation
+        if: steps.deploy.outcome == 'success'
+        env:
+          GEMMA_ENDPOINT: https://dvargasfuertes--piro-gemma-vllm-server.us-east.modal.direct/v1/chat/completions
+        run: |
+          set -euo pipefail
+          payload='{"model":"google/gemma-3-270m","messages":[{"role":"user","content":"Say hello in one short sentence."}],"temperature":0,"max_tokens":1}'
+          status="$(curl --silent --show-error --max-time 120 \
+            --dump-header gemma-generation.headers \
+            --output gemma-generation.json \
+            --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "$GEMMA_ENDPOINT")"
+          echo "Gemma generation smoke test: HTTP ${status}"
+          cat gemma-generation.json
+          test "$status" = "200"
       - name: Collect Gemma diagnostics
         if: always()
         env:
@@ -234,5 +251,7 @@ jobs:
             gemma-health.headers
             gemma-health.json
             gemma-readiness.log
+            gemma-generation.headers
+            gemma-generation.json
             gemma-app.log
             gemma-history.json
