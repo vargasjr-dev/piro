@@ -47,7 +47,10 @@ type ReadinessResponse = {
   error?: string;
 };
 
-const HOSTED_WARMUP_TIMEOUT_MS = 120_000;
+// Gemma's T4 engine warmup took about 210s in the August 14, 2026
+// deployment. Keep polling long enough for that cold start, but still bound
+// the browser request so a genuinely unhealthy service does not hang forever.
+const HOSTED_WARMUP_TIMEOUT_MS = 300_000;
 const HOSTED_WARMUP_POLL_MS = 5_000;
 
 function sleep(ms: number): Promise<void> {
@@ -205,9 +208,11 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
         metadata: body.metadata ?? null,
       });
       setState(body.state ?? null);
-    } catch {
+    } catch (error) {
       const message =
-        "We could not reach the inference service. Please try again.";
+        error instanceof Error && error.message
+          ? error.message
+          : "We could not reach the inference service. Please try again.";
       setError(message);
       finishAssistant({ text: message, sentAt: Date.now(), error: true });
     } finally {
