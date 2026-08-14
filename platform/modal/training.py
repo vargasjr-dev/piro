@@ -42,15 +42,21 @@ class Trainer:
     @modal.enter()
     def setup(self):
         """Load only generic architecture and source discovery code during container startup."""
-        import torch
+        import traceback
 
-        from architectures._common import load_architecture
-        from sources._common.training import load_source_examples
+        try:
+            import torch
+            from architectures._common import load_architecture
+            from sources._common.training import load_source_examples
+        except BaseException:
+            print("[piro] container setup failed", flush=True)
+            traceback.print_exc()
+            raise
 
         self._torch = torch
         self._load_architecture = load_architecture
         self._load_source_examples = load_source_examples
-        print("[piro] container ready — torch + architecture/source loaders loaded")
+        print("[piro] container ready — torch + architecture/source loaders loaded", flush=True)
 
     @modal.method()
     def run(
@@ -76,13 +82,11 @@ class Trainer:
 
         import psycopg2
         from platform_serialization import round_nested_numbers
-        from platform_training_state import heartbeat_loop
+        from platform_training_state import heartbeat_loop, persist_worker_event
 
         torch = self._torch
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        if device.type != "cuda":
-            raise RuntimeError("Modal training requires CUDA; no GPU was attached")
-        print(f"[piro] run {run_id} using device={device} gpu={TRAINING_GPU}")
+        device = None
+        print(f"[piro] run {run_id} entered worker method", flush=True)
 
         def _estimate_cost_usd(runtime_ms: int) -> float:
             seconds = max(0, runtime_ms) / 1000.0
@@ -96,31 +100,7 @@ class Trainer:
                 6,
             )
 
-        conn = psycopg2.connect(os.environ["DATABASE_URL"])
-        cur = conn.cursor()
-        cur.execute(
-            'SELECT "userId", "checkpointR2Key", "checkpointStep", "startedAt", "timeoutAt", '
-            '"resumeAttempts", "configJson" FROM training_run WHERE id = %s',
-            (run_id,),
-        )
-        row = cur.fetchone()
-        user_id: str = row[0] if row else ""
-        checkpoint_key: str | None = row[1] if row else None
-        checkpoint_step: int = int(row[2] or 0) if row else 0
-        persisted_started_at = row[3] if row else None
         now = datetime.now(UTC)
-        started_at = persisted_started_at or now
-        resume_attempts: int = int(row[5] or 0) if row else 0
-        persisted_config = row[6] if row and row[6] else None
-        if isinstance(persisted_config, str):
-            persisted_config = json.loads(persisted_config)
-        if persisted_config is not None and not isinstance(persisted_config, dict):
-            raise RuntimeError("training run configJson must be an object")
-        timeout_at = (
-            now + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
-            if resume
-            else started_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
-        )
         worker_id = os.environ.get("MODAL_TASK_ID") or socket.gethostname()
         diagnostics_lock = threading.Lock()
         diagnostics_state = {
@@ -129,12 +109,12 @@ class Trainer:
             "workerId": worker_id,
             "pid": os.getpid(),
             "resume": resume,
-            "resumeAttempts": resume_attempts,
+            "resumeAttempts": 0,
             "maxSteps": max_steps,
             "phase": "starting",
-            "step": checkpoint_step,
-            "checkpointStep": checkpoint_step,
-            "checkpointKey": checkpoint_key,
+            "step": 0,
+            "checkpointStep": 0,
+            "checkpointKey": None,
             "updatedAt": now.isoformat(),
         }
 
@@ -147,6 +127,106 @@ class Trainer:
                 diagnostics_state.update(updates)
                 diagnostics_state["phase"] = phase
                 diagnostics_state["updatedAt"] = datetime.now(UTC).isoformat()
+
+        def _persist_event(event: str, **details: object) -> None:
+            payload = {
+                "event": event,
+                "observedAt": datetime.now(UTC).isoformat(),
+                "phase": diagnostics_state.get("phase"),
+                "step": diagnostics_state.get("step"),
+                **details,
+            }
+            try:
+                persisted = persist_worker_event(
+                    psycopg2.connect,
+                    os.environ["DATABASE_URL"],
+                    run_id,
+                    payload,
+                    diagnostics_json=_diagnostics_json(),
+                )
+                if not persisted:
+                    print(f"[piro] run {run_id} event not persisted: {event}", flush=True)
+            except BaseException as event_error:
+                print(
+                    f"[piro] run {run_id} event persistence failed for {event}: "
+                    f"{type(event_error).__name__}: {event_error}",
+                    flush=True,
+                )
+
+        _persist_event("worker_method_entered")
+        conn = None
+        cur = None
+        try:
+            _persist_event("database_connecting")
+            conn = psycopg2.connect(os.environ["DATABASE_URL"])
+            cur = conn.cursor()
+            _persist_event("database_connected")
+            cur.execute(
+                'SELECT "userId", "checkpointR2Key", "checkpointStep", "startedAt", "timeoutAt", '
+                '"resumeAttempts", "configJson" FROM training_run WHERE id = %s',
+                (run_id,),
+            )
+            row = cur.fetchone()
+            _persist_event("run_metadata_loaded", found=row is not None)
+        except BaseException as exc:
+            _persist_event(
+                "worker_startup_failed",
+                exceptionType=type(exc).__name__,
+                message=str(exc)[:2000],
+                traceback=traceback.format_exc(limit=50)[-12000:],
+            )
+            print(f"[piro] run {run_id} database preflight failed", flush=True)
+            traceback.print_exc()
+            if cur is not None:
+                cur.close()
+            if conn is not None:
+                conn.close()
+            raise
+        user_id: str = row[0] if row else ""
+        checkpoint_key: str | None = row[1] if row else None
+        checkpoint_step: int = int(row[2] or 0) if row else 0
+        persisted_started_at = row[3] if row else None
+        started_at = persisted_started_at or now
+        resume_attempts: int = int(row[5] or 0) if row else 0
+        persisted_config = row[6] if row and row[6] else None
+        if isinstance(persisted_config, str):
+            persisted_config = json.loads(persisted_config)
+        if persisted_config is not None and not isinstance(persisted_config, dict):
+            raise RuntimeError("training run configJson must be an object")
+        timeout_at = (
+            now + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
+            if resume
+            else started_at + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
+        )
+        with diagnostics_lock:
+            diagnostics_state.update(
+                resumeAttempts=resume_attempts,
+                step=checkpoint_step,
+                checkpointStep=checkpoint_step,
+                checkpointKey=checkpoint_key,
+            )
+
+        try:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            _persist_event(
+                "device_probe_complete",
+                cudaAvailable=device.type == "cuda",
+                device=str(device),
+                gpuType=TRAINING_GPU,
+            )
+            if device.type != "cuda":
+                raise RuntimeError("Modal training requires CUDA; no GPU was attached")
+            print(f"[piro] run {run_id} using device={device} gpu={TRAINING_GPU}", flush=True)
+        except BaseException as exc:
+            _persist_event(
+                "worker_startup_failed",
+                exceptionType=type(exc).__name__,
+                message=str(exc)[:2000],
+                traceback=traceback.format_exc(limit=50)[-12000:],
+            )
+            print(f"[piro] run {run_id} startup probe failed", flush=True)
+            traceback.print_exc()
+            raise
 
         initial_diagnostics = _diagnostics_json()
         if resume:
@@ -176,12 +256,14 @@ class Trainer:
                 ),
             )
         if cur.rowcount != 1:
+            _persist_event("run_not_claimable")
             conn.rollback()
             cur.close()
             conn.close()
             print(f"[piro] run {run_id} was not claimable; skipping worker")
             return
         conn.commit()
+        _persist_event("run_claimed")
 
         heartbeat_stop = threading.Event()
         lease_lost = threading.Event()
@@ -200,6 +282,7 @@ class Trainer:
             daemon=True,
         )
         heartbeat_thread.start()
+        _persist_event("heartbeat_thread_started")
 
         def _stop_heartbeat() -> None:
             heartbeat_stop.set()
@@ -213,11 +296,14 @@ class Trainer:
         optimizer = None
         try:
             _set_diagnostics("loading_data")
+            _persist_event("loading_data_entered")
             random.seed(seed)
             torch.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
             architecture_class = self._load_architecture(architecture_path)
+            _persist_event("architecture_loader_ready")
             r2 = _r2_client(os)
+            _persist_event("storage_client_ready")
             train_data = self._load_source_examples(
                 source_path=source_path,
                 r2_client=r2,
@@ -236,6 +322,7 @@ class Trainer:
             )
             if not train_data:
                 raise ValueError("training dataset is empty")
+            _persist_event("dataset_loaded", trainExamples=len(train_data), evalExamples=len(val_data))
 
             checkpoint_payload: dict | None = None
             if checkpoint_key:
@@ -246,6 +333,7 @@ class Trainer:
                     map_location=device,
                     weights_only=False,
                 )
+                _persist_event("checkpoint_payload_loaded", checkpointStep=checkpoint_step)
                 checkpoint_envelope = checkpoint_payload.get("config", {})
                 for key, expected in {
                     "architecturePath": architecture_path,
@@ -256,6 +344,7 @@ class Trainer:
                         raise RuntimeError(f"checkpoint {key} does not match this run")
 
             _set_diagnostics("building_model", trainExamples=len(train_data), evalExamples=len(val_data))
+            _persist_event("model_build_started")
             model_config = dict(persisted_config or {}) if resume else {}
             if not model_config:
                 model_config = dict((checkpoint_payload or {}).get("config", {}).get("modelConfig", {}))
@@ -264,7 +353,9 @@ class Trainer:
             if not model_config:
                 model_config = architecture_class.config_for_training(train_data)
             model = architecture_class.from_config(model_config).to(device)
+            _persist_event("model_built")
             optimizer = torch.optim.Adam(model.parameters(), **model.optimizer_kwargs())
+            _persist_event("optimizer_built")
 
             config_dict = {
                 **model.config_dict(),
@@ -316,6 +407,7 @@ class Trainer:
                         raise RuntimeError(f"checkpoint {key} does not match this run")
                 model.load_model_state(payload["model"])
                 optimizer.load_state_dict(payload["optimizer"])
+                _persist_event("checkpoint_restored", checkpointStep=checkpoint_step)
                 model.load_checkpoint_state(payload.get("runtime", {}))
                 _restore_optimizer_device()
                 history = list(payload.get("history", []))
@@ -419,6 +511,8 @@ class Trainer:
 
             for step in range(start_step + 1, max_steps + 1):
                 _set_diagnostics("training", step=step)
+                if step == checkpoint_step + 1:
+                    _persist_event("training_entered", step=step)
                 now = datetime.now(UTC)
                 if now + timedelta(seconds=CHECKPOINT_SAFETY_SECONDS) >= timeout_at:
                     _save_checkpoint(step - 1)
@@ -551,6 +645,7 @@ class Trainer:
                     _save_checkpoint(step)
 
             _set_diagnostics("publishing_model", step=max_steps)
+            _persist_event("publishing_started", step=max_steps)
             model_id = str(_uuid.uuid4())
             state = {
                 key: value.detach().cpu() for key, value in model.state_dict().items()
@@ -631,9 +726,11 @@ class Trainer:
             )
             conn.commit()
             _set_diagnostics("complete", step=max_steps)
+            _persist_event("complete", step=max_steps, modelId=model_id)
             print(
                 f"[piro] run {run_id} complete — model_id={model_id} "
-                f"name={resolved_name!r} weights_bytes={len(pt_bytes)}"
+                f"name={resolved_name!r} weights_bytes={len(pt_bytes)}",
+                flush=True,
             )
 
         except BaseException as exc:
@@ -646,6 +743,12 @@ class Trainer:
                 "failed",
                 errorType=type(exc).__name__,
                 errorMessage=str(exc)[:2000],
+            )
+            _persist_event(
+                "worker_failed",
+                exceptionType=type(exc).__name__,
+                message=str(exc)[:2000],
+                traceback=traceback.format_exc(limit=50)[-12000:],
             )
             failure_details = json.dumps(
                 {
