@@ -20,7 +20,9 @@ TRAINING_DEADLINE_SECONDS = 3000
 CHECKPOINT_INTERVAL_STEPS = 1
 EVAL_INTERVAL_STEPS = 250
 CHECKPOINT_SAFETY_SECONDS = 120
-HEARTBEAT_INTERVAL_SECONDS = 30
+# Keep worker diagnostics fresh enough to capture short native hangs or termination
+# boundaries while keeping the heartbeat database traffic bounded.
+HEARTBEAT_INTERVAL_SECONDS = 5
 MAX_AUTO_RESUME_ATTEMPTS = 8
 GPU_RATE_USD_PER_SECOND = 0.000164
 CPU_RATE_USD_PER_CORE_SECOND = 0.0000131

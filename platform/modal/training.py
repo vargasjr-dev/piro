@@ -75,6 +75,8 @@ class Trainer:
         import json
         import os
         import random
+        import resource
+        import signal
         import socket
         import sys
         import threading
@@ -90,6 +92,13 @@ class Trainer:
         device = None
         faulthandler.enable(file=sys.stderr, all_threads=True)
         print(f"[piro] run {run_id} entered worker method", flush=True)
+
+        def _connect_database(database_url: str):
+            return psycopg2.connect(
+                database_url,
+                connect_timeout=5,
+                options="-c statement_timeout=5000",
+            )
 
         def _estimate_cost_usd(runtime_ms: int) -> float:
             seconds = max(0, runtime_ms) / 1000.0
@@ -121,8 +130,18 @@ class Trainer:
             "updatedAt": now.isoformat(),
         }
 
+        def _memory_rss_mb() -> float | None:
+            try:
+                # Linux reports ru_maxrss in KiB; keep this portable for local tests.
+                return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+            except (AttributeError, OSError, ValueError):
+                return None
+
         def _diagnostics_json() -> str:
             with diagnostics_lock:
+                rss_mb = _memory_rss_mb()
+                if rss_mb is not None:
+                    diagnostics_state["memoryRssMb"] = rss_mb
                 return json.dumps(diagnostics_state, separators=(",", ":"))
 
         def _set_diagnostics(phase: str, **updates: object) -> None:
@@ -132,16 +151,18 @@ class Trainer:
                 diagnostics_state["updatedAt"] = datetime.now(UTC).isoformat()
 
         def _persist_event(event: str, **details: object) -> None:
+            rss_mb = _memory_rss_mb()
             payload = {
                 "event": event,
                 "observedAt": datetime.now(UTC).isoformat(),
                 "phase": diagnostics_state.get("phase"),
                 "step": diagnostics_state.get("step"),
+                **({"memoryRssMb": rss_mb} if rss_mb is not None else {}),
                 **details,
             }
             try:
                 persisted = persist_worker_event(
-                    psycopg2.connect,
+                    _connect_database,
                     os.environ["DATABASE_URL"],
                     run_id,
                     payload,
@@ -156,12 +177,27 @@ class Trainer:
                     flush=True,
                 )
 
+        def _handle_worker_signal(signum: int, _frame: object) -> None:
+            signal_name = signal.Signals(signum).name
+            print(
+                f"[piro] run {run_id} received {signal_name}; recording termination breadcrumb",
+                flush=True,
+            )
+            _set_diagnostics("terminated", terminationSignal=signal_name)
+            _persist_event("worker_signal_received", signal=signal_name)
+            raise RuntimeError(f"worker received {signal_name}")
+
+        for signal_number in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(signal_number, _handle_worker_signal)
+        if hasattr(signal, "SIGUSR1"):
+            faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True)
+
         _persist_event("worker_method_entered")
         conn = None
         cur = None
         try:
             _persist_event("database_connecting")
-            conn = psycopg2.connect(os.environ["DATABASE_URL"])
+            conn = _connect_database(os.environ["DATABASE_URL"])
             cur = conn.cursor()
             _persist_event("database_connected")
             cur.execute(
@@ -275,7 +311,7 @@ class Trainer:
             kwargs={
                 "stop_event": heartbeat_stop,
                 "lease_lost_event": lease_lost,
-                "connect": psycopg2.connect,
+                "connect": _connect_database,
                 "database_url": os.environ["DATABASE_URL"],
                 "run_id": run_id,
                 "interval_seconds": HEARTBEAT_INTERVAL_SECONDS,
@@ -313,6 +349,7 @@ class Trainer:
             )
 
         def _checkpoint_watchdog() -> None:
+            _persist_event("checkpoint_restore_watchdog_thread_entered")
             while not checkpoint_watchdog_stop.wait(30):
                 with checkpoint_stage_lock:
                     name = checkpoint_stage["name"]
@@ -340,20 +377,28 @@ class Trainer:
 
         def _start_checkpoint_watchdog() -> None:
             nonlocal checkpoint_watchdog_thread, checkpoint_watchdog_active
+            print(f"[piro] run {run_id} checkpoint watchdog setup started", flush=True)
             checkpoint_watchdog_active = True
             _set_checkpoint_stage("starting")
+            _persist_event("checkpoint_restore_watchdog_setup_started")
             _persist_event("checkpoint_restore_watchdog_armed")
+            print(f"[piro] run {run_id} checkpoint watchdog event persisted", flush=True)
+            _persist_event("checkpoint_restore_traceback_dump_setup_started")
             faulthandler.dump_traceback_later(
                 60,
                 repeat=True,
                 file=sys.stderr,
             )
+            _persist_event("checkpoint_restore_traceback_dump_setup_completed")
             checkpoint_watchdog_thread = threading.Thread(
                 target=_checkpoint_watchdog,
                 name=f"piro-checkpoint-watchdog-{run_id[:8]}",
                 daemon=True,
             )
+            _persist_event("checkpoint_restore_watchdog_thread_starting")
             checkpoint_watchdog_thread.start()
+            _persist_event("checkpoint_restore_watchdog_thread_started")
+            print(f"[piro] run {run_id} checkpoint watchdog setup completed", flush=True)
 
         def _stop_checkpoint_watchdog(*, record_event: bool = True) -> None:
             nonlocal checkpoint_watchdog_active
@@ -459,6 +504,23 @@ class Trainer:
                         if hasattr(value, "to"):
                             state[key] = value.to(device)
 
+            def _restore_stage(name: str, operation):
+                _set_checkpoint_stage(name)
+                _persist_event("checkpoint_stage_started", stage=name)
+                try:
+                    result = operation()
+                except BaseException as exc:
+                    _persist_event(
+                        "checkpoint_stage_failed",
+                        stage=name,
+                        exceptionType=type(exc).__name__,
+                        message=str(exc)[:2000],
+                        traceback=traceback.format_exc(limit=50)[-12000:],
+                    )
+                    raise
+                _persist_event("checkpoint_stage_completed", stage=name)
+                return result
+
             def _load_checkpoint() -> None:
                 nonlocal history, order, cursor, start_step
                 _start_checkpoint_watchdog()
@@ -486,38 +548,56 @@ class Trainer:
                     if checkpoint_config.get(key) != expected:
                         raise RuntimeError(f"checkpoint {key} does not match this run")
                 _persist_event("checkpoint_restore_started", checkpointStep=checkpoint_step)
-                _set_checkpoint_stage("model_state")
-                model.load_model_state(payload["model"])
+                _restore_stage(
+                    "model_state",
+                    lambda: model.load_model_state(payload["model"]),
+                )
                 _persist_event("checkpoint_model_state_loaded", checkpointStep=checkpoint_step)
-                _set_checkpoint_stage("optimizer_state")
-                optimizer.load_state_dict(payload["optimizer"])
+                _restore_stage(
+                    "optimizer_state",
+                    lambda: optimizer.load_state_dict(payload["optimizer"]),
+                )
                 _persist_event("checkpoint_optimizer_state_loaded", checkpointStep=checkpoint_step)
-                _set_checkpoint_stage("runtime_state")
-                model.load_checkpoint_state(payload.get("runtime", {}))
+                _restore_stage(
+                    "runtime_state",
+                    lambda: model.load_checkpoint_state(payload.get("runtime", {})),
+                )
                 _persist_event("checkpoint_runtime_state_loaded", checkpointStep=checkpoint_step)
-                _set_checkpoint_stage("optimizer_device")
-                _restore_optimizer_device()
+                _restore_stage("optimizer_device", _restore_optimizer_device)
                 _persist_event("checkpoint_optimizer_device_restored", checkpointStep=checkpoint_step)
-                _set_checkpoint_stage("history_state")
-                history = list(payload.get("history", []))
-                order = list(payload.get("order", order))
-                cursor = int(payload.get("cursor", 0))
-                start_step = int(payload.get("step", checkpoint_step))
+
+                def _restore_progress_state() -> None:
+                    nonlocal history, order, cursor, start_step
+                    history = list(payload.get("history", []))
+                    order = list(payload.get("order", order))
+                    cursor = int(payload.get("cursor", 0))
+                    start_step = int(payload.get("step", checkpoint_step))
+
+                _restore_stage("history_state", _restore_progress_state)
                 _persist_event("checkpoint_progress_state_loaded", checkpointStep=start_step)
-                _set_checkpoint_stage("dataset_order")
-                if len(order) != len(train_data):
-                    raise RuntimeError("checkpoint dataset ordering does not match current data")
+
+                def _validate_dataset_order() -> None:
+                    if len(order) != len(train_data):
+                        raise RuntimeError("checkpoint dataset ordering does not match current data")
+
+                _restore_stage("dataset_order", _validate_dataset_order)
                 _persist_event("checkpoint_dataset_order_validated", checkpointStep=start_step)
-                _set_checkpoint_stage("python_rng")
-                random.setstate(payload["pythonRandomState"])
+                _restore_stage(
+                    "python_rng",
+                    lambda: random.setstate(payload["pythonRandomState"]),
+                )
                 _persist_event("checkpoint_python_rng_restored", checkpointStep=start_step)
-                _set_checkpoint_stage("torch_rng")
-                torch.set_rng_state(payload["torchRandomState"].cpu())
+                _restore_stage(
+                    "torch_rng",
+                    lambda: torch.set_rng_state(payload["torchRandomState"].cpu()),
+                )
                 _persist_event("checkpoint_torch_rng_restored", checkpointStep=start_step)
                 if device.type == "cuda" and payload.get("cudaRandomState") is not None:
-                    _set_checkpoint_stage("cuda_rng")
-                    torch.cuda.set_rng_state_all(payload["cudaRandomState"])
-                    torch.cuda.synchronize(device)
+                    def _restore_cuda_rng() -> None:
+                        torch.cuda.set_rng_state_all(payload["cudaRandomState"])
+                        torch.cuda.synchronize(device)
+
+                    _restore_stage("cuda_rng", _restore_cuda_rng)
                     _persist_event("checkpoint_cuda_rng_restored", checkpointStep=start_step)
                 _persist_event("checkpoint_restored", checkpointStep=start_step)
                 _set_diagnostics(
