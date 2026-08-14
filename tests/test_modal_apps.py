@@ -257,6 +257,12 @@ def test_training_failure_diagnostics_are_persisted_and_exposed():
     assert 'connect_timeout=5' in training
     assert 'statement_timeout=5000' in training
     assert 'memoryRssMb' in training
+    assert 'configuredMemoryMb' in training
+    assert 'cgroupMemoryLimitMb' in training
+    assert 'cgroupMemoryCurrentMb' in training
+    assert '"memoryMb" = %s' in training
+    assert 'nonlocal checkpoint_payload' in training
+    assert 'checkpoint_payload["model"]' in training
     assert 'HEARTBEAT_DIAGNOSTICS_SQL' in heartbeat
     assert "workerDiagnosticsJson: run.workerDiagnosticsJson" in serializer
     assert "failureDetailsJson: run.failureDetailsJson" in serializer

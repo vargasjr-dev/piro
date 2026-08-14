@@ -137,11 +137,46 @@ class Trainer:
             except (AttributeError, OSError, ValueError):
                 return None
 
+        def _cgroup_memory_mb(filename: str) -> float | None:
+            for path in (
+                f"/sys/fs/cgroup/{filename}",
+                f"/sys/fs/cgroup/memory/{filename}",
+            ):
+                try:
+                    with open(path, encoding="utf-8") as handle:
+                        raw = handle.read().strip()
+                except (FileNotFoundError, OSError):
+                    continue
+                if raw in {"", "max"}:
+                    return None
+                try:
+                    return round(int(raw) / (1024 * 1024), 1)
+                except ValueError:
+                    return None
+            return None
+
+        def _resource_diagnostics() -> dict[str, object]:
+            result: dict[str, object] = {
+                "configuredMemoryMb": TRAINING_MEMORY_MB,
+            }
+            rss_mb = _memory_rss_mb()
+            if rss_mb is not None:
+                result["memoryRssMb"] = rss_mb
+            limit_mb = _cgroup_memory_mb("memory.max")
+            if limit_mb is None:
+                limit_mb = _cgroup_memory_mb("memory.limit_in_bytes")
+            if limit_mb is not None:
+                result["cgroupMemoryLimitMb"] = limit_mb
+            current_mb = _cgroup_memory_mb("memory.current")
+            if current_mb is None:
+                current_mb = _cgroup_memory_mb("memory.usage_in_bytes")
+            if current_mb is not None:
+                result["cgroupMemoryCurrentMb"] = current_mb
+            return result
+
         def _diagnostics_json() -> str:
             with diagnostics_lock:
-                rss_mb = _memory_rss_mb()
-                if rss_mb is not None:
-                    diagnostics_state["memoryRssMb"] = rss_mb
+                diagnostics_state.update(_resource_diagnostics())
                 return json.dumps(diagnostics_state, separators=(",", ":"))
 
         def _set_diagnostics(phase: str, **updates: object) -> None:
@@ -157,7 +192,7 @@ class Trainer:
                 "observedAt": datetime.now(UTC).isoformat(),
                 "phase": diagnostics_state.get("phase"),
                 "step": diagnostics_state.get("step"),
-                **({"memoryRssMb": rss_mb} if rss_mb is not None else {}),
+                **_resource_diagnostics(),
                 **details,
             }
             try:
@@ -270,9 +305,20 @@ class Trainer:
         initial_diagnostics = _diagnostics_json()
         if resume:
             cur.execute(
-                'UPDATE training_run SET "heartbeatAt" = %s, "workerDiagnosticsJson" = %s, '
-                '"failureDetailsJson" = NULL WHERE id = %s AND status = %s',
-                (now, initial_diagnostics, run_id, "running"),
+                'UPDATE training_run SET "heartbeatAt" = %s, "resourceType" = %s, '
+                '"gpuType" = %s, "cpuCores" = %s, "memoryMb" = %s, '
+                '"workerDiagnosticsJson" = %s, "failureDetailsJson" = NULL '
+                'WHERE id = %s AND status = %s',
+                (
+                    now,
+                    "gpu",
+                    TRAINING_GPU,
+                    TRAINING_CPU,
+                    TRAINING_MEMORY_MB,
+                    initial_diagnostics,
+                    run_id,
+                    "running",
+                ),
             )
         else:
             cur.execute(
@@ -522,7 +568,7 @@ class Trainer:
                 return result
 
             def _load_checkpoint() -> None:
-                nonlocal history, order, cursor, start_step
+                nonlocal checkpoint_payload, history, order, cursor, start_step
                 _start_checkpoint_watchdog()
                 if not checkpoint_key:
                     _persist_event("checkpoint_restore_started", checkpointStep=0)
@@ -531,15 +577,16 @@ class Trainer:
                     _stop_checkpoint_watchdog()
                     return
 
-                if payload is None:
+                if checkpoint_payload is None:
                     _set_diagnostics("loading_checkpoint", checkpointStep=checkpoint_step, checkpointKey=checkpoint_key)
                     response = r2.get_object(Bucket=R2_BUCKET, Key=checkpoint_key)
-                    payload = torch.load(
+                    checkpoint_payload = torch.load(
                         io.BytesIO(response["Body"].read()),
                         map_location=device,
                         weights_only=False,
                     )
-                checkpoint_config = payload.get("config", {})
+                    _persist_event("checkpoint_payload_loaded", checkpointStep=checkpoint_step)
+                checkpoint_config = checkpoint_payload.get("config", {})
                 for key, expected in {
                     "architecturePath": architecture_path,
                     "sourcePath": source_path,
@@ -550,17 +597,17 @@ class Trainer:
                 _persist_event("checkpoint_restore_started", checkpointStep=checkpoint_step)
                 _restore_stage(
                     "model_state",
-                    lambda: model.load_model_state(payload["model"]),
+                    lambda: model.load_model_state(checkpoint_payload["model"]),
                 )
                 _persist_event("checkpoint_model_state_loaded", checkpointStep=checkpoint_step)
                 _restore_stage(
                     "optimizer_state",
-                    lambda: optimizer.load_state_dict(payload["optimizer"]),
+                    lambda: optimizer.load_state_dict(checkpoint_payload["optimizer"]),
                 )
                 _persist_event("checkpoint_optimizer_state_loaded", checkpointStep=checkpoint_step)
                 _restore_stage(
                     "runtime_state",
-                    lambda: model.load_checkpoint_state(payload.get("runtime", {})),
+                    lambda: model.load_checkpoint_state(checkpoint_payload.get("runtime", {})),
                 )
                 _persist_event("checkpoint_runtime_state_loaded", checkpointStep=checkpoint_step)
                 _restore_stage("optimizer_device", _restore_optimizer_device)
@@ -568,10 +615,10 @@ class Trainer:
 
                 def _restore_progress_state() -> None:
                     nonlocal history, order, cursor, start_step
-                    history = list(payload.get("history", []))
-                    order = list(payload.get("order", order))
-                    cursor = int(payload.get("cursor", 0))
-                    start_step = int(payload.get("step", checkpoint_step))
+                    history = list(checkpoint_payload.get("history", []))
+                    order = list(checkpoint_payload.get("order", order))
+                    cursor = int(checkpoint_payload.get("cursor", 0))
+                    start_step = int(checkpoint_payload.get("step", checkpoint_step))
 
                 _restore_stage("history_state", _restore_progress_state)
                 _persist_event("checkpoint_progress_state_loaded", checkpointStep=start_step)
@@ -584,17 +631,17 @@ class Trainer:
                 _persist_event("checkpoint_dataset_order_validated", checkpointStep=start_step)
                 _restore_stage(
                     "python_rng",
-                    lambda: random.setstate(payload["pythonRandomState"]),
+                    lambda: random.setstate(checkpoint_payload["pythonRandomState"]),
                 )
                 _persist_event("checkpoint_python_rng_restored", checkpointStep=start_step)
                 _restore_stage(
                     "torch_rng",
-                    lambda: torch.set_rng_state(payload["torchRandomState"].cpu()),
+                    lambda: torch.set_rng_state(checkpoint_payload["torchRandomState"].cpu()),
                 )
                 _persist_event("checkpoint_torch_rng_restored", checkpointStep=start_step)
-                if device.type == "cuda" and payload.get("cudaRandomState") is not None:
+                if device.type == "cuda" and checkpoint_payload.get("cudaRandomState") is not None:
                     def _restore_cuda_rng() -> None:
-                        torch.cuda.set_rng_state_all(payload["cudaRandomState"])
+                        torch.cuda.set_rng_state_all(checkpoint_payload["cudaRandomState"])
                         torch.cuda.synchronize(device)
 
                     _restore_stage("cuda_rng", _restore_cuda_rng)
