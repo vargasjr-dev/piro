@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import modal
+
+# Modal hydrates server modules before applying the image environment. Make the
+# shared sibling module importable during that early hydration phase as well.
+_REMOTE_MODAL_DIR = "/root/platform/modal"
+if _REMOTE_MODAL_DIR not in sys.path:
+    sys.path.insert(0, _REMOTE_MODAL_DIR)
+
 from _common import R2_BUCKET, _r2_client, piro_secrets
 
 APP_NAME = "piro-gemma-vllm"
