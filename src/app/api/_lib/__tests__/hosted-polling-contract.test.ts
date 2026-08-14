@@ -27,6 +27,16 @@ describe("hosted cold-start polling contract", () => {
     expect(sandboxSource).toContain("const HOSTED_WARMUP_TIMEOUT_MS = 300_000;");
   });
 
+  test("shows distinct connection, warmup, and thinking phases", () => {
+    expect(sandboxSource).toContain('pendingPhase?: "connecting" | "warming_up" | "thinking"');
+    expect(sandboxSource).toContain('pendingPhase: "connecting"');
+    expect(sandboxSource).toContain('updateAssistant({ pendingPhase: "warming_up" })');
+    expect(sandboxSource).toContain('updateAssistant({ pendingPhase: "thinking" })');
+    expect(sandboxSource).toContain("Waking up Gemma…");
+    expect(sandboxSource).toContain("Connecting…");
+    expect(sandboxSource).toContain("Thinking…");
+  });
+
   test("preserves actionable client-side inference errors", () => {
     expect(sandboxSource).toContain("error instanceof Error && error.message");
     expect(sandboxSource).toContain(

@@ -12,6 +12,7 @@ type SandboxMessage = {
   timings?: InferenceTimings | null;
   metadata?: Record<string, unknown> | null;
   pending?: boolean;
+  pendingPhase?: "connecting" | "warming_up" | "thinking";
   error?: boolean;
 };
 
@@ -109,17 +110,22 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
         text: "",
         sentAt,
         pending: true,
+        pendingPhase: "connecting",
       },
     ]);
 
-    function finishAssistant(update: Omit<SandboxMessage, "id" | "role">) {
+    function updateAssistant(
+      update: Partial<Omit<SandboxMessage, "id" | "role">>,
+    ) {
       setMessages((current) =>
         current.map((message) =>
-          message.id === assistantMessageId
-            ? { ...message, ...update, pending: false }
-            : message,
+          message.id === assistantMessageId ? { ...message, ...update } : message,
         ),
       );
+    }
+
+    function finishAssistant(update: Omit<SandboxMessage, "id" | "role">) {
+      updateAssistant({ ...update, pending: false });
     }
 
     const browserStartedAt = performance.now();
@@ -150,8 +156,10 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
         return body;
       };
 
+      updateAssistant({ pendingPhase: "thinking" });
       let body = await infer();
       if (body?.status === "warming_up") {
+        updateAssistant({ pendingPhase: "warming_up" });
         const warmupStartedAt = Date.now();
         while (Date.now() - warmupStartedAt < HOSTED_WARMUP_TIMEOUT_MS) {
           await sleep(Math.max(HOSTED_WARMUP_POLL_MS, body.retryAfterMs ?? 0));
@@ -166,6 +174,7 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
             );
           }
           if (readinessBody?.status === "ready") {
+            updateAssistant({ pendingPhase: "thinking" });
             body = await infer();
             if (body?.status !== "warming_up") break;
             continue;
@@ -256,7 +265,13 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
                         : ""
                   }`}
                 >
-                  {message.pending ? "Thinking…" : message.text}
+                  {message.pending
+                    ? message.pendingPhase === "warming_up"
+                      ? "Waking up Gemma…"
+                      : message.pendingPhase === "thinking"
+                        ? "Thinking…"
+                        : "Connecting…"
+                    : message.text}
                 </p>
                 {message.role === "assistant" &&
                   !message.pending &&
@@ -407,7 +422,13 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
               disabled={submitting || !prompt.trim()}
               className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-[#180d07] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? "Thinking…" : "Send"}
+              {submitting
+                ? messages.at(-1)?.pendingPhase === "warming_up"
+                  ? "Waking up Gemma…"
+                  : messages.at(-1)?.pendingPhase === "thinking"
+                    ? "Thinking…"
+                    : "Connecting…"
+                : "Send"}
             </button>
           </div>
         </div>
