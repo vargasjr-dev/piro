@@ -212,7 +212,7 @@ jobs:
           GEMMA_ENDPOINT: https://dvargasfuertes--piro-gemma-vllm-server.us-east.modal.direct/v1/chat/completions
         run: |
           set -euo pipefail
-          payload='{"model":"google/gemma-3-270m","messages":[{"role":"user","content":"Say hello in one short sentence."}],"temperature":0,"max_tokens":1}'
+          payload='{"model":"google/gemma-3-270m-it","messages":[{"role":"user","content":"Say hello in one short sentence."}],"temperature":0,"max_tokens":1}'
           status="$(curl --silent --show-error --max-time 120 \
             --dump-header gemma-generation.headers \
             --output gemma-generation.json \

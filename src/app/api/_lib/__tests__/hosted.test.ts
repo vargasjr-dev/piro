@@ -4,7 +4,7 @@ import { checkHostedReadiness } from "../hosted";
 describe("hosted readiness", () => {
   const config = {
     endpoint: "https://example.modal.direct/v1",
-    apiModelName: "google/gemma-3-270m",
+    apiModelName: "google/gemma-3-270m-it",
   };
 
   test("maps an upstream 503 to warming_up", async () => {

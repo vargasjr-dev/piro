@@ -48,9 +48,9 @@ export const BENCHMARK_TARGETS: Record<string, ChatTargetConfig> = {
   },
   "gemma:google/gemma-3-270m": {
     targetKey: "gemma:google/gemma-3-270m",
-    name: "google/gemma-3-270m",
+    name: "google/gemma-3-270m-it",
     endpoint: GEMMA_MODAL_ENDPOINT,
-    apiModelName: "google/gemma-3-270m",
+    apiModelName: "google/gemma-3-270m-it",
     pricing: undefined,
     tokenAccounting: "not_applicable",
     costAccounting: "modal_runtime",

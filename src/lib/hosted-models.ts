@@ -14,8 +14,8 @@ const HOSTED_MODEL_DEFINITIONS: Record<
 > = {
   "gemma:google/gemma-3-270m": {
     slug: "gemma-3-270m",
-    displayName: "Gemma 3 270M",
-    description: "Google Gemma 3 270M served through the Piro Gemma endpoint.",
+    displayName: "Gemma 3 270M IT",
+    description: "Google Gemma 3 270M instruction-tuned model served through the Piro Gemma endpoint.",
     ...BENCHMARK_TARGETS["gemma:google/gemma-3-270m"],
   },
 };
