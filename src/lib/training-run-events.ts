@@ -62,3 +62,12 @@ export function parseTrainingRunEvents(value: string | null | undefined) {
     return [{ event: "invalid_event_log", raw: value }];
   }
 }
+
+/** Return the durable event history in the shape exposed by training APIs. */
+export function exposeTrainingRunEvents(value: string | null | undefined) {
+  const workerEvents = parseTrainingRunEvents(value);
+  return {
+    workerEvents,
+    lastWorkerEvent: workerEvents.at(-1) ?? null,
+  };
+}
