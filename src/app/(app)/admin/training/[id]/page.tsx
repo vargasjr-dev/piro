@@ -19,6 +19,7 @@ import { CancelTrainingRunButton } from "../CancelTrainingRunButton";
 import { TrainingRunEventHistory } from "./TrainingRunEventHistory";
 import {
   deriveTrainingRunHistory,
+  paginateTrainingRunHistory,
 } from "~/lib/training-run-events";
 
 export const dynamic = "force-dynamic";
@@ -36,14 +37,18 @@ function statusClass(status: string): string {
 
 export default async function AdminTrainingDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
   if (!isAdmin(session)) redirect("/models");
 
   const { id } = await params;
+  const { tab: requestedTab } = await searchParams;
+  const activeTab = requestedTab === "timeline" ? "timeline" : "summary";
   const [row] = await db
     .select({
       run: trainingRun,
@@ -62,7 +67,11 @@ export default async function AdminTrainingDetailPage({
   const now = new Date();
   const metrics = deriveTrainingRunMetrics(row.run, now);
   const config = parseJsonRecord(row.run.configJson);
-  const eventHistory = deriveTrainingRunHistory(row.run.workerEventLogJson, row.run);
+  const eventHistory = deriveTrainingRunHistory(
+    row.run.workerEventLogJson,
+    row.run,
+  );
+  const eventPage = paginateTrainingRunHistory(eventHistory);
 
   return (
     <AdminShell current="Training">
@@ -101,73 +110,113 @@ export default async function AdminTrainingDetailPage({
         </div>
       </div>
 
-      {row.run.error ? (
-        <div className="mt-6 rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-sm text-red-200/85">
-          {row.run.error}
+      <nav
+        aria-label="Training run sections"
+        className="mt-8 flex gap-2 border-b border-amber-900/30"
+      >
+        {(
+          [
+            ["summary", "Summary"],
+            ["timeline", "Timeline"],
+          ] as const
+        ).map(([tab, label]) => (
+          <Link
+            key={tab}
+            href={
+              tab === "summary"
+                ? `/admin/training/${id}`
+                : `/admin/training/${id}?tab=timeline`
+            }
+            aria-current={activeTab === tab ? "page" : undefined}
+            className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${
+              activeTab === tab
+                ? "border-orange-300 text-orange-200"
+                : "border-transparent text-amber-200/50 hover:border-amber-700/60 hover:text-amber-100"
+            }`}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+
+      {activeTab === "timeline" ? (
+        <div className="mt-8">
+          <TrainingRunEventHistory runId={row.run.id} initialPage={eventPage} />
         </div>
-      ) : null}
+      ) : (
+        <>
+          {row.run.error ? (
+            <div className="mt-6 rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-sm text-red-200/85">
+              {row.run.error}
+            </div>
+          ) : null}
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          [
-            "Progress",
-            metrics.progressStep === null
-              ? "—"
-              : `${metrics.progressStep} / ${metrics.progressMaxSteps}`,
-          ],
-        ].map(([label, value]) => (
-          <div
-            key={label}
-            className="rounded-xl border border-amber-900/30 bg-[#100c0a] p-4"
-          >
-            <div className="text-xs uppercase tracking-[0.14em] text-amber-300/45">
-              {label}
-            </div>
-            <div className="mt-2 text-sm font-semibold text-amber-100/85">
-              {value}
-            </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              [
+                "Progress",
+                metrics.progressStep === null
+                  ? "—"
+                  : `${metrics.progressStep} / ${metrics.progressMaxSteps}`,
+              ],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-amber-900/30 bg-[#100c0a] p-4"
+              >
+                <div className="text-xs uppercase tracking-[0.14em] text-amber-300/45">
+                  {label}
+                </div>
+                <div className="mt-2 text-sm font-semibold text-amber-100/85">
+                  {value}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["Architecture", formatArchitecturePath(row.run.architecturePath)],
-          ["Source", formatSourcePath(row.datasetSourcePath)],
-          ["GPU", row.run.gpuType ?? "—"],
-          [
-            "Estimated cost",
-            metrics.estimatedCostUsd === null
-              ? "—"
-              : `$${metrics.estimatedCostUsd.toFixed(6)}`,
-          ],
-          ["Queued", formatDate(row.run.queuedAt)],
-          ["Started", formatDate(row.run.startedAt)],
-          ["Completed", formatDate(row.run.completedAt)],
-          ["Timeout", formatDate(row.run.timeoutAt)],
-        ].map(([label, value]) => (
-          <div
-            key={label}
-            className="rounded-xl border border-amber-900/20 bg-black/10 p-4"
-          >
-            <div className="text-xs uppercase tracking-[0.14em] text-amber-300/40">
-              {label}
-            </div>
-            <div className="mt-2 break-words text-sm text-amber-100/75">
-              {value}
-            </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              [
+                "Architecture",
+                formatArchitecturePath(row.run.architecturePath),
+              ],
+              ["Source", formatSourcePath(row.datasetSourcePath)],
+              ["GPU", row.run.gpuType ?? "—"],
+              [
+                "Estimated cost",
+                metrics.estimatedCostUsd === null
+                  ? "—"
+                  : `$${metrics.estimatedCostUsd.toFixed(6)}`,
+              ],
+              ["Queued", formatDate(row.run.queuedAt)],
+              ["Started", formatDate(row.run.startedAt)],
+              ["Completed", formatDate(row.run.completedAt)],
+              ["Timeout", formatDate(row.run.timeoutAt)],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-amber-900/20 bg-black/10 p-4"
+              >
+                <div className="text-xs uppercase tracking-[0.14em] text-amber-300/40">
+                  {label}
+                </div>
+                <div className="mt-2 break-words text-sm text-amber-100/75">
+                  {value}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <TrainingRunEventHistory events={eventHistory} />
-
-      <section className="mt-8 rounded-2xl border border-amber-900/30 bg-[#100c0a] p-5">
-        <h2 className="text-lg font-bold text-amber-50">Run configuration</h2>
-        <pre className="mt-4 max-h-96 overflow-auto rounded-xl bg-black/25 p-4 text-xs leading-relaxed text-amber-200/65">
-          {JSON.stringify(config, null, 2)}
-        </pre>
-      </section>
+          <section className="mt-8 rounded-2xl border border-amber-900/30 bg-[#100c0a] p-5">
+            <h2 className="text-lg font-bold text-amber-50">
+              Run configuration
+            </h2>
+            <pre className="mt-4 max-h-96 overflow-auto rounded-xl bg-black/25 p-4 text-xs leading-relaxed text-amber-200/65">
+              {JSON.stringify(config, null, 2)}
+            </pre>
+          </section>
+        </>
+      )}
     </AdminShell>
   );
 }

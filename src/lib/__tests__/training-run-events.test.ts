@@ -3,6 +3,7 @@ import {
   appendTrainingRunEventJson,
   deriveTrainingRunHistory,
   exposeTrainingRunEvents,
+  paginateTrainingRunHistory,
   parseTrainingRunEvents,
   trainingRunEvent,
 } from "../training-run-events";
@@ -52,11 +53,22 @@ describe("training-run-events", () => {
     const history = deriveTrainingRunHistory(
       JSON.stringify([
         { event: "run_claimed", observedAt: "2026-08-15T10:01:00.000Z" },
-        { event: "checkpoint_saved", observedAt: "2026-08-15T10:02:00.000Z", checkpointStep: 0 },
-        { event: "checkpoint_stage_completed", observedAt: "2026-08-15T10:03:00.000Z", step: 10 },
+        {
+          event: "checkpoint_saved",
+          observedAt: "2026-08-15T10:02:00.000Z",
+          checkpointStep: 0,
+        },
+        {
+          event: "checkpoint_stage_completed",
+          observedAt: "2026-08-15T10:03:00.000Z",
+          step: 10,
+        },
         { event: "resume_requested", observedAt: "2026-08-15T10:04:00.000Z" },
         { event: "complete", observedAt: "2026-08-15T10:05:00.000Z", step: 10 },
-        { event: "unrelated_internal_event", observedAt: "2026-08-15T10:06:00.000Z" },
+        {
+          event: "unrelated_internal_event",
+          observedAt: "2026-08-15T10:06:00.000Z",
+        },
       ]),
       {
         queuedAt: "2026-08-15T10:00:00.000Z",
@@ -96,5 +108,30 @@ describe("training-run-events", () => {
       "checkpointed",
       "failed",
     ]);
+  });
+
+  test("paginates newest first in pages of 25", () => {
+    const events = Array.from({ length: 53 }, (_, index) => ({
+      event: "checkpointed" as const,
+      observedAt: new Date(2026, 0, index + 1).toISOString(),
+      step: index,
+    }));
+
+    const first = paginateTrainingRunHistory(events);
+    const second = paginateTrainingRunHistory(events, first.nextOffset ?? 0);
+    const third = paginateTrainingRunHistory(events, second.nextOffset ?? 0);
+
+    expect(first.events).toHaveLength(25);
+    expect(first.events[0]?.step).toBe(52);
+    expect(first.events.at(-1)?.step).toBe(28);
+    expect(first.hasMore).toBe(true);
+    expect(first.nextOffset).toBe(25);
+    expect(second.events).toHaveLength(25);
+    expect(second.events[0]?.step).toBe(27);
+    expect(second.events.at(-1)?.step).toBe(3);
+    expect(second.nextOffset).toBe(50);
+    expect(third.events.map((entry) => entry.step)).toEqual([2, 1, 0]);
+    expect(third.hasMore).toBe(false);
+    expect(third.nextOffset).toBeNull();
   });
 });
