@@ -77,6 +77,9 @@ async function loadEpisodes(
   // The Modal trainer uses the first 80% for training and the remaining 20%
   // for validation. Evaluate the same holdout so the comparison is not trained
   // on the exact examples it scores.
+  if (context.evaluationConfig.evaluator !== "associative_recall") {
+    throw new Error("Associative Recall requires its dataset protocol");
+  }
   const holdoutFraction = context.evaluationConfig.holdoutFraction;
   const validationStart = Math.floor(episodes.length * (1 - holdoutFraction));
   const validationEpisodes = episodes.slice(validationStart);
@@ -156,7 +159,10 @@ export const associativeRecall: BenchmarkDef = {
         protocol: context.evaluationConfig.protocol,
         inputFormat: context.evaluationConfig.inputFormat,
         systemPrompt: context.evaluationConfig.systemPrompt,
-        holdoutFraction: context.evaluationConfig.holdoutFraction,
+        holdoutFraction:
+          context.evaluationConfig.evaluator === "associative_recall"
+            ? context.evaluationConfig.holdoutFraction
+            : null,
         requestCount,
         requestCountPerEpisode: episodes.length
           ? requestCount / episodes.length
