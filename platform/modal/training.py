@@ -748,11 +748,12 @@ class Trainer:
                     raise RuntimeError("training run became terminal while checkpointing")
                 conn.commit()
                 _set_diagnostics(
-                    "training",
-                    step=step,
-                    checkpointStep=step,
-                    checkpointKey=key,
+                  "training",
+                  step=step,
+                  checkpointStep=step,
+                  checkpointKey=key,
                 )
+                _persist_event("checkpoint_saved", step=step, checkpointStep=step)
 
             def _next_batch() -> list:
                 nonlocal cursor

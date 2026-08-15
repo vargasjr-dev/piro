@@ -16,6 +16,10 @@ import {
 } from "~/lib/training-run-admin";
 import { AdminShell } from "../../AdminShell";
 import { CancelTrainingRunButton } from "../CancelTrainingRunButton";
+import { TrainingRunEventHistory } from "./TrainingRunEventHistory";
+import {
+  deriveTrainingRunHistory,
+} from "~/lib/training-run-events";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +62,7 @@ export default async function AdminTrainingDetailPage({
   const now = new Date();
   const metrics = deriveTrainingRunMetrics(row.run, now);
   const config = parseJsonRecord(row.run.configJson);
+  const eventHistory = deriveTrainingRunHistory(row.run.workerEventLogJson, row.run);
 
   return (
     <AdminShell current="Training">
@@ -154,6 +159,8 @@ export default async function AdminTrainingDetailPage({
           </div>
         ))}
       </div>
+
+      <TrainingRunEventHistory events={eventHistory} />
 
       <section className="mt-8 rounded-2xl border border-amber-900/30 bg-[#100c0a] p-5">
         <h2 className="text-lg font-bold text-amber-50">Run configuration</h2>

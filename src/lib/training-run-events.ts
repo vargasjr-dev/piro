@@ -5,6 +5,52 @@ const MAX_TRAINING_RUN_EVENTS = 64;
 
 type TrainingRunEvent = Record<string, unknown>;
 
+export const TRAINING_RUN_EVENT_NAMES = [
+  "queued",
+  "started",
+  "checkpointed",
+  "failed",
+  "succeeded",
+  "resumed",
+] as const;
+
+export type TrainingRunEventName = (typeof TRAINING_RUN_EVENT_NAMES)[number];
+
+export interface TrainingRunHistoryEvent {
+  event: TrainingRunEventName;
+  observedAt: string | null;
+  step?: number;
+}
+
+export interface TrainingRunHistorySource {
+  status?: string | null;
+  queuedAt?: Date | string | null;
+  startedAt?: Date | string | null;
+  checkpointAt?: Date | string | null;
+  checkpointStep?: number | null;
+  completedAt?: Date | string | null;
+}
+
+function eventTimestamp(value: unknown): string | null {
+  if (typeof value === "string") {
+    const timestamp = new Date(value);
+    return Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString();
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString();
+  }
+  return null;
+}
+
+function eventStep(raw: TrainingRunEvent): number | undefined {
+  const value = raw.step ?? raw.checkpointStep;
+  return typeof value === "number" && Number.isInteger(value) ? value : undefined;
+}
+
+function eventSortTimestamp(event: TrainingRunHistoryEvent): number {
+  return event.observedAt ? Date.parse(event.observedAt) : Number.MAX_SAFE_INTEGER;
+}
+
 export function appendTrainingRunEventJson(
   value: string | null | undefined,
   event: TrainingRunEvent,
@@ -63,11 +109,88 @@ export function parseTrainingRunEvents(value: string | null | undefined) {
   }
 }
 
-/** Return the durable event history in the shape exposed by training APIs. */
-export function exposeTrainingRunEvents(value: string | null | undefined) {
+/** Derive the small, stable lifecycle vocabulary shown to training users. */
+export function deriveTrainingRunHistory(
+  value: string | null | undefined,
+  source: TrainingRunHistorySource = {},
+): TrainingRunHistoryEvent[] {
+  const history: TrainingRunHistoryEvent[] = [];
+  const add = (
+    event: TrainingRunEventName,
+    observedAt: unknown,
+    step?: number,
+  ) => {
+    const normalizedAt = eventTimestamp(observedAt);
+    const duplicate = history.some((entry) => {
+      if (entry.event !== event) return false;
+      if (event === "checkpointed") return entry.step === step;
+      if (event === "resumed") return entry.observedAt === normalizedAt;
+      return true;
+    });
+    if (duplicate) return;
+    history.push({
+      event,
+      observedAt: normalizedAt,
+      ...(step === undefined ? {} : { step }),
+    });
+  };
+
+  add("queued", source.queuedAt);
+
+  for (const raw of parseTrainingRunEvents(value)) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const record = raw as TrainingRunEvent;
+    const event = String(record.event ?? "");
+    const observedAt = record.observedAt;
+    const step = eventStep(record);
+
+    if (event === "run_claimed") add("started", observedAt, step);
+    if (event === "checkpoint_saved") add("checkpointed", observedAt, step);
+    if (event === "resume_requested") add("resumed", observedAt, step);
+    if (event === "complete") add("succeeded", observedAt, step);
+    if (event.endsWith("_failed") || event === "worker_startup_failed") {
+      add("failed", observedAt, step);
+    }
+  }
+
+  if (source.startedAt && !history.some((entry) => entry.event === "started")) {
+    add("started", source.startedAt);
+  }
+  if (
+    source.checkpointAt &&
+    !history.some(
+      (entry) =>
+        entry.event === "checkpointed" &&
+        entry.step === (source.checkpointStep ?? undefined),
+    )
+  ) {
+    add("checkpointed", source.checkpointAt, source.checkpointStep ?? undefined);
+  }
+  if (
+    source.status === "complete" &&
+    !history.some((entry) => entry.event === "succeeded")
+  ) {
+    add("succeeded", source.completedAt);
+  }
+  if (
+    source.status === "error" &&
+    !history.some((entry) => entry.event === "failed")
+  ) {
+    add("failed", source.completedAt);
+  }
+
+  return history.sort((a, b) => eventSortTimestamp(a) - eventSortTimestamp(b));
+}
+
+/** Return the durable and user-facing histories exposed by training APIs. */
+export function exposeTrainingRunEvents(
+  value: string | null | undefined,
+  source: TrainingRunHistorySource = {},
+) {
   const workerEvents = parseTrainingRunEvents(value);
   return {
     workerEvents,
     lastWorkerEvent: workerEvents.at(-1) ?? null,
+    eventHistory: deriveTrainingRunHistory(value, source),
   };
 }

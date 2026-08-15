@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth.server";
 import { deriveTrainingRunMetrics } from "~/lib/training-run-metrics";
+import { exposeTrainingRunEvents } from "~/lib/training-run-events";
 import { reconcileStaleTrainingRun } from "~/lib/training-run-observability.server";
 import { db } from "../../../../../../data/db";
 import { trainingRun } from "../../../../../../data/schema";
@@ -58,11 +59,16 @@ export async function GET(
             /* ignore */
           }
         }
+        const eventExposure = exposeTrainingRunEvents(
+          reconciled.workerEventLogJson,
+          reconciled,
+        );
         const progressPayload = JSON.stringify({
           maxSteps: reconciled.maxSteps,
           checkpointStep: reconciled.checkpointStep,
           checkpointAt: reconciled.checkpointAt?.toISOString() ?? null,
           history,
+          eventHistory: eventExposure.eventHistory,
           ...liveMetrics,
           workerDiagnosticsJson: reconciled.workerDiagnosticsJson,
           failureDetailsJson: reconciled.failureDetailsJson,
@@ -89,6 +95,7 @@ export async function GET(
               workerDiagnosticsJson: reconciled.workerDiagnosticsJson,
               failureDetailsJson: reconciled.failureDetailsJson,
               workerEventLogJson: reconciled.workerEventLogJson,
+              eventHistory: eventExposure.eventHistory,
               ...liveMetrics,
             }),
           );
@@ -109,6 +116,7 @@ export async function GET(
               workerDiagnosticsJson: reconciled.workerDiagnosticsJson,
               failureDetailsJson: reconciled.failureDetailsJson,
               workerEventLogJson: reconciled.workerEventLogJson,
+              eventHistory: eventExposure.eventHistory,
               ...liveMetrics,
             }),
           );

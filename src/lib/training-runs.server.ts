@@ -27,7 +27,7 @@ export function serializeTrainingRun(
   now = new Date(),
 ) {
   const liveMetrics = deriveTrainingRunMetrics(run, now);
-  const workerEventExposure = exposeTrainingRunEvents(run.workerEventLogJson);
+  const workerEventExposure = exposeTrainingRunEvents(run.workerEventLogJson, run);
   return {
     id: run.id,
     modelName: run.modelName,
