@@ -13,12 +13,14 @@ import {
   type DatasetEvaluationConfig,
 } from "../datasets/evaluation-config";
 import { associativeRecall } from "./associative-recall";
+import { memorySuite } from "./memory-suite";
 import { makeChatAdapter, makePiroModelAdapter } from "./adapters";
 import { getBenchmarkTarget } from "./targets";
 import type { BenchmarkDef, ModelAdapter } from "./types";
 
 const EVALUATORS: Record<DatasetEvaluationConfig["evaluator"], BenchmarkDef> = {
   associative_recall: associativeRecall,
+  memory_suite: memorySuite,
 };
 
 async function resolveTargets(
@@ -108,7 +110,18 @@ async function resolveTargets(
     };
   });
 
-  return [...modelTargets, ...virtualTargets];
+  const adaptersByTarget = new Map(
+    [...modelTargets, ...virtualTargets].map((adapter) => [
+      adapter.targetKey ?? adapter.name,
+      adapter,
+    ]),
+  );
+  return targetIds.map((targetId) => {
+    const adapter = adaptersByTarget.get(targetId);
+    if (!adapter)
+      throw new Error(`Unable to resolve evaluation target: ${targetId}`);
+    return adapter;
+  });
 }
 
 export async function runEvaluation(

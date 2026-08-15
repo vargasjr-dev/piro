@@ -53,7 +53,9 @@ function usage(msg?: string): never {
   console.error(
     "  piro architecture train <name> --dataset <id> [--max-steps <n>] [--name <model-name>]",
   );
-  console.error("  piro benchmarks eval <name>");
+  console.error(
+    "  piro benchmarks eval --dataset <id> --target <key-or-model-id> [--target <key-or-model-id>] [--episodes <n>]",
+  );
   console.error("  piro evals list");
   console.error("  piro evals get <id>");
   console.error("  piro models deploy <model-id>");
@@ -127,9 +129,21 @@ switch (subject) {
   case "benchmarks":
     switch (verb) {
       case "eval": {
-        const name = arg(rest, 0);
-        if (!name) usage("benchmark name is required");
-        await benchmarksEval(name);
+        const dataset = opt(rest, "dataset");
+        const targets = rest
+          .flatMap((value, index) =>
+            value === "--target" && rest[index + 1] ? [rest[index + 1]!] : [],
+          )
+          .filter((value) => !value.startsWith("--"));
+        const episodesValue = opt(rest, "episodes");
+        const episodes = episodesValue
+          ? Number.parseInt(episodesValue, 10)
+          : undefined;
+        if (!dataset) usage("--dataset is required");
+        if (targets.length === 0) usage("at least one --target is required");
+        if (episodesValue && (!Number.isInteger(episodes) || episodes! < 1))
+          usage("--episodes must be a positive integer");
+        await benchmarksEval({ dataset, targets, episodes });
         break;
       }
       default:

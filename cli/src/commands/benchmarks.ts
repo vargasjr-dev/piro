@@ -6,11 +6,27 @@ function fail(status: number, body: unknown, fallback: string): never {
   process.exit(1);
 }
 
-export async function benchmarksEval(name: string): Promise<void> {
+export interface BenchmarkEvalOptions {
+  dataset: string;
+  targets: string[];
+  episodes?: number;
+}
+
+export async function benchmarksEval(
+  options: BenchmarkEvalOptions,
+): Promise<void> {
+  if (!options.dataset) fail(400, {}, "--dataset is required");
+  if (options.targets.length === 0)
+    fail(400, {}, "at least one --target is required");
+
   const config = resolveConfig();
   const response = await piroFetch(config, "/api/evals", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({
+      datasetId: options.dataset,
+      targets: options.targets,
+      ...(options.episodes === undefined ? {} : { episodes: options.episodes }),
+    }),
   });
   if (!response.ok) {
     fail(

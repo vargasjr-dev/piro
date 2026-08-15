@@ -73,17 +73,20 @@ test("Piro Associative Recall sequence passes returned state to the next request
     };
 
     const result = await makePiroModelAdapter("model-1", "piro-ctm")
-      .generateSequence!([
-      "key_017 = value_014",
-      "token_005_027",
-      "token_011_003",
-      "key_017",
-    ]);
+      .generateSequence!(
+      ["key_017 = value_014", "token_005_027", "token_011_003", "key_017"],
+      { systemPrompt: "dataset-owned protocol" },
+    );
 
     assert.equal(requests.length, 4);
     assert.deepEqual(
       requests.map((request) => request.input),
-      ["key_017 = value_014", "token_005_027", "token_011_003", "key_017"],
+      [
+        "dataset-owned protocol\n\nkey_017 = value_014",
+        "token_005_027",
+        "token_011_003",
+        "key_017",
+      ],
     );
     assert.equal(requests[0].state, undefined);
     assert.deepEqual(requests[1].state, states[0]);

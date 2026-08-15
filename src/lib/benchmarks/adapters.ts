@@ -185,10 +185,14 @@ export function makePiroModelAdapter(
         outputTokens: 0,
         tokenAccounting: "not_applicable",
       };
-      for (const input of inputs) {
+      for (const [index, input] of inputs.entries()) {
+        const sequenceInput =
+          index === 0 && _options?.systemPrompt
+            ? `${_options.systemPrompt}\n\n${input}`
+            : input;
         const response = await requestModal({
           modelId,
-          input,
+          input: sequenceInput,
           state,
         });
         if (!response.state)
