@@ -676,7 +676,7 @@ class Trainer:
                     _persist_event("checkpoint_cuda_rng_restored", checkpointStep=start_step)
                 _persist_event("checkpoint_restored", checkpointStep=start_step)
                 _set_diagnostics(
-
+                    "checkpoint_ready",
                     step=start_step,
                     checkpointStep=start_step,
                     checkpointKey=checkpoint_key,
