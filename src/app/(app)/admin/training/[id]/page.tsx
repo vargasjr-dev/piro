@@ -159,6 +159,12 @@ export default async function AdminTrainingDetailPage({
                   ? "—"
                   : `${metrics.progressStep} / ${metrics.progressMaxSteps}`,
               ],
+              [
+                "Expected completion",
+                metrics.estimatedCompletionAt
+                  ? formatDate(new Date(metrics.estimatedCompletionAt))
+                  : "—",
+              ],
             ].map(([label, value]) => (
               <div
                 key={label}
