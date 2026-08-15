@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { InferenceTimings } from "~/app/api/_lib/timings";
+import DeploymentStatusCard from "./DeploymentStatusCard";
 
 type SandboxMessage = {
   id: string;
@@ -22,6 +23,7 @@ type ModelMore = {
   parameterCount: string;
   deployedAt: string;
   access: string;
+  showDeploymentStatus?: boolean;
 };
 
 type ModelSandboxProps = {
@@ -230,7 +232,9 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
   }
 
   return (
-    <section className="rounded-3xl border border-orange-500/25 bg-[#17100b] p-4 shadow-[0_0_80px_rgba(249,115,22,0.07)] sm:p-6">
+    <>
+      {more.showDeploymentStatus && <DeploymentStatusCard modelId={modelId} />}
+      <section className="rounded-3xl border border-orange-500/25 bg-[#17100b] p-4 shadow-[0_0_80px_rgba(249,115,22,0.07)] sm:p-6">
       {messages.length > 0 && (
         <div className="mb-6 space-y-4 border-b border-amber-900/20 pb-5">
           {messages.map((message) => (
@@ -438,6 +442,7 @@ export default function ModelSandbox({ modelId, more }: ModelSandboxProps) {
           </p>
         )}
       </div>
-    </section>
+      </section>
+    </>
   );
 }

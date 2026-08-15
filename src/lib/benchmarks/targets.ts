@@ -6,6 +6,8 @@ export interface ChatTargetConfig {
   endpoint: string;
   apiModelName: string;
   apiKeyEnvVar?: string;
+  controlEndpoint?: string;
+  controlSecretEnvVar?: string;
   pricing?: TokenPricing;
   tokenAccounting: TokenAccounting;
   costAccounting: "token_pricing" | "modal_runtime" | "not_applicable";
@@ -13,6 +15,8 @@ export interface ChatTargetConfig {
 
 const GEMMA_MODAL_ENDPOINT =
   "https://dvargasfuertes--piro-gemma-vllm-server.us-east.modal.direct/v1";
+const GEMMA_MODAL_CONTROL_ENDPOINT =
+  "https://dvargasfuertes--piro-gemma-vllm-control.modal.run";
 
 /** Explicitly configured external benchmark targets. */
 export const BENCHMARK_TARGETS: Record<string, ChatTargetConfig> = {
@@ -51,6 +55,8 @@ export const BENCHMARK_TARGETS: Record<string, ChatTargetConfig> = {
     name: "google/gemma-3-270m-it",
     endpoint: GEMMA_MODAL_ENDPOINT,
     apiModelName: "google/gemma-3-270m-it",
+    controlEndpoint: GEMMA_MODAL_CONTROL_ENDPOINT,
+    controlSecretEnvVar: "MODAL_WEBHOOK_SECRET",
     pricing: undefined,
     tokenAccounting: "not_applicable",
     costAccounting: "modal_runtime",

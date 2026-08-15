@@ -162,7 +162,8 @@ export default async function ModelSandboxPage({
                   year: "numeric",
                 },
               ),
-              access: "Shared",
+              access: hostedModel ? "Shared" : "Private",
+              showDeploymentStatus: Boolean(hostedModel),
             }}
           />
         </div>
