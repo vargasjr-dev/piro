@@ -11,6 +11,10 @@ test("Gemma benchmark target uses the configured Modal OpenAI-compatible endpoin
     config.endpoint,
     "https://dvargasfuertes--piro-gemma-vllm-server.us-east.modal.direct/v1",
   );
+  assert.equal(
+    config.controlEndpoint,
+    "https://dvargasfuertes--piro-gemma-vllm-control.modal.run",
+  );
 
   const originalFetch = globalThis.fetch;
   try {

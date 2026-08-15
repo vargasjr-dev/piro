@@ -14,7 +14,7 @@ _REMOTE_MODAL_DIR = "/root/platform/modal"
 if _REMOTE_MODAL_DIR not in sys.path:
     sys.path.insert(0, _REMOTE_MODAL_DIR)
 
-from _common import R2_BUCKET, _r2_client, piro_secrets
+from _common import R2_BUCKET, _r2_client, piro_secrets, trigger_image
 from gemma_proxy import VllmSupervisor, create_proxy_server
 
 APP_NAME = "piro-gemma-vllm"
@@ -84,7 +84,7 @@ def _manifest_files(manifest: dict) -> list[dict]:
 @app.server(
     image=vllm_image,
     gpu="A10",
-    scaledown_window=15 * 60,
+    scaledown_window=5 * 60,
     startup_timeout=10 * 60,
     volumes={
         "/root/.cache/huggingface": hf_cache,
@@ -234,3 +234,62 @@ class Server:
         self.proxy.shutdown()
         self.proxy.server_close()
         self.supervisor.stop()
+
+@app.function(image=trigger_image, secrets=[piro_secrets])
+@modal.fastapi_endpoint(method="POST")
+def control(body: dict) -> dict:
+    """Report Gemma lifecycle state and trigger a cold-start probe."""
+    import os
+    from urllib.error import HTTPError, URLError
+    from urllib.request import Request, urlopen
+
+    from fastapi import HTTPException
+
+    expected = os.environ.get("MODAL_WEBHOOK_SECRET", "")
+    if expected and body.get("secret") != expected:
+        raise HTTPException(status_code=401, detail="Invalid secret")
+
+    action = body.get("action", "status")
+    if action not in {"status", "wake"}:
+        raise HTTPException(status_code=400, detail="action must be status or wake")
+
+    server = modal.Server.from_name(APP_NAME, "Server")
+    try:
+        stats = modal.Function.from_name(APP_NAME, "Server").get_current_stats()
+        endpoint = server.get_url()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Modal lifecycle status unavailable") from exc
+
+    runner_count = stats.num_total_runners
+    if not endpoint:
+        return {"status": "unavailable", "runnerCount": runner_count}
+
+    if runner_count == 0 and action == "status":
+        return {"status": "sleeping", "runnerCount": runner_count}
+
+    try:
+        request = Request(f"{endpoint.rstrip('/')}/v1/models", method="GET")
+        with urlopen(request, timeout=8) as response:
+            if 200 <= response.status < 300:
+                return {"status": "ready", "runnerCount": runner_count}
+            if response.status == 503:
+                return {
+                    "status": "starting",
+                    "runnerCount": runner_count,
+                    "retryAfterMs": 5_000,
+                }
+            return {"status": "unavailable", "runnerCount": runner_count}
+    except HTTPError as exc:
+        if exc.code == 503:
+            return {
+                "status": "starting",
+                "runnerCount": runner_count,
+                "retryAfterMs": 5_000,
+            }
+        return {"status": "unavailable", "runnerCount": runner_count}
+    except (TimeoutError, URLError, OSError):
+        return {
+            "status": "starting" if action == "wake" or runner_count > 0 else "unavailable",
+            "runnerCount": runner_count,
+            "retryAfterMs": 5_000 if action == "wake" or runner_count > 0 else None,
+        }
