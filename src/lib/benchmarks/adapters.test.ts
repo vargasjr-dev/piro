@@ -20,10 +20,12 @@ test("GPT Associative Recall sequence uses one request per input and aggregates 
       });
     };
 
-    const result = await makeGPTAdapter("gpt-5-nano").generateSequence!(
-      ["key_017 = value_014", "token_005_027", "token_011_003", "key_017"],
-      { systemPrompt: "dataset-owned protocol" },
-    );
+    const result = await makeGPTAdapter("gpt-5-nano").generateSequence!([
+      "key_017 = value_014",
+      "token_005_027",
+      "token_011_003",
+      "key_017",
+    ]);
 
     assert.equal(requests.length, 4);
     assert.deepEqual(
@@ -36,9 +38,8 @@ test("GPT Associative Recall sequence uses one request per input and aggregates 
     );
     assert.deepEqual(
       requests.map((request) => request.messages.length),
-      [2, 4, 6, 8],
+      [1, 3, 5, 7],
     );
-    assert.equal(requests[0].messages[0].content, "dataset-owned protocol");
     assert.equal(result.text, "ACK");
     assert.equal(result.inputTokens, 100);
     assert.equal(result.outputTokens, 8);
@@ -73,20 +74,17 @@ test("Piro Associative Recall sequence passes returned state to the next request
     };
 
     const result = await makePiroModelAdapter("model-1", "piro-ctm")
-      .generateSequence!(
-      ["key_017 = value_014", "token_005_027", "token_011_003", "key_017"],
-      { systemPrompt: "dataset-owned protocol" },
-    );
+      .generateSequence!([
+      "key_017 = value_014",
+      "token_005_027",
+      "token_011_003",
+      "key_017",
+    ]);
 
     assert.equal(requests.length, 4);
     assert.deepEqual(
       requests.map((request) => request.input),
-      [
-        "dataset-owned protocol\n\nkey_017 = value_014",
-        "token_005_027",
-        "token_011_003",
-        "key_017",
-      ],
+      ["key_017 = value_014", "token_005_027", "token_011_003", "key_017"],
     );
     assert.equal(requests[0].state, undefined);
     assert.deepEqual(requests[1].state, states[0]);

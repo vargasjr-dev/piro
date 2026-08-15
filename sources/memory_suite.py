@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import json
 
+_MEMORY_SUITE_INSTRUCTIONS = (
+    "Store facts from earlier turns exactly. Reply ACK to observations. "
+    "For the final question, reply with only the requested answer and no explanation or punctuation."
+)
+
 
 def _case(
     case_id: str,
@@ -15,7 +20,11 @@ def _case(
     return {
         "id": case_id,
         "category": category,
-        "inputs": [*observations, f"FINAL QUESTION: {question} Reply with exactly one token."],
+        "inputs": [
+            f"{_MEMORY_SUITE_INSTRUCTIONS}\n\n{observations[0] if observations else ''}",
+            *observations[1:],
+            f"FINAL QUESTION: {question} Reply with exactly one token.",
+        ],
         "expected": expected,
     }
 
@@ -146,7 +155,6 @@ def main() -> None:
                         "benchmark": "memory-suite",
                         "caseId": case["id"],
                         "category": case["category"],
-                        "version": 1,
                         "split": "eval",
                     },
                 },

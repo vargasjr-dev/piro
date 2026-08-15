@@ -1,7 +1,10 @@
 // ── Core types shared across all benchmarks ───────────────────────────────────
 
 export type TokenAccounting = "provider_usage" | "not_applicable";
-export type CostAccounting = "token_pricing" | "modal_runtime" | "not_applicable";
+export type CostAccounting =
+  | "token_pricing"
+  | "modal_runtime"
+  | "not_applicable";
 
 export interface TokenPricing {
   inputPerMillion: number;
@@ -37,13 +40,8 @@ export interface ModelAdapter {
   isStub?: boolean;
   generate(prompt: string): Promise<GenerateResult>;
   /** Generate one response per ordered invocation, preserving each boundary. */
-  generateSequence?(inputs: string[], options?: SequenceOptions): Promise<GenerateResult>;
+  generateSequence?(inputs: string[]): Promise<GenerateResult>;
 }
-
-export interface SequenceOptions {
-  systemPrompt?: string;
-}
-
 
 export interface BenchmarkContext {
   datasetR2Prefix: string;

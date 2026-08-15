@@ -1,4 +1,3 @@
-import { MEMORY_SUITE_SYSTEM_PROMPT } from "../datasets/evaluation-config";
 import { computeCost } from "./cost";
 import type {
   BenchmarkContext,
@@ -8,7 +7,9 @@ import type {
 } from "./types";
 
 export const MEMORY_SUITE_NAME = "MemorySuite";
-export { MEMORY_SUITE_SYSTEM_PROMPT };
+
+const MEMORY_SUITE_INSTRUCTIONS =
+  "Store facts from earlier turns exactly. Reply ACK to observations. For the final question, reply with only the requested answer and no explanation or punctuation.";
 
 export type MemoryCaseCategory =
   | "retention"
@@ -50,7 +51,8 @@ function makeCase(
     title,
     category,
     inputs: [
-      ...observations,
+      `${MEMORY_SUITE_INSTRUCTIONS}\n\n${observations[0] ?? ""}`,
+      ...observations.slice(1),
       `FINAL QUESTION: ${question} Reply with exactly one token.`,
     ],
     expected,
@@ -211,17 +213,13 @@ export const memorySuite: BenchmarkDef = {
       throw new Error(`${model.name} does not support memory sequences`);
     }
 
-    const systemPrompt =
-      context?.evaluationConfig.systemPrompt ?? MEMORY_SUITE_SYSTEM_PROMPT;
     const started = performance.now();
     let inputTokens = 0;
     let outputTokens = 0;
     const caseResults: MemorySuiteCaseResult[] = [];
 
     for (const testCase of MEMORY_SUITE_CASES) {
-      const result = await model.generateSequence(testCase.inputs, {
-        systemPrompt,
-      });
+      const result = await model.generateSequence(testCase.inputs);
       inputTokens += result.inputTokens;
       outputTokens += result.outputTokens;
       const actual = normalizeAnswer(result.text);
@@ -243,7 +241,6 @@ export const memorySuite: BenchmarkDef = {
       costUsd: computeCost(model, inputTokens, outputTokens),
       metadata: {
         suite: "memory",
-        version: 1,
         cases: MEMORY_SUITE_CASES.length,
         passed,
         failed: MEMORY_SUITE_CASES.length - passed,
