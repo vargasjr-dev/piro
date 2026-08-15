@@ -1,5 +1,5 @@
 import { PIRO_INFERENCE_ENDPOINT } from "~/lib/inference";
-import type { GenerateResult, ModelAdapter, SequenceOptions } from "./types";
+import type { GenerateResult, ModelAdapter } from "./types";
 import type { ChatTargetConfig } from "./targets";
 
 interface ChatMessage {
@@ -79,19 +79,14 @@ export function makeChatAdapter(config: ChatTargetConfig): ModelAdapter {
     async generate(prompt: string): Promise<GenerateResult> {
       return chatCompletion(config, [{ role: "user", content: prompt }]);
     },
-    async generateSequence(
-      inputs: string[],
-      options?: SequenceOptions,
-    ): Promise<GenerateResult> {
+    async generateSequence(inputs: string[]): Promise<GenerateResult> {
       if (inputs.length < 2) {
         throw new Error(
           "Ordered sequence evaluation requires at least two inputs",
         );
       }
 
-      const messages: ChatMessage[] = options?.systemPrompt
-        ? [{ role: "system", content: options.systemPrompt }]
-        : [];
+      const messages: ChatMessage[] = [];
       let finalResult: GenerateResult | null = null;
       let inputTokens = 0;
       let outputTokens = 0;
@@ -168,10 +163,7 @@ export function makePiroModelAdapter(
         tokenAccounting: "not_applicable",
       };
     },
-    async generateSequence(
-      inputs: string[],
-      _options?: SequenceOptions,
-    ): Promise<GenerateResult> {
+    async generateSequence(inputs: string[]): Promise<GenerateResult> {
       if (inputs.length < 2) {
         throw new Error(
           "Ordered sequence evaluation requires at least two inputs",
@@ -185,14 +177,10 @@ export function makePiroModelAdapter(
         outputTokens: 0,
         tokenAccounting: "not_applicable",
       };
-      for (const [index, input] of inputs.entries()) {
-        const sequenceInput =
-          index === 0 && _options?.systemPrompt
-            ? `${_options.systemPrompt}\n\n${input}`
-            : input;
+      for (const input of inputs) {
         const response = await requestModal({
           modelId,
-          input: sequenceInput,
+          input,
           state,
         });
         if (!response.state)

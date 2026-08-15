@@ -1,14 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import {
-  MEMORY_SUITE_CASES,
-  MEMORY_SUITE_SYSTEM_PROMPT,
-  memorySuite,
-} from "./memory-suite";
-import {
-  MEMORY_SUITE_SYSTEM_PROMPT as CONFIGURED_SYSTEM_PROMPT,
-  type MemorySuiteEvaluationConfig,
-} from "../datasets/evaluation-config";
+import { MEMORY_SUITE_CASES, memorySuite } from "./memory-suite";
+import { type MemorySuiteEvaluationConfig } from "../datasets/evaluation-config";
 import type { BenchmarkContext, GenerateResult, ModelAdapter } from "./types";
 
 function result(text: string): GenerateResult {
@@ -35,12 +28,12 @@ test("MemorySuite has ten stable cases in the published order", () => {
 });
 
 test("MemorySuite runs one isolated ordered sequence per case", async () => {
-  const calls: Array<{ inputs: string[]; systemPrompt?: string }> = [];
+  const calls: Array<{ inputs: string[] }> = [];
   const model: ModelAdapter = {
     name: "fake-memory-model",
     generate: async () => result("unused"),
-    generateSequence: async (inputs, options) => {
-      calls.push({ inputs, systemPrompt: options?.systemPrompt });
+    generateSequence: async (inputs) => {
+      calls.push({ inputs });
       return result(MEMORY_SUITE_CASES[calls.length - 1]!.expected);
     },
   };
@@ -49,18 +42,18 @@ test("MemorySuite runs one isolated ordered sequence per case", async () => {
     datasetR2Prefix: "users/test/datasets/memory-suite",
     evaluationConfig: {
       evaluator: "memory_suite",
-      systemPrompt: CONFIGURED_SYSTEM_PROMPT,
       caseCount: 10,
       protocol: "ordered_sequence",
       inputFormat: "plain_text",
-      version: 1,
     } satisfies MemorySuiteEvaluationConfig,
   };
   const benchmark = await memorySuite.run(model, context);
 
   assert.equal(calls.length, MEMORY_SUITE_CASES.length);
-  assert.equal(calls[0]?.systemPrompt, MEMORY_SUITE_SYSTEM_PROMPT);
-  assert.equal(calls[0]?.inputs.includes(MEMORY_SUITE_SYSTEM_PROMPT), false);
+  assert.match(
+    calls[0]?.inputs[0] ?? "",
+    /Store facts from earlier turns exactly/,
+  );
   assert.notEqual(calls[0]?.inputs, calls[1]?.inputs);
   assert.equal(benchmark.score, 1);
   assert.equal(benchmark.metadata.resetBetweenCases, true);
@@ -82,11 +75,9 @@ test("MemorySuite records exact failures while normalizing a concise answer", as
     datasetR2Prefix: "users/test/datasets/memory-suite",
     evaluationConfig: {
       evaluator: "memory_suite",
-      systemPrompt: CONFIGURED_SYSTEM_PROMPT,
       caseCount: 10,
       protocol: "ordered_sequence",
       inputFormat: "plain_text",
-      version: 1,
     } satisfies MemorySuiteEvaluationConfig,
   };
   const benchmark = await memorySuite.run(model, context);

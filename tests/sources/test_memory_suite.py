@@ -33,7 +33,6 @@ def _records() -> list[dict[str, object]]:
                 "benchmark": "memory-suite",
                 "caseId": case["id"],
                 "category": case["category"],
-                "version": 1,
                 "split": "eval",
             },
         }

@@ -77,10 +77,10 @@ async function loadEpisodes(
   // The Modal trainer uses the first 80% for training and the remaining 20%
   // for validation. Evaluate the same holdout so the comparison is not trained
   // on the exact examples it scores.
-  if (context.evaluationConfig.evaluator !== "associative_recall") {
-    throw new Error("Associative Recall requires its dataset protocol");
-  }
-  const holdoutFraction = context.evaluationConfig.holdoutFraction;
+  const holdoutFraction =
+    "holdoutFraction" in context.evaluationConfig
+      ? context.evaluationConfig.holdoutFraction
+      : 0.2;
   const validationStart = Math.floor(episodes.length * (1 - holdoutFraction));
   const validationEpisodes = episodes.slice(validationStart);
   const limit = Math.max(
@@ -122,9 +122,7 @@ export const associativeRecall: BenchmarkDef = {
       const batch = episodes.slice(offset, offset + concurrency);
       const results = await Promise.all(
         batch.map(async (episode) => {
-          const result = await model.generateSequence!(episode.inputs, {
-            systemPrompt: context.evaluationConfig.systemPrompt,
-          });
+          const result = await model.generateSequence!(episode.inputs);
           return { episode, result };
         }),
       );
@@ -156,13 +154,9 @@ export const associativeRecall: BenchmarkDef = {
         outputTokens,
         tokenAccounting: model.tokenAccounting ?? "not_applicable",
         failures,
-        protocol: context.evaluationConfig.protocol,
-        inputFormat: context.evaluationConfig.inputFormat,
-        systemPrompt: context.evaluationConfig.systemPrompt,
-        holdoutFraction:
-          context.evaluationConfig.evaluator === "associative_recall"
-            ? context.evaluationConfig.holdoutFraction
-            : null,
+        holdoutFraction: (
+          context.evaluationConfig as { holdoutFraction: number }
+        ).holdoutFraction,
         requestCount,
         requestCountPerEpisode: episodes.length
           ? requestCount / episodes.length
