@@ -550,6 +550,31 @@ class Trainer:
                         if hasattr(value, "to"):
                             state[key] = value.to(device)
 
+            def _normalize_cuda_rng_states(raw_state):
+                """Convert old and new checkpoint RNG shapes to CPU uint8 tensors."""
+                if raw_state is None:
+                    return None
+                states = raw_state if isinstance(raw_state, (list, tuple)) else [raw_state]
+                normalized = []
+                for index, state in enumerate(states):
+                    try:
+                        tensor = state.detach() if isinstance(state, torch.Tensor) else torch.as_tensor(state)
+                        tensor = tensor.to(device="cpu", dtype=torch.uint8)
+                    except (TypeError, RuntimeError, ValueError) as exc:
+                        raise TypeError(
+                            f"checkpoint CUDA RNG state {index} cannot be normalized: "
+                            f"{type(state).__name__}"
+                        ) from exc
+                    if tensor.ndim != 1:
+                        raise TypeError(
+                            f"checkpoint CUDA RNG state {index} must be 1-dimensional, "
+                            f"got shape {tuple(tensor.shape)}"
+                        )
+                    normalized.append(tensor.contiguous())
+                if not normalized:
+                    raise TypeError("checkpoint CUDA RNG state is empty")
+                return normalized
+
             def _restore_stage(name: str, operation):
                 _set_checkpoint_stage(name)
                 _persist_event("checkpoint_stage_started", stage=name)
@@ -641,7 +666,10 @@ class Trainer:
                 _persist_event("checkpoint_torch_rng_restored", checkpointStep=start_step)
                 if device.type == "cuda" and checkpoint_payload.get("cudaRandomState") is not None:
                     def _restore_cuda_rng() -> None:
-                        torch.cuda.set_rng_state_all(checkpoint_payload["cudaRandomState"])
+                        normalized_states = _normalize_cuda_rng_states(
+                            checkpoint_payload["cudaRandomState"]
+                        )
+                        torch.cuda.set_rng_state_all(normalized_states)
                         torch.cuda.synchronize(device)
 
                     _restore_stage("cuda_rng", _restore_cuda_rng)
@@ -673,7 +701,9 @@ class Trainer:
                     "pythonRandomState": random.getstate(),
                     "torchRandomState": torch.get_rng_state(),
                     "cudaRandomState": (
-                        torch.cuda.get_rng_state_all() if device.type == "cuda" else None
+                        [state.cpu().to(dtype=torch.uint8).contiguous() for state in torch.cuda.get_rng_state_all()]
+                        if device.type == "cuda"
+                        else None
                     ),
                     "config": {
                         "maxSteps": max_steps,
