@@ -31,6 +31,16 @@ export interface TrainingRunHistorySource {
   completedAt?: Date | string | null;
 }
 
+export const TRAINING_RUN_HISTORY_PAGE_SIZE = 25;
+
+export interface TrainingRunHistoryPage {
+  events: TrainingRunHistoryEvent[];
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
 function eventTimestamp(value: unknown): string | null {
   if (typeof value === "string") {
     const timestamp = new Date(value);
@@ -44,11 +54,15 @@ function eventTimestamp(value: unknown): string | null {
 
 function eventStep(raw: TrainingRunEvent): number | undefined {
   const value = raw.step ?? raw.checkpointStep;
-  return typeof value === "number" && Number.isInteger(value) ? value : undefined;
+  return typeof value === "number" && Number.isInteger(value)
+    ? value
+    : undefined;
 }
 
 function eventSortTimestamp(event: TrainingRunHistoryEvent): number {
-  return event.observedAt ? Date.parse(event.observedAt) : Number.MAX_SAFE_INTEGER;
+  return event.observedAt
+    ? Date.parse(event.observedAt)
+    : Number.MAX_SAFE_INTEGER;
 }
 
 export function appendTrainingRunEventJson(
@@ -164,7 +178,11 @@ export function deriveTrainingRunHistory(
         entry.step === (source.checkpointStep ?? undefined),
     )
   ) {
-    add("checkpointed", source.checkpointAt, source.checkpointStep ?? undefined);
+    add(
+      "checkpointed",
+      source.checkpointAt,
+      source.checkpointStep ?? undefined,
+    );
   }
   if (
     source.status === "complete" &&
@@ -180,6 +198,29 @@ export function deriveTrainingRunHistory(
   }
 
   return history.sort((a, b) => eventSortTimestamp(a) - eventSortTimestamp(b));
+}
+
+export function paginateTrainingRunHistory(
+  events: TrainingRunHistoryEvent[],
+  offset = 0,
+  limit = TRAINING_RUN_HISTORY_PAGE_SIZE,
+): TrainingRunHistoryPage {
+  const safeOffset = Math.max(0, Math.floor(offset));
+  const safeLimit = Math.min(
+    TRAINING_RUN_HISTORY_PAGE_SIZE,
+    Math.max(1, Math.floor(limit)),
+  );
+  const newestFirst = [...events].reverse();
+  const pageEvents = newestFirst.slice(safeOffset, safeOffset + safeLimit);
+  const nextOffset = safeOffset + pageEvents.length;
+  const hasMore = nextOffset < newestFirst.length;
+  return {
+    events: pageEvents,
+    offset: safeOffset,
+    limit: safeLimit,
+    hasMore,
+    nextOffset: hasMore ? nextOffset : null,
+  };
 }
 
 /** Return the durable and user-facing histories exposed by training APIs. */
