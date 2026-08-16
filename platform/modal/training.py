@@ -710,6 +710,11 @@ class Trainer:
                     Body=buffer.getvalue(),
                     ContentType="application/octet-stream",
                 )
+                if step >= 5:
+                    r2.delete_object(
+                        Bucket=R2_BUCKET,
+                        Key=f"checkpoints/{run_id}/step-{step - 5}.pt",
+                    )
                 checkpointed_at = datetime.now(UTC)
                 cur.execute(
                     """
