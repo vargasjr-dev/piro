@@ -176,6 +176,16 @@ def test_training_checkpoints_after_every_optimizer_step():
     assert "CHECKPOINT_INTERVAL_STEPS = 1" in source
 
 
+def test_training_does_not_evaluate_after_the_final_optimizer_step():
+    training = (MODAL_DIR / "training.py").read_text()
+    generic_trainer = (Path(__file__).parents[1] / "architectures" / "_common" / "trainer.py").read_text()
+
+    assert "should_evaluate = step % EVAL_INTERVAL_STEPS == 0 and step < max_steps" in training
+    assert "if step % self.config.eval_interval != 0 or step == self.config.max_steps:" in generic_trainer
+    assert '"finalValLoss"' not in training
+    assert '"finalValAccuracy"' not in training
+
+
 def test_training_dispatch_has_a_bounded_timeout():
     source = (Path(__file__).parents[1] / "src" / "app" / "api" / "training-runs" / "route.ts").read_text()
     assert "signal: AbortSignal.timeout(30_000)" in source

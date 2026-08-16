@@ -19,8 +19,6 @@ function makeRun(overrides: Partial<TrainingRun> = {}): TrainingRun {
     maxSteps: 250,
     configJson: null,
     finalTrainLoss: null,
-    finalValLoss: null,
-    finalValAccuracy: null,
     stepHistoryJson: null,
     error: null,
     heartbeatAt: null,

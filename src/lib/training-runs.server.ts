@@ -27,7 +27,10 @@ export function serializeTrainingRun(
   now = new Date(),
 ) {
   const liveMetrics = deriveTrainingRunMetrics(run, now);
-  const workerEventExposure = exposeTrainingRunEvents(run.workerEventLogJson, run);
+  const workerEventExposure = exposeTrainingRunEvents(
+    run.workerEventLogJson,
+    run,
+  );
   return {
     id: run.id,
     modelName: run.modelName,
@@ -37,8 +40,6 @@ export function serializeTrainingRun(
     maxSteps: run.maxSteps,
     configJson: run.configJson,
     finalTrainLoss: run.finalTrainLoss,
-    finalValLoss: run.finalValLoss,
-    finalValAccuracy: run.finalValAccuracy,
     stepHistoryJson: run.stepHistoryJson,
     ...liveMetrics,
     error: run.error,

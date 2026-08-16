@@ -884,7 +884,7 @@ class Trainer:
                 _set_diagnostics("optimizer_step", step=step)
                 train_loss = model.train_step(_next_batch(), optimizer)
                 _ensure_lease()
-                should_evaluate = step % EVAL_INTERVAL_STEPS == 0 or step == max_steps
+                should_evaluate = step % EVAL_INTERVAL_STEPS == 0 and step < max_steps
                 if should_evaluate:
                     _set_diagnostics("evaluation", step=step)
                     evaluation = model.evaluate(val_data)
@@ -930,22 +930,19 @@ class Trainer:
                 ContentType="application/json",
             )
 
-            last = history[-1]
             completed_at = datetime.now(UTC)
             runtime_ms = int((completed_at - started_at).total_seconds() * 1000)
             cur.execute(
                 """
                 UPDATE training_run
-                SET status = %s, "finalTrainLoss" = %s, "finalValLoss" = %s,
-                    "finalValAccuracy" = %s, "completedAt" = %s, "heartbeatAt" = %s,
+                SET status = %s, "finalTrainLoss" = %s,
+                    "completedAt" = %s, "heartbeatAt" = %s,
                     "runtimeMs" = %s, "costUsd" = %s, "costBasis" = %s
                 WHERE id = %s AND status = 'running'
                 """,
                 (
                     "complete",
-                    float(last["trainLoss"]),
-                    float(last["valLoss"]),
-                    float(last["valAccuracy"]),
+                    float(train_loss),
                     completed_at,
                     completed_at,
                     runtime_ms,

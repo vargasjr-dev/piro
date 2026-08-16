@@ -143,7 +143,7 @@ class Trainer:
             batch = [train_data[index] for index in batch_indices]
             train_loss = self._train_step(batch)
 
-            if step % self.config.eval_interval != 0 and step != self.config.max_steps:
+            if step % self.config.eval_interval != 0 or step == self.config.max_steps:
                 continue
 
             val_loss, val_acc = self._evaluate(val_data)

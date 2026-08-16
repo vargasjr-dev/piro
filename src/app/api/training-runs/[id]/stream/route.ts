@@ -85,8 +85,6 @@ export async function GET(
           controller.enqueue(
             event("complete", {
               finalTrainLoss: reconciled.finalTrainLoss,
-              finalValLoss: reconciled.finalValLoss,
-              finalValAccuracy: reconciled.finalValAccuracy,
               stepHistoryJson: reconciled.stepHistoryJson,
               completedAt: reconciled.completedAt?.toISOString() ?? null,
               runtimeMs: reconciled.runtimeMs,
