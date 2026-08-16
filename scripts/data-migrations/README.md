@@ -1,6 +1,6 @@
-# One-time production data migrations
+# One-time production data operations
 
-Put one-time, **data-only** production repairs in this directory and run them through `.github/workflows/run-data-migration.yml`.
+Put one-time, narrowly scoped production data repairs or read-only analyses in this directory and run them through `.github/workflows/run-data-migration.yml`.
 
 ## Workflow
 
@@ -18,11 +18,11 @@ Put one-time, **data-only** production repairs in this directory and run them th
 5. Approve the protected `production-migrations` environment when GitHub requests approval.
 6. Review the workflow log and the script's before/after assertions.
 
-The workflow checks out the exact PR head SHA, serializes all production data-migration runs, and exposes `DATABASE_URL` only to the migration process. It does not merge the PR or apply schema changes.
+The workflow checks out the exact PR head SHA, serializes all production data-operation runs, and exposes only the selected credential set (`DATABASE_URL` or the bucket credentials) to the operation process. It does not merge the PR or apply schema changes.
 
 ## Boundaries
 
-- Use this runner for data repairs only. Schema changes belong in `data/schema.ts` and the declarative DB Schema Apply workflow.
+- Use this runner for data repairs and read-only analyses only. Schema changes belong in `data/schema.ts` and the declarative DB Schema Apply workflow.
 - Never put credentials in a migration script, commit generated SQL, or use a broad update without assertions.
 - Prefer an explicit transaction and a fail-closed row-count check. If the script cannot be safely rerun, make that limitation explicit in the PR and verify the target state before writing.
 - Keep each script focused on one repair and leave it in the repository as an audit record after execution.
