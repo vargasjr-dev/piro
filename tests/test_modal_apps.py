@@ -170,10 +170,13 @@ def test_training_auto_resumes_from_deadline_checkpoint_with_a_bounded_limit():
     assert 'resumeAttempts: run.resumeAttempts' in serializer
 
 
-def test_training_checkpoints_after_every_optimizer_step():
-    source = (MODAL_DIR / "_common.py").read_text()
+def test_training_checkpoints_after_every_optimizer_step_and_retains_latest_five():
+    common = (MODAL_DIR / "_common.py").read_text()
+    training = (MODAL_DIR / "training.py").read_text()
 
-    assert "CHECKPOINT_INTERVAL_STEPS = 1" in source
+    assert "CHECKPOINT_INTERVAL_STEPS = 1" in common
+    assert 'if step >= 5:' in training
+    assert 'Key=f"checkpoints/{run_id}/step-{step - 5}.pt"' in training
 
 
 def test_training_has_no_inference_like_evaluation_path():
