@@ -176,6 +176,20 @@ def test_training_checkpoints_after_every_optimizer_step():
     assert "CHECKPOINT_INTERVAL_STEPS = 1" in source
 
 
+def test_training_has_no_inference_like_evaluation_path():
+    training = (MODAL_DIR / "training.py").read_text()
+    generic_trainer = (Path(__file__).parents[1] / "architectures" / "_common" / "trainer.py").read_text()
+
+    for source in (training, generic_trainer):
+        assert "evaluate(" not in source
+        assert "val_data" not in source
+        assert "eval_interval" not in source
+        assert "valLoss" not in source
+        assert "valAccuracy" not in source
+    assert '"finalValLoss"' not in training
+    assert '"finalValAccuracy"' not in training
+
+
 def test_training_dispatch_has_a_bounded_timeout():
     source = (Path(__file__).parents[1] / "src" / "app" / "api" / "training-runs" / "route.ts").read_text()
     assert "signal: AbortSignal.timeout(30_000)" in source

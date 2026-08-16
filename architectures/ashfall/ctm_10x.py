@@ -20,7 +20,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from architectures._common import ArchitectureModel, EvaluationResult, json_state
+from architectures._common import ArchitectureModel, json_state
 from architectures._common.encoding import memory_embedding, policy_embedding
 
 ActivationName = Literal["relu", "sigmoid", "tanh"]
@@ -451,18 +451,6 @@ class Ashfall(ArchitectureModel):
 
     def training_loss(self, example: Any) -> torch.Tensor:
         return self._example_loss(example, preserve_graph=True)[2]
-
-    def evaluate(self, examples: list[Any]) -> EvaluationResult:
-        self.eval()
-        total_loss = 0.0
-        correct = 0
-        with torch.no_grad():
-            for example in examples:
-                logits, target, loss = self._example_loss(example, preserve_graph=False)
-                total_loss += float(loss)
-                correct += int(int(logits.argmax().item()) == target)
-        count = max(1, len(examples))
-        return EvaluationResult(total_loss / count, correct / count)
 
     def invoke(self, input_packet: dict[str, Any], state: dict[str, Any] | None = None) -> dict[str, Any]:
         text = self._text_from_input(input_packet)

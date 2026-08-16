@@ -9,7 +9,6 @@ from _common import (
     CHECKPOINT_INTERVAL_STEPS,
     CHECKPOINT_SAFETY_SECONDS,
     CPU_RATE_USD_PER_CORE_SECOND,
-    EVAL_INTERVAL_STEPS,
     GPU_RATE_USD_PER_SECOND,
     HEARTBEAT_INTERVAL_SECONDS,
     MEMORY_RATE_USD_PER_GIB_SECOND,
@@ -479,17 +478,9 @@ class Trainer:
                 split="train",
                 limit=500,
             )
-            val_data = self._load_source_examples(
-                source_path=source_path,
-                r2_client=r2,
-                bucket=R2_BUCKET,
-                prefix=dataset_r2_prefix,
-                split="eval",
-                limit=100,
-            )
             if not train_data:
                 raise ValueError("training dataset is empty")
-            _persist_event("dataset_loaded", trainExamples=len(train_data), evalExamples=len(val_data))
+            _persist_event("dataset_loaded", trainExamples=len(train_data))
 
             checkpoint_payload: dict | None = None
             if checkpoint_key:
@@ -510,7 +501,7 @@ class Trainer:
                     if checkpoint_envelope.get(key) != expected:
                         raise RuntimeError(f"checkpoint {key} does not match this run")
 
-            _set_diagnostics("building_model", trainExamples=len(train_data), evalExamples=len(val_data))
+            _set_diagnostics("building_model", trainExamples=len(train_data))
             _persist_event("model_build_started")
             model_config = dict(persisted_config or {}) if resume else {}
             if not model_config:
@@ -531,7 +522,6 @@ class Trainer:
                 "datasetR2Prefix": dataset_r2_prefix,
                 "maxSteps": max_steps,
                 "checkpointIntervalSteps": CHECKPOINT_INTERVAL_STEPS,
-                "evalIntervalSteps": EVAL_INTERVAL_STEPS,
             }
             cur.execute(
                 'UPDATE training_run SET "configJson" = %s WHERE id = %s',
@@ -539,7 +529,6 @@ class Trainer:
             )
             conn.commit()
 
-            history: list[dict] = []
             order = list(range(len(train_data)))
             cursor = 0
             start_step = 0
@@ -593,7 +582,7 @@ class Trainer:
                 return result
 
             def _load_checkpoint() -> None:
-                nonlocal checkpoint_payload, history, order, cursor, start_step
+                nonlocal checkpoint_payload, order, cursor, start_step
                 _start_checkpoint_watchdog()
                 if not checkpoint_key:
                     _persist_event("checkpoint_restore_started", checkpointStep=0)
@@ -639,13 +628,12 @@ class Trainer:
                 _persist_event("checkpoint_optimizer_device_restored", checkpointStep=checkpoint_step)
 
                 def _restore_progress_state() -> None:
-                    nonlocal history, order, cursor, start_step
-                    history = list(checkpoint_payload.get("history", []))
+                    nonlocal order, cursor, start_step
                     order = list(checkpoint_payload.get("order", order))
                     cursor = int(checkpoint_payload.get("cursor", 0))
                     start_step = int(checkpoint_payload.get("step", checkpoint_step))
 
-                _restore_stage("history_state", _restore_progress_state)
+                _restore_stage("progress_state", _restore_progress_state)
                 _persist_event("checkpoint_progress_state_loaded", checkpointStep=start_step)
 
                 def _validate_dataset_order() -> None:
@@ -695,7 +683,6 @@ class Trainer:
                     "model": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
                     "runtime": model.checkpoint_state(),
-                    "history": history,
                     "order": order,
                     "cursor": cursor,
                     "pythonRandomState": random.getstate(),
@@ -727,15 +714,13 @@ class Trainer:
                 cur.execute(
                     """
                     UPDATE training_run
-                    SET "stepHistoryJson" = %s,
-                        "checkpointR2Key" = %s,
+                    SET "checkpointR2Key" = %s,
                         "checkpointStep" = %s,
                         "checkpointAt" = %s,
                         "heartbeatAt" = %s
                     WHERE id = %s AND status = 'running'
                     """,
                     (
-                        json.dumps(history),
                         key,
                         step,
                         checkpointed_at,
@@ -884,23 +869,6 @@ class Trainer:
                 _set_diagnostics("optimizer_step", step=step)
                 train_loss = model.train_step(_next_batch(), optimizer)
                 _ensure_lease()
-                should_evaluate = step % EVAL_INTERVAL_STEPS == 0 or step == max_steps
-                if should_evaluate:
-                    _set_diagnostics("evaluation", step=step)
-                    evaluation = model.evaluate(val_data)
-                    history.append(
-                        {
-                            "step": step,
-                            "trainLoss": train_loss,
-                            "valLoss": evaluation.loss,
-                            "valAccuracy": evaluation.accuracy,
-                        }
-                    )
-                    print(
-                        f"[piro] run {run_id} step {step}/{max_steps} — "
-                        f"train_loss={train_loss:.4f}  val_loss={evaluation.loss:.4f}  "
-                        f"val_acc={evaluation.accuracy:.3f}"
-                    )
                 if step % CHECKPOINT_INTERVAL_STEPS == 0 or step == max_steps:
                     _save_checkpoint(step)
 
@@ -930,22 +898,19 @@ class Trainer:
                 ContentType="application/json",
             )
 
-            last = history[-1]
             completed_at = datetime.now(UTC)
             runtime_ms = int((completed_at - started_at).total_seconds() * 1000)
             cur.execute(
                 """
                 UPDATE training_run
-                SET status = %s, "finalTrainLoss" = %s, "finalValLoss" = %s,
-                    "finalValAccuracy" = %s, "completedAt" = %s, "heartbeatAt" = %s,
+                SET status = %s, "finalTrainLoss" = %s,
+                    "completedAt" = %s, "heartbeatAt" = %s,
                     "runtimeMs" = %s, "costUsd" = %s, "costBasis" = %s
                 WHERE id = %s AND status = 'running'
                 """,
                 (
                     "complete",
-                    float(last["trainLoss"]),
-                    float(last["valLoss"]),
-                    float(last["valAccuracy"]),
+                    float(train_loss),
                     completed_at,
                     completed_at,
                     runtime_ms,
