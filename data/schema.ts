@@ -259,7 +259,6 @@ export const trainingRun = pgTable(
     maxSteps: integer("maxSteps").notNull().default(5000),
     configJson: text("configJson"),
     finalTrainLoss: real("finalTrainLoss"),
-    stepHistoryJson: text("stepHistoryJson"),
     error: text("error"),
     /** Structured worker lifecycle snapshot, including the last known phase. */
     workerDiagnosticsJson: text("workerDiagnosticsJson"),

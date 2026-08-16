@@ -52,15 +52,13 @@ def test_canonical_entrypoint_resolves_to_one_architecture_class():
     assert model.parameter_count() > 0
 
 
-def test_model_class_owns_training_loss_and_evaluation_contract():
+def test_model_class_owns_training_loss_without_evaluation_contract():
     architecture = load_architecture("architectures/borealis/main.py")
     model = architecture.from_config({"tokenizer_name": "byte", "vocab_size": 257, "embed_dim": 4, "context_dim": 6})
     example = type("Example", (), {"inputs": ("hello",), "target": "world", "metadata": {}})()
     loss = model.training_loss(example)
     assert loss.ndim == 0
-    result = model.evaluate([example])
-    assert result.loss >= 0
-    assert 0 <= result.accuracy <= 1
+    assert not hasattr(model, "evaluate")
 
 
 def test_modal_runner_contains_no_product_registry_or_branch():

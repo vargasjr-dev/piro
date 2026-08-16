@@ -51,14 +51,6 @@ export async function GET(
         const reconciled = await reconcileStaleTrainingRun(run);
         const liveMetrics = deriveTrainingRunMetrics(reconciled);
 
-        let history: unknown[] = [];
-        if (reconciled.stepHistoryJson) {
-          try {
-            history = JSON.parse(reconciled.stepHistoryJson);
-          } catch {
-            /* ignore */
-          }
-        }
         const eventExposure = exposeTrainingRunEvents(
           reconciled.workerEventLogJson,
           reconciled,
@@ -67,7 +59,6 @@ export async function GET(
           maxSteps: reconciled.maxSteps,
           checkpointStep: reconciled.checkpointStep,
           checkpointAt: reconciled.checkpointAt?.toISOString() ?? null,
-          history,
           eventHistory: eventExposure.eventHistory,
           ...liveMetrics,
           workerDiagnosticsJson: reconciled.workerDiagnosticsJson,
@@ -85,7 +76,6 @@ export async function GET(
           controller.enqueue(
             event("complete", {
               finalTrainLoss: reconciled.finalTrainLoss,
-              stepHistoryJson: reconciled.stepHistoryJson,
               completedAt: reconciled.completedAt?.toISOString() ?? null,
               runtimeMs: reconciled.runtimeMs,
               costUsd: reconciled.costUsd,

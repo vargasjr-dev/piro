@@ -105,7 +105,6 @@ export async function GET(
           configJson: run.configJson,
           maxSteps: run.maxSteps,
           finalTrainLoss: run.finalTrainLoss,
-          stepHistoryJson: run.stepHistoryJson,
           workerDiagnosticsJson: run.workerDiagnosticsJson,
           failureDetailsJson: run.failureDetailsJson,
           workerEventLogJson: run.workerEventLogJson,

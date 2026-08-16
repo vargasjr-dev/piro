@@ -24,7 +24,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from architectures._common import ArchitectureModel, EvaluationResult, json_state
+from architectures._common import ArchitectureModel, json_state
 from architectures.borealis.tokenizer import BorealisTokenizer
 
 
@@ -175,23 +175,6 @@ class Borealis(ArchitectureModel):
         tokens = self._tokens(example)
         logits = self._sequence_logits(tokens)
         return F.cross_entropy(logits, tokens[1:])
-
-    def evaluate(self, examples: list[Any]) -> EvaluationResult:
-        self.eval()
-        total_loss = 0.0
-        total_tokens = 0
-        correct = 0
-        with torch.no_grad():
-            for example in examples:
-                tokens = self._tokens(example)
-                logits = self._sequence_logits(tokens)
-                targets = tokens[1:]
-                loss = F.cross_entropy(logits, targets)
-                total_loss += float(loss) * targets.numel()
-                total_tokens += targets.numel()
-                correct += int((logits.argmax(dim=-1) == targets).sum().item())
-        count = max(1, total_tokens)
-        return EvaluationResult(total_loss / count, correct / count)
 
     def invoke(self, input_packet: dict[str, Any], state: dict[str, Any] | None = None) -> dict[str, Any]:
         text = self._text_from_input(input_packet)

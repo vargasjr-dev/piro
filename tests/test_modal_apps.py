@@ -176,12 +176,16 @@ def test_training_checkpoints_after_every_optimizer_step():
     assert "CHECKPOINT_INTERVAL_STEPS = 1" in source
 
 
-def test_training_does_not_evaluate_after_the_final_optimizer_step():
+def test_training_has_no_inference_like_evaluation_path():
     training = (MODAL_DIR / "training.py").read_text()
     generic_trainer = (Path(__file__).parents[1] / "architectures" / "_common" / "trainer.py").read_text()
 
-    assert "should_evaluate = step % EVAL_INTERVAL_STEPS == 0 and step < max_steps" in training
-    assert "if step % self.config.eval_interval != 0 or step == self.config.max_steps:" in generic_trainer
+    for source in (training, generic_trainer):
+        assert "evaluate(" not in source
+        assert "val_data" not in source
+        assert "eval_interval" not in source
+        assert "valLoss" not in source
+        assert "valAccuracy" not in source
     assert '"finalValLoss"' not in training
     assert '"finalValAccuracy"' not in training
 

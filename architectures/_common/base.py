@@ -12,12 +12,6 @@ import torch
 import torch.nn as nn
 
 
-@dataclasses.dataclass(frozen=True)
-class EvaluationResult:
-    loss: float
-    accuracy: float
-
-
 class ArchitectureModel(nn.Module, ABC):
     """One architecture-owned model API used by training and inference.
 
@@ -90,10 +84,6 @@ class ArchitectureModel(nn.Module, ABC):
     @abstractmethod
     def training_loss(self, example: Any) -> torch.Tensor:
         """Return one differentiable loss for a neutral source example."""
-
-    @abstractmethod
-    def evaluate(self, examples: list[Any]) -> EvaluationResult:
-        """Evaluate neutral source examples without platform knowledge."""
 
     @abstractmethod
     def invoke(

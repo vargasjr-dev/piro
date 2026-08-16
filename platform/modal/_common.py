@@ -19,7 +19,6 @@ TRAINING_MEMORY_MB = 8192
 TRAINING_TIMEOUT_SECONDS = 3300
 TRAINING_DEADLINE_SECONDS = 3000
 CHECKPOINT_INTERVAL_STEPS = 1
-EVAL_INTERVAL_STEPS = 250
 CHECKPOINT_SAFETY_SECONDS = 120
 # Keep worker diagnostics fresh enough to capture short native hangs or termination
 # boundaries while keeping the heartbeat database traffic bounded.

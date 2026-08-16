@@ -40,7 +40,6 @@ export function serializeTrainingRun(
     maxSteps: run.maxSteps,
     configJson: run.configJson,
     finalTrainLoss: run.finalTrainLoss,
-    stepHistoryJson: run.stepHistoryJson,
     ...liveMetrics,
     error: run.error,
     workerDiagnosticsJson: run.workerDiagnosticsJson,
