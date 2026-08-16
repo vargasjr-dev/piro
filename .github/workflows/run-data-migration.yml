@@ -1,4 +1,4 @@
-name: Run PR Data Migration
+name: Run PR Data Operation
 
 on:
   workflow_dispatch:
@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   run:
-    name: Run PR data migration
+    name: Run PR data operation
     runs-on: ubuntu-latest
     environment: production-migrations
     steps:
@@ -74,13 +74,19 @@ jobs:
               { owner, repo, pull_number: pullNumber },
             );
             const requestedScript = process.env.MIGRATION_SCRIPT;
-            if (
-              changedFiles.length !== 1 ||
-              changedFiles[0].filename !== requestedScript ||
-              changedFiles[0].status !== 'added'
-            ) {
+            const allowedSupportingFiles = new Set([
+              '.github/workflows/run-data-migration.yml',
+              'scripts/data-migrations/README.md',
+            ]);
+            const selectedScript = changedFiles.find(
+              (file) => file.filename === requestedScript && file.status === 'added',
+            );
+            const unexpectedFiles = changedFiles.filter(
+              (file) => file.filename !== requestedScript && !allowedSupportingFiles.has(file.filename),
+            );
+            if (!selectedScript || unexpectedFiles.length > 0) {
               core.setFailed(
-                `The PR must add exactly the selected migration script and no other files; received ${changedFiles.map((file) => `${file.status}:${file.filename}`).join(', ') || 'no files'}`,
+                `The PR must add the selected script and may only modify the approved runner documentation; received ${changedFiles.map((file) => `${file.status}:${file.filename}`).join(', ') || 'no files'}`,
               );
               return;
             }

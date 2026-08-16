@@ -12,7 +12,7 @@ Put one-time, narrowly scoped production data repairs or read-only analyses in t
    - verify the resulting values before exiting;
    - fail instead of guessing when the database state differs from expectations.
 3. Open the PR against `main` in this repository. Fork PRs are intentionally rejected because the workflow executes PR code with production database access.
-4. Manually dispatch **Run PR Data Migration** with:
+4. Manually dispatch **Run PR Data Operation** with:
    - the open PR number;
    - the script path, such as `scripts/data-migrations/repair-global-ashfall-path.ts`.
 5. Approve the protected `production-migrations` environment when GitHub requests approval.
