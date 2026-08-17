@@ -857,6 +857,7 @@ class Trainer:
                 print(f"[piro] run {run_id} initialized checkpoint at step 0")
 
             for step in range(start_step + 1, max_steps + 1):
+                detailed_telemetry = debug or step == max_steps
                 _set_diagnostics("training", step=step)
                 if step == checkpoint_step + 1:
                     _persist_event("training_entered", step=step)
@@ -969,8 +970,17 @@ class Trainer:
                     )
                     return
 
+                if detailed_telemetry:
+                    _persist_event("batch_preparation_started", step=step)
+                _set_diagnostics("batch_preparation", step=step)
                 batch, batch_indices = _next_batch()
-                detailed_telemetry = step == max_steps
+                if detailed_telemetry:
+                    _persist_event(
+                        "batch_preparation_completed",
+                        step=step,
+                        batchIndices=batch_indices,
+                        batchSize=len(batch),
+                    )
                 _set_training_stage(
                     "train_step",
                     step=step,
