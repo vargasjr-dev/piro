@@ -52,6 +52,7 @@ interface CreateBody {
   datasetId: string;
   maxSteps?: number;
   modelName?: string;
+  debug?: boolean;
 }
 
 async function resolveAuth(
@@ -105,7 +106,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { architecturePath, datasetId, maxSteps = 5000, modelName } = body;
+  const {
+    architecturePath,
+    datasetId,
+    maxSteps = 5000,
+    modelName,
+    debug = false,
+  } = body;
 
   if (!architecturePath || !datasetId) {
     return Response.json(
@@ -119,6 +126,9 @@ export async function POST(request: Request) {
       { error: "maxSteps must be an integer between 1 and 1,000,000" },
       { status: 400 },
     );
+  }
+  if (typeof debug !== "boolean") {
+    return Response.json({ error: "debug must be a boolean" }, { status: 400 });
   }
 
   // Verify the dataset belongs to the user
@@ -135,7 +145,12 @@ export async function POST(request: Request) {
   }
 
   const id = randomUUID();
-  const configJson = JSON.stringify({ architecturePath, datasetId, maxSteps });
+  const configJson = JSON.stringify({
+    architecturePath,
+    datasetId,
+    maxSteps,
+    debug,
+  });
   const createdEventLogJson = JSON.stringify([trainingRunEvent("run_created")]);
 
   await db.insert(trainingRun).values({
@@ -186,6 +201,7 @@ export async function POST(request: Request) {
           datasetR2Prefix: ds.r2Prefix,
           maxSteps,
           seed: 42,
+          debug,
           secret: process.env.MODAL_WEBHOOK_SECRET ?? "",
         }),
         signal: AbortSignal.timeout(30_000),

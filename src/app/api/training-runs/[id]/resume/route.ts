@@ -14,12 +14,36 @@ import {
 
 const TRAINING_WORKER_LEASE_MS = 50 * 60 * 1000;
 
+interface ResumeBody {
+  debug?: boolean;
+}
+
+function storedDebug(configJson: string | null): boolean {
+  if (!configJson) return false;
+  try {
+    const config = JSON.parse(configJson) as { debug?: unknown };
+    return config.debug === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const userId = await resolveTrainingRunUserId(request);
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  let body: ResumeBody = {};
+  try {
+    body = (await request.json()) as ResumeBody;
+  } catch {
+    // Empty request bodies retain the run's stored debug setting.
+  }
+  if (body.debug !== undefined && typeof body.debug !== "boolean") {
+    return Response.json({ error: "debug must be a boolean" }, { status: 400 });
+  }
 
   const { id } = await params;
   const existing = await getOwnedTrainingRun(id, userId);
@@ -105,6 +129,7 @@ export async function POST(
     )
     .returning();
   const dispatchRun = dispatchStarted ?? claimed;
+  const debug = body.debug ?? storedDebug(claimed.configJson);
 
   const modalEndpoint = process.env.MODAL_TRAINING_ENDPOINT;
   let dispatchError: string | null = null;
@@ -137,6 +162,7 @@ export async function POST(
           maxSteps: claimed.maxSteps,
           seed: 42,
           resume: true,
+          debug,
           secret: process.env.MODAL_WEBHOOK_SECRET ?? "",
         }),
         signal: AbortSignal.timeout(30_000),

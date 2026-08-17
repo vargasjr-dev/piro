@@ -83,12 +83,18 @@ export async function trainingGet(id: string): Promise<void> {
   console.log(JSON.stringify(response.body, null, 2));
 }
 
-export async function trainingResume(id: string): Promise<void> {
+export async function trainingResume(
+  id: string,
+  opts: { debug?: boolean } = {},
+): Promise<void> {
   const config = resolveConfig();
   const response = await piroFetch(
     config,
     `/api/training-runs/${encodeURIComponent(id)}/resume`,
-    { method: "POST", body: "{}" },
+    {
+      method: "POST",
+      body: JSON.stringify(opts.debug ? { debug: true } : {}),
+    },
   );
   if (!response.ok)
     fail(response.status, response.body, "training run resume failed");

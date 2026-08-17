@@ -51,7 +51,7 @@ function usage(msg?: string): never {
   console.error("  piro datasets get <id>");
   console.error("  piro dataset head <id>");
   console.error(
-    "  piro architecture train <name> --dataset <id> [--max-steps <n>] [--name <model-name>]",
+    "  piro architecture train <name> --dataset <id> [--max-steps <n>] [--name <model-name>] [--debug]",
   );
   console.error(
     "  piro benchmarks eval --dataset <id> --target <key-or-model-id> [--target <key-or-model-id>] [--episodes <n>]",
@@ -65,7 +65,7 @@ function usage(msg?: string): never {
   );
   console.error("  piro training list");
   console.error("  piro training get <id>");
-  console.error("  piro training resume <id>");
+  console.error("  piro training resume <id> [--debug]");
   console.error(
     "  piro training estimate [--max-steps <n>] [--seconds-per-step <n>] [--gpu <type>]",
   );
@@ -210,7 +210,7 @@ switch (subject) {
       case "resume": {
         const id = arg(rest, 0);
         if (!id) usage("training run id is required");
-        await trainingResume(id);
+        await trainingResume(id, { debug: rest.includes("--debug") });
         break;
       }
       case "estimate":
@@ -236,6 +236,7 @@ switch (subject) {
           dataset,
           maxSteps: opt(rest, "max-steps"),
           modelName: opt(rest, "name"),
+          debug: rest.includes("--debug"),
         });
         break;
       }
