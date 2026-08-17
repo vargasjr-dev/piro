@@ -41,11 +41,17 @@ class Trainer:
     @modal.enter()
     def setup(self):
         """Load only generic architecture and source discovery code during container startup."""
+        import os
         import traceback
 
+        # Make native CUDA failures synchronous and include C++ frames in the
+        # Modal stderr artifact for the diagnostic training deployment.
+        os.environ.setdefault("CUDA_LAUNCH_BLOCKING", "1")
+        os.environ.setdefault("TORCH_SHOW_CPP_STACKTRACES", "1")
+        os.environ.setdefault("PYTHONFAULTHANDLER", "1")
         try:
             import torch
-            from architectures._common import load_architecture
+
             from sources._common.training import load_source_examples
         except BaseException:
             print("[piro] container setup failed", flush=True)
@@ -381,6 +387,11 @@ class Trainer:
         checkpoint_stage = {"name": None, "startedAt": None}
         checkpoint_watchdog_thread = None
         checkpoint_watchdog_active = False
+        training_watchdog_stop = threading.Event()
+        training_stage_lock = threading.Lock()
+        training_stage = {"name": None, "startedAt": None, "step": None}
+        training_watchdog_thread = None
+        training_watchdog_active = False
 
         def _set_checkpoint_stage(name: str | None) -> None:
             started_at = datetime.now(UTC).isoformat() if name else None
@@ -457,6 +468,88 @@ class Trainer:
                 checkpoint_watchdog_thread.join(timeout=5)
             if record_event:
                 _persist_event("checkpoint_restore_watchdog_stopped")
+
+        def _set_training_stage(
+            name: str | None,
+            *,
+            step: int | None = None,
+            **details: object,
+        ) -> None:
+            started_at = datetime.now(UTC).isoformat() if name else None
+            with training_stage_lock:
+                training_stage["name"] = name
+                training_stage["startedAt"] = started_at
+                training_stage["step"] = step
+            _set_diagnostics(
+                diagnostics_state.get("phase", "training"),
+                trainPhase=name,
+                trainPhaseStartedAt=started_at,
+                trainPhaseStep=step,
+                **details,
+            )
+
+        def _thread_stacks() -> dict[str, str]:
+            frames = sys._current_frames()
+            names = {thread.ident: thread.name for thread in threading.enumerate()}
+            stacks: dict[str, str] = {}
+            for thread_id, frame in frames.items():
+                name = names.get(thread_id, f"thread-{thread_id}")
+                stacks[name] = "".join(traceback.format_stack(frame))[-4000:]
+            return stacks
+
+        def _training_watchdog() -> None:
+            _persist_event("training_watchdog_thread_entered")
+            while not training_watchdog_stop.wait(30):
+                with training_stage_lock:
+                    name = training_stage["name"]
+                    started = training_stage["startedAt"]
+                    step = training_stage["step"]
+                if not name:
+                    continue
+                elapsed_seconds = None
+                if started:
+                    elapsed_seconds = round(
+                        max(
+                            0,
+                            (
+                                datetime.now(UTC)
+                                - datetime.fromisoformat(str(started))
+                            ).total_seconds(),
+                        ),
+                        1,
+                    )
+                _persist_event(
+                    "training_watchdog",
+                    trainPhase=name,
+                    step=step,
+                    elapsedSeconds=elapsed_seconds,
+                    threadStacks=_thread_stacks(),
+                )
+                faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+
+        def _start_training_watchdog() -> None:
+            nonlocal training_watchdog_thread, training_watchdog_active
+            training_watchdog_active = True
+            _persist_event("training_watchdog_setup_started")
+            training_watchdog_thread = threading.Thread(
+                target=_training_watchdog,
+                name=f"piro-training-watchdog-{run_id[:8]}",
+                daemon=True,
+            )
+            training_watchdog_thread.start()
+            _persist_event("training_watchdog_started")
+
+        def _stop_training_watchdog(*, record_event: bool = True) -> None:
+            nonlocal training_watchdog_active
+            if not training_watchdog_active:
+                return
+            training_watchdog_active = False
+            training_watchdog_stop.set()
+            _set_training_stage(None)
+            if training_watchdog_thread is not None:
+                training_watchdog_thread.join(timeout=5)
+            if record_event:
+                _persist_event("training_watchdog_stopped")
 
         model = None
         optimizer = None
@@ -745,16 +838,17 @@ class Trainer:
                 )
                 _persist_event("checkpoint_saved", step=step, checkpointStep=step)
 
-            def _next_batch() -> list:
+            def _next_batch() -> tuple[list, list[int]]:
                 nonlocal cursor
                 if cursor == 0:
                     random.shuffle(order)
                 size = min(model.training_batch_size, len(order))
                 indices = [order[(cursor + offset) % len(order)] for offset in range(size)]
                 cursor = (cursor + size) % len(order)
-                return [train_data[index] for index in indices]
+                return [train_data[index] for index in indices], indices
 
             _load_checkpoint()
+            _start_training_watchdog()
             if not checkpoint_key and start_step == 0:
                 _save_checkpoint(0)
                 print(f"[piro] run {run_id} initialized checkpoint at step 0")
@@ -871,8 +965,58 @@ class Trainer:
                     )
                     return
 
-                _set_diagnostics("optimizer_step", step=step)
-                train_loss = model.train_step(_next_batch(), optimizer)
+                batch, batch_indices = _next_batch()
+                detailed_telemetry = step == max_steps
+                _set_training_stage(
+                    "train_step",
+                    step=step,
+                    batchIndices=batch_indices,
+                    batchSize=len(batch),
+                )
+                _set_diagnostics(
+                    "optimizer_step",
+                    step=step,
+                    batchIndices=batch_indices,
+                    batchSize=len(batch),
+                )
+                if detailed_telemetry:
+                    _persist_event(
+                        "optimizer_step_started",
+                        step=step,
+                        batchIndices=batch_indices,
+                        batchSize=len(batch),
+                    )
+
+                def _on_train_phase(name: str, details: dict[str, object]) -> None:
+                    _set_training_stage(name, step=step, **details)
+                    _persist_event("train_phase", trainPhase=name, step=step, **details)
+
+                try:
+                    train_loss = model.train_step(
+                        batch,
+                        optimizer,
+                        on_phase=_on_train_phase if detailed_telemetry else None,
+                    )
+                except BaseException as exc:
+                    if detailed_telemetry:
+                        _persist_event(
+                            "optimizer_step_failed",
+                            step=step,
+                            batchIndices=batch_indices,
+                            trainPhase=training_stage.get("name"),
+                            exceptionType=type(exc).__name__,
+                            message=str(exc)[:2000],
+                            traceback=traceback.format_exc(limit=50)[-12000:],
+                        )
+                    raise
+                if detailed_telemetry:
+                    _persist_event(
+                        "optimizer_step_completed",
+                        step=step,
+                        batchIndices=batch_indices,
+                        trainLoss=train_loss,
+                    )
+                _set_training_stage(None, step=step)
                 _ensure_lease()
                 if step % CHECKPOINT_INTERVAL_STEPS == 0 or step == max_steps:
                     _save_checkpoint(step)
@@ -1018,6 +1162,7 @@ class Trainer:
             raise
 
         finally:
+            _stop_training_watchdog(record_event=False)
             _stop_checkpoint_watchdog(record_event=False)
             _stop_heartbeat()
             cur.close()
