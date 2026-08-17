@@ -5,8 +5,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from platform_training_state import (
     HEARTBEAT_DIAGNOSTICS_SQL,
     HEARTBEAT_SQL,
-    WORKER_EVENT_SELECT_SQL,
-    WORKER_EVENT_UPDATE_SQL,
+    WORKER_EVENT_DIAGNOSTICS_SQL,
+    WORKER_EVENT_INSERT_SQL,
     persist_worker_event,
     send_heartbeat,
 )
@@ -92,50 +92,49 @@ def test_send_heartbeat_persists_worker_diagnostics():
     assert connection.commits == 1
 
 
-def test_persist_worker_event_appends_and_bounds_history():
-    connection = FakeConnection(1, row=('[{"event":"old"}]',))
+def test_persist_worker_event_inserts_an_unbounded_relational_row():
+    connection = FakeConnection(1, row=("event-row-id",))
 
     result = persist_worker_event(
         lambda _: connection,
         "database-url",
         "run-id",
-        {"event": "new"},
-        diagnostics_json='{"phase":"starting"}',
-        max_events=2,
+        {
+            "event": "checkpoint_saved",
+            "observedAt": "2026-08-17T11:00:00+00:00",
+            "step": 499,
+        },
+        diagnostics_json='{"phase":"checkpoint","step":499}',
     )
 
     assert result is True
     assert connection.commits == 1
-    assert connection.cursor_instance.executed[0] == (
-        WORKER_EVENT_SELECT_SQL,
-        ("run-id",),
-    )
-    update_query, update_params = connection.cursor_instance.executed[1]
-    assert update_query == WORKER_EVENT_UPDATE_SQL
-    assert update_params[0] == '[{"event":"old"},{"event":"new"}]'
-    assert update_params[1] == '{"phase":"starting"}'
-
-
-def test_persist_worker_event_recovers_from_malformed_history():
-    connection = FakeConnection(1, row=("not-json",))
-
-    assert persist_worker_event(
-        lambda _: connection,
-        "database-url",
+    insert_query, insert_params = connection.cursor_instance.executed[0]
+    assert insert_query == WORKER_EVENT_INSERT_SQL
+    assert insert_params[1:] == (
+        "checkpoint_saved",
+        "2026-08-17T11:00:00+00:00",
+        499,
+        '{"event":"checkpoint_saved","observedAt":"2026-08-17T11:00:00+00:00","step":499}',
         "run-id",
-        {"event": "recovered"},
-    ) is True
-    assert connection.cursor_instance.executed[1][1][0] == '[{"event":"recovered"}]'
+    )
+    assert connection.cursor_instance.executed[1] == (
+        WORKER_EVENT_DIAGNOSTICS_SQL,
+        ('{"phase":"checkpoint","step":499}', "run-id"),
+    )
 
 
 def test_persist_worker_event_reports_missing_run_without_commit():
     connection = FakeConnection(1, row=None)
 
-    assert persist_worker_event(
-        lambda _: connection,
-        "database-url",
-        "run-id",
-        {"event": "missing"},
-    ) is False
+    assert (
+        persist_worker_event(
+            lambda _: connection,
+            "database-url",
+            "run-id",
+            {"event": "missing"},
+        )
+        is False
+    )
     assert connection.commits == 0
     assert connection.rollbacks == 1

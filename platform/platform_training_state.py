@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 HEARTBEAT_SQL = (
     'UPDATE training_run SET "heartbeatAt" = NOW() '
@@ -14,16 +16,17 @@ HEARTBEAT_DIAGNOSTICS_SQL = (
     'UPDATE training_run SET "heartbeatAt" = NOW(), "workerDiagnosticsJson" = %s '
     "WHERE id = %s AND status = 'running'"
 )
-WORKER_EVENT_MAX_COUNT = 64
-WORKER_EVENT_SELECT_SQL = """
-    SELECT "workerEventLogJson"
+WORKER_EVENT_INSERT_SQL = """
+    INSERT INTO training_run_event
+        (id, "trainingRunId", event, "observedAt", step, "detailsJson")
+    SELECT %s, id, %s, %s, %s, %s
     FROM training_run
     WHERE id = %s AND status IN ('queued', 'running')
-    FOR UPDATE
+    RETURNING id
 """
-WORKER_EVENT_UPDATE_SQL = (
-    'UPDATE training_run SET "workerEventLogJson" = %s, '
-    '"workerDiagnosticsJson" = COALESCE(%s, "workerDiagnosticsJson") '
+WORKER_EVENT_DIAGNOSTICS_SQL = (
+    'UPDATE training_run SET "workerDiagnosticsJson" = '
+    'COALESCE(%s, "workerDiagnosticsJson") '
     "WHERE id = %s AND status IN ('queued', 'running')"
 )
 
@@ -60,37 +63,38 @@ def persist_worker_event(
     run_id: str,
     event: dict[str, Any],
     diagnostics_json: str | None = None,
-    max_events: int = WORKER_EVENT_MAX_COUNT,
 ) -> bool:
-    """Append a bounded worker event without sharing the training transaction."""
-    if max_events < 1:
-        raise ValueError("max_events must be positive")
+    """Insert one durable event row without sharing the training transaction."""
+    event_name = str(event.get("event") or "unknown")
+    observed_at = event.get("observedAt")
+    if not isinstance(observed_at, str):
+        observed_at = datetime.now(UTC).isoformat()
+    step = event.get("step")
+    if not isinstance(step, int) or isinstance(step, bool):
+        step = None
 
     connection = connect(database_url)
     try:
         cursor = connection.cursor()
         try:
-            cursor.execute(WORKER_EVENT_SELECT_SQL, (run_id,))
-            row = cursor.fetchone()
-            if row is None:
+            cursor.execute(
+                WORKER_EVENT_INSERT_SQL,
+                (
+                    str(uuid4()),
+                    event_name,
+                    observed_at,
+                    step,
+                    json.dumps(event, separators=(",", ":")),
+                    run_id,
+                ),
+            )
+            if cursor.fetchone() is None:
                 connection.rollback()
                 return False
 
-            try:
-                events = json.loads(row[0]) if row[0] else []
-            except (TypeError, json.JSONDecodeError):
-                events = []
-            if not isinstance(events, list):
-                events = []
-            events.append(event)
-
             cursor.execute(
-                WORKER_EVENT_UPDATE_SQL,
-                (
-                    json.dumps(events[-max_events:], separators=(",", ":")),
-                    diagnostics_json,
-                    run_id,
-                ),
+                WORKER_EVENT_DIAGNOSTICS_SQL,
+                (diagnostics_json, run_id),
             )
             if cursor.rowcount != 1:
                 connection.rollback()
@@ -127,4 +131,4 @@ def heartbeat_loop(
                 log(f"[piro] run {run_id} lost its database lease")
                 return
         except Exception as exc:  # noqa: BLE001 - keep training alive across transient DB errors
-            log(f"[piro] run {run_id} heartbeat failed: {exc}")
+            log(f"[piro] heartbeat failed for {run_id}: {type(exc).__name__}: {exc}")

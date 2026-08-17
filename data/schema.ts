@@ -264,7 +264,7 @@ export const trainingRun = pgTable(
     workerDiagnosticsJson: text("workerDiagnosticsJson"),
     /** Structured exception or reconciliation details for the latest failure. */
     failureDetailsJson: text("failureDetailsJson"),
-    /** Bounded append-only worker startup and failure events for postmortem debugging. */
+    /** Legacy bounded event log retained only as a rollout fallback for older runs. */
     workerEventLogJson: text("workerEventLogJson"),
     /** Last worker heartbeat; used to reconcile platform-level terminations. */
     heartbeatAt: timestamp("heartbeatAt"),
@@ -291,6 +291,27 @@ export const trainingRun = pgTable(
     completedAt: timestamp("completedAt"),
   },
   (t) => [index("tr_user_queued").on(t.userId, t.queuedAt)],
+);
+
+/**
+ * An append-only worker or control-plane event for a training run.
+ * The raw event payload is retained in detailsJson while indexed fields keep
+ * timeline queries and lifecycle reporting relational.
+ */
+export const trainingRunEvent = pgTable(
+  "training_run_event",
+  {
+    id: text("id").primaryKey(),
+    trainingRunId: text("trainingRunId")
+      .notNull()
+      .references(() => trainingRun.id, { onDelete: "cascade" }),
+    event: text("event").notNull(),
+    observedAt: timestamp("observedAt").notNull(),
+    step: integer("step"),
+    detailsJson: text("detailsJson").notNull(),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [index("tre_run_observed").on(t.trainingRunId, t.observedAt, t.id)],
 );
 
 /**

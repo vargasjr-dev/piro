@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../../data/db";
 import { trainingRun } from "../../data/schema";
 import { parseTrainingRunEvents } from "./training-run-events";
+import { getRecentTrainingRunEvents } from "./training-run-events.server";
 
 const STALE_RUN_GRACE_MS = 5 * 60 * 1000;
 const DEFAULT_QUEUE_TIMEOUT_MS = 10 * 60 * 1000;
@@ -27,8 +28,8 @@ function failureDetailsJson(
   reason: string,
   run: typeof trainingRun.$inferSelect,
   observedAt: Date,
+  workerEvents = parseTrainingRunEvents(run.workerEventLogJson),
 ) {
-  const workerEvents = parseTrainingRunEvents(run.workerEventLogJson);
   const lastWorkerEvent = workerEvents.at(-1) ?? null;
   return JSON.stringify({
     kind,
@@ -67,6 +68,7 @@ export async function reconcileStaleTrainingRun(
       new Date(run.queuedAt.getTime() + DEFAULT_QUEUE_TIMEOUT_MS);
     if (now <= queueDeadline) return run;
 
+    const workerEvents = await getRecentTrainingRunEvents(run.id);
     const [updated] = await db
       .update(trainingRun)
       .set({
@@ -77,6 +79,7 @@ export async function reconcileStaleTrainingRun(
           "Training worker was not started before the dispatch deadline.",
           run,
           now,
+          workerEvents.length > 0 ? workerEvents : undefined,
         ),
         completedAt: now,
         heartbeatAt: now,
@@ -100,7 +103,11 @@ export async function reconcileStaleTrainingRun(
   const workerDiagnostics = parseWorkerDiagnostics(run.workerDiagnosticsJson);
   const phase = workerDiagnostics?.phase;
   const step = workerDiagnostics?.step;
-  const lastWorkerEvent = parseTrainingRunEvents(run.workerEventLogJson).at(-1);
+  const workerEvents = await getRecentTrainingRunEvents(run.id);
+  const legacyEvents = workerEvents.length
+    ? workerEvents
+    : parseTrainingRunEvents(run.workerEventLogJson);
+  const lastWorkerEvent = legacyEvents.at(-1);
   const eventContext =
     lastWorkerEvent && typeof lastWorkerEvent === "object"
       ? ` Last worker event=${String((lastWorkerEvent as Record<string, unknown>).event ?? "unknown")} at ${String((lastWorkerEvent as Record<string, unknown>).observedAt ?? "unknown")}.`
@@ -112,9 +119,6 @@ export async function reconcileStaleTrainingRun(
   const error = pastDeadline
     ? `Training worker exceeded its execution deadline and was reconciled by the API.${context}`
     : `Training worker stopped heartbeating and was reconciled by the API.${context}`;
-  // Reconciliation can happen long after the worker was killed. Cap the
-  // recorded runtime and cost at the declared deadline so stale API reads do
-  // not bill the run for hours of non-observed execution.
   const end = pastDeadline ? deadline : now;
   const runtimeMs = Math.max(0, end.getTime() - run.startedAt.getTime());
   const [updated] = await db
@@ -127,6 +131,7 @@ export async function reconcileStaleTrainingRun(
         error,
         run,
         now,
+        legacyEvents,
       ),
       completedAt: now,
       runtimeMs,

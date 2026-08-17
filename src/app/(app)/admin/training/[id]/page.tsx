@@ -17,10 +17,7 @@ import {
 import { AdminShell } from "../../AdminShell";
 import { CancelTrainingRunButton } from "../CancelTrainingRunButton";
 import { TrainingRunEventHistory } from "./TrainingRunEventHistory";
-import {
-  deriveTrainingRunHistory,
-  paginateTrainingRunHistory,
-} from "~/lib/training-run-events";
+import { getTrainingRunEventPage } from "~/lib/training-run-events.server";
 
 export const dynamic = "force-dynamic";
 
@@ -67,11 +64,12 @@ export default async function AdminTrainingDetailPage({
   const now = new Date();
   const metrics = deriveTrainingRunMetrics(row.run, now);
   const config = parseJsonRecord(row.run.configJson);
-  const eventHistory = deriveTrainingRunHistory(
-    row.run.workerEventLogJson,
+  const eventPage = await getTrainingRunEventPage(
+    row.run.id,
+    0,
     row.run,
+    row.run.workerEventLogJson,
   );
-  const eventPage = paginateTrainingRunHistory(eventHistory);
 
   return (
     <AdminShell current="Training">

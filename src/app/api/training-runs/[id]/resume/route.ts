@@ -7,10 +7,8 @@ import {
   resolveTrainingRunUserId,
   serializeTrainingRun,
 } from "~/lib/training-runs.server";
-import {
-  appendTrainingRunEventSql,
-  trainingRunEvent,
-} from "~/lib/training-run-events";
+import { trainingRunEvent } from "~/lib/training-run-events";
+import { insertTrainingRunEvent } from "~/lib/training-run-events.server";
 
 const TRAINING_WORKER_LEASE_MS = 50 * 60 * 1000;
 
@@ -85,7 +83,6 @@ export async function POST(
 
   const now = new Date();
   const timeoutAt = new Date(now.getTime() + TRAINING_WORKER_LEASE_MS);
-  const requestedEvent = trainingRunEvent("resume_requested");
   const [claimed] = await db
     .update(trainingRun)
     .set({
@@ -96,7 +93,6 @@ export async function POST(
       timeoutAt,
       workerDiagnosticsJson: null,
       failureDetailsJson: null,
-      workerEventLogJson: appendTrainingRunEventSql(requestedEvent),
       completedAt: null,
     })
     .where(
@@ -117,35 +113,19 @@ export async function POST(
     );
   }
 
-  const [dispatchStarted] = await db
-    .update(trainingRun)
-    .set({
-      workerEventLogJson: appendTrainingRunEventSql(
-        trainingRunEvent("resume_claimed"),
-      ),
-    })
-    .where(
-      and(eq(trainingRun.id, claimed.id), eq(trainingRun.status, "running")),
-    )
-    .returning();
-  const dispatchRun = dispatchStarted ?? claimed;
+  await insertTrainingRunEvent(
+    claimed.id,
+    trainingRunEvent("resume_requested"),
+  );
+  await insertTrainingRunEvent(claimed.id, trainingRunEvent("resume_claimed"));
   const debug = body.debug ?? storedDebug(claimed.configJson);
+  await insertTrainingRunEvent(
+    claimed.id,
+    trainingRunEvent("resume_dispatch_started"),
+  );
 
   const modalEndpoint = process.env.MODAL_TRAINING_ENDPOINT;
   let dispatchError: string | null = null;
-  await db
-    .update(trainingRun)
-    .set({
-      workerEventLogJson: appendTrainingRunEventSql(
-        trainingRunEvent("resume_dispatch_started"),
-      ),
-    })
-    .where(
-      and(
-        eq(trainingRun.id, dispatchRun.id),
-        eq(trainingRun.status, "running"),
-      ),
-    );
   if (!modalEndpoint) {
     dispatchError = "MODAL_TRAINING_ENDPOINT is not configured.";
   } else {
@@ -186,16 +166,17 @@ export async function POST(
         status: "error",
         error: dispatchError,
         completedAt: new Date(),
-        workerEventLogJson: appendTrainingRunEventSql(
-          trainingRunEvent("resume_dispatch_failed", {
-            error: dispatchError.slice(0, 500),
-          }),
-        ),
       })
       .where(
         and(eq(trainingRun.id, claimed.id), eq(trainingRun.status, "running")),
       )
       .returning();
+    await insertTrainingRunEvent(
+      claimed.id,
+      trainingRunEvent("resume_dispatch_failed", {
+        error: dispatchError.slice(0, 500),
+      }),
+    );
     return Response.json(
       {
         error: dispatchError,
@@ -207,24 +188,21 @@ export async function POST(
   }
 
   const [dispatched] = await db
-    .update(trainingRun)
-    .set({
-      workerEventLogJson: appendTrainingRunEventSql(
-        trainingRunEvent("resume_dispatch_succeeded"),
-      ),
-    })
+    .select()
+    .from(trainingRun)
     .where(
-      and(
-        eq(trainingRun.id, dispatchRun.id),
-        eq(trainingRun.status, "running"),
-      ),
+      and(eq(trainingRun.id, claimed.id), eq(trainingRun.status, "running")),
     )
-    .returning();
+    .limit(1);
+  await insertTrainingRunEvent(
+    claimed.id,
+    trainingRunEvent("resume_dispatch_succeeded"),
+  );
 
   return Response.json(
     {
-      id: dispatchRun.id,
-      run: serializeTrainingRun(dispatched ?? dispatchRun),
+      id: claimed.id,
+      run: serializeTrainingRun(dispatched ?? claimed),
     },
     { status: 202 },
   );

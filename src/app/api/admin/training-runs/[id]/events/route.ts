@@ -2,11 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../../../../../../data/db";
 import { trainingRun } from "../../../../../../../data/schema";
 import { resolveRequestAuth } from "~/lib/request-auth";
-import {
-  deriveTrainingRunHistory,
-  paginateTrainingRunHistory,
-  TRAINING_RUN_HISTORY_PAGE_SIZE,
-} from "~/lib/training-run-events";
+import { getTrainingRunEventPage } from "~/lib/training-run-events.server";
 
 export async function GET(
   request: Request,
@@ -30,10 +26,11 @@ export async function GET(
   const paramsUrl = new URL(request.url).searchParams;
   const parsedOffset = Number(paramsUrl.get("offset") ?? "0");
   const offset = Number.isFinite(parsedOffset) ? parsedOffset : 0;
-  const page = paginateTrainingRunHistory(
-    deriveTrainingRunHistory(run.workerEventLogJson, run),
+  const page = await getTrainingRunEventPage(
+    run.id,
     offset,
-    TRAINING_RUN_HISTORY_PAGE_SIZE,
+    run,
+    run.workerEventLogJson,
   );
 
   return Response.json({ runId: run.id, ...page });
