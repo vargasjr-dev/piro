@@ -306,6 +306,9 @@ def test_training_failure_diagnostics_are_persisted_and_exposed():
     assert 'WORKER_EVENT_INSERT_SQL' in heartbeat
     assert 'workerEventLogJson' not in heartbeat
     assert 'persist_worker_event' in training
+    assert 'batch_preparation_started' in training
+    assert 'batch_preparation_completed' in training
+    assert 'batch_preparation' in training
     assert 'worker_method_entered' in training
     assert 'worker_startup_failed' in training
     assert 'container setup failed' in training
