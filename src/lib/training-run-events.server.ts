@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "../../data/db";
 import { trainingRunEvent as trainingRunEventRow } from "../../data/schema";
@@ -32,7 +31,7 @@ export async function insertTrainingRunEvent(
   event: TrainingRunEventPayload,
 ): Promise<void> {
   await db.insert(trainingRunEventRow).values({
-    id: randomUUID(),
+    id: crypto.randomUUID(),
     trainingRunId,
     event: String(event.event ?? "unknown"),
     observedAt: observedAtFor(event),
