@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../../data/db";
 import { trainingRunEvent as trainingRunEventRow } from "../../data/schema";
 import {
@@ -9,6 +9,8 @@ import {
   type TrainingRunHistoryPage,
   type TrainingRunHistorySource,
   type TrainingRunEventPayload,
+  isTrainingRunTimelineEvent,
+  TRAINING_RUN_TIMELINE_EVENT_NAMES,
 } from "./training-run-events";
 
 function observedAtFor(event: TrainingRunEventPayload): Date {
@@ -102,7 +104,10 @@ function pageFromLegacyJson(
   const rawHistory: TrainingRunHistoryEvent[] = rawEvents
     .filter(
       (entry): entry is TrainingRunEventPayload =>
-        Boolean(entry) && typeof entry === "object" && !Array.isArray(entry),
+        Boolean(entry) &&
+        typeof entry === "object" &&
+        !Array.isArray(entry) &&
+        isTrainingRunTimelineEvent(String(entry.event ?? "")),
     )
     .map((entry, index) => ({
       id: `legacy-${index}`,
@@ -150,7 +155,7 @@ export async function getRecentTrainingRunEvents(
   return rows.reverse().map(eventFromRow);
 }
 
-/** Read raw relational events, falling back to the legacy bounded log for old runs. */
+/** Read user-facing lifecycle events, falling back to legacy history for old runs. */
 export async function getTrainingRunEventPage(
   trainingRunId: string,
   offset = 0,
@@ -162,7 +167,15 @@ export async function getTrainingRunEventPage(
   const rows = await db
     .select()
     .from(trainingRunEventRow)
-    .where(eq(trainingRunEventRow.trainingRunId, trainingRunId))
+    .where(
+      and(
+        eq(trainingRunEventRow.trainingRunId, trainingRunId),
+        inArray(
+          trainingRunEventRow.event,
+          Array.from(TRAINING_RUN_TIMELINE_EVENT_NAMES),
+        ),
+      ),
+    )
     .orderBy(desc(trainingRunEventRow.observedAt), desc(trainingRunEventRow.id))
     .limit(limit + 1)
     .offset(safeOffset);

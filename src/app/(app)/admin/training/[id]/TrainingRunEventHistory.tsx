@@ -74,7 +74,7 @@ export function TrainingRunEventHistory({
         <div>
           <h2 className="text-lg font-bold text-amber-50">Event history</h2>
           <p className="mt-1 text-sm text-amber-200/50">
-            The newest raw events recorded for this training run.
+            Lifecycle milestones recorded for this training run.
           </p>
         </div>
         <span className="text-xs text-amber-300/45">
