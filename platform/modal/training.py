@@ -28,6 +28,12 @@ from _common import (
 
 app = modal.App(TRAINING_APP)
 
+DEBUG_ENV = {
+    "CUDA_LAUNCH_BLOCKING": "1",
+    "TORCH_SHOW_CPP_STACKTRACES": "1",
+    "PYTHONFAULTHANDLER": "1",
+}
+
 
 @app.cls(
     image=image,
@@ -41,17 +47,11 @@ class Trainer:
     @modal.enter()
     def setup(self):
         """Load only generic architecture and source discovery code during container startup."""
-        import os
         import traceback
 
-        # Make native CUDA failures synchronous and include C++ frames in the
-        # Modal stderr artifact for the diagnostic training deployment.
-        os.environ.setdefault("CUDA_LAUNCH_BLOCKING", "1")
-        os.environ.setdefault("TORCH_SHOW_CPP_STACKTRACES", "1")
-        os.environ.setdefault("PYTHONFAULTHANDLER", "1")
         try:
             import torch
-
+            from architectures._common import load_architecture
             from sources._common.training import load_source_examples
         except BaseException:
             print("[piro] container setup failed", flush=True)
@@ -74,6 +74,7 @@ class Trainer:
         max_steps: int,
         seed: int,
         resume: bool = False,
+        debug: bool = False,
     ) -> None:
         import faulthandler
         import io
@@ -126,6 +127,7 @@ class Trainer:
             "workerId": worker_id,
             "pid": os.getpid(),
             "resume": resume,
+            "debug": debug,
             "resumeAttempts": 0,
             "maxSteps": max_steps,
             "phase": "starting",
@@ -614,6 +616,7 @@ class Trainer:
                 "sourcePath": source_path,
                 "datasetR2Prefix": dataset_r2_prefix,
                 "maxSteps": max_steps,
+                "debug": debug,
                 "checkpointIntervalSteps": CHECKPOINT_INTERVAL_STEPS,
             }
             cur.execute(
@@ -920,7 +923,7 @@ class Trainer:
                         raise RuntimeError("training run became terminal before automatic resume")
                     conn.commit()
                     try:
-                        Trainer().run.spawn(
+                        _trainer_for(debug)().run.spawn(
                             run_id=run_id,
                             model_name=model_name,
                             architecture_path=architecture_path,
@@ -929,6 +932,7 @@ class Trainer:
                             max_steps=max_steps,
                             seed=seed,
                             resume=True,
+                            debug=debug,
                         )
                     except BaseException:
                         cur.execute(
@@ -1169,6 +1173,11 @@ class Trainer:
             conn.close()
 
 
+def _trainer_for(debug: bool):
+    """Use a separate Modal container pool when native debug env vars are needed."""
+    return Trainer.with_options(env=DEBUG_ENV) if debug else Trainer
+
+
 @app.function(image=trigger_image, secrets=[piro_secrets])
 @modal.fastapi_endpoint(method="POST")
 def trigger(body: dict) -> dict:
@@ -1197,8 +1206,11 @@ def trigger(body: dict) -> dict:
     max_steps = int(body.get("maxSteps", 5000))
     if max_steps < 1 or max_steps > 1_000_000:
         raise HTTPException(status_code=400, detail="maxSteps must be between 1 and 1,000,000")
+    debug = body.get("debug", False)
+    if not isinstance(debug, bool):
+        raise HTTPException(status_code=400, detail="debug must be a boolean")
 
-    Trainer().run.spawn(
+    _trainer_for(debug)().run.spawn(
         run_id=run_id,
         model_name=body.get("modelName"),
         architecture_path=architecture_path,
@@ -1207,5 +1219,6 @@ def trigger(body: dict) -> dict:
         max_steps=max_steps,
         seed=int(body.get("seed", 42)),
         resume=bool(body.get("resume", False)),
+        debug=debug,
     )
     return {"ok": True, "runId": run_id}

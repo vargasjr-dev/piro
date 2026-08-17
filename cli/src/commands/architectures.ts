@@ -19,7 +19,12 @@ export function architecturePath(name: string): string {
 
 export async function architectureTrain(
   name: string,
-  opts: { dataset: string; maxSteps?: string; modelName?: string },
+  opts: {
+    dataset: string;
+    maxSteps?: string;
+    modelName?: string;
+    debug?: boolean;
+  },
 ): Promise<void> {
   const config = resolveConfig();
   const maxSteps = opts.maxSteps === undefined ? 5000 : Number(opts.maxSteps);
@@ -35,6 +40,7 @@ export async function architectureTrain(
       datasetId: opts.dataset,
       maxSteps,
       ...(opts.modelName ? { modelName: opts.modelName } : {}),
+      ...(opts.debug ? { debug: true } : {}),
     }),
   });
   if (!response.ok) {

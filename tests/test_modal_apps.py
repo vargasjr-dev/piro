@@ -50,6 +50,37 @@ def test_training_step_diagnostics_capture_native_and_operation_boundaries():
     assert "sequenceSteps" in borealis
 
 
+def test_training_debug_environment_is_opt_in_and_propagates_to_resumes():
+    training = (MODAL_DIR / "training.py").read_text()
+    create = (Path(__file__).parents[1] / "src" / "app" / "api" / "training-runs" / "route.ts").read_text()
+    resume = (
+        Path(__file__).parents[1]
+        / "src"
+        / "app"
+        / "api"
+        / "training-runs"
+        / "[id]"
+        / "resume"
+        / "route.ts"
+    ).read_text()
+    cli = (Path(__file__).parents[1] / "cli" / "src" / "index.ts").read_text()
+
+    assert 'DEBUG_ENV = {' in training
+    assert 'Trainer.with_options(env=DEBUG_ENV) if debug else Trainer' in training
+    assert '"debug": debug' in training
+    assert 'debug=debug' in training
+    assert 'debug = body.get("debug", False)' in training
+    assert 'os.environ.setdefault("CUDA_LAUNCH_BLOCKING", "1")' not in training
+    assert 'os.environ.setdefault("TORCH_SHOW_CPP_STACKTRACES", "1")' not in training
+    assert 'os.environ.setdefault("PYTHONFAULTHANDLER", "1")' not in training
+    assert 'debug = false' in create or 'debug = false' in create.lower()
+    assert 'debug,' in create
+    assert 'storedDebug' in resume
+    assert 'const debug = body.debug ?? storedDebug(claimed.configJson);' in resume
+    assert 'debug,' in resume
+    assert '[--debug]' in cli
+
+
 def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     source = (MODAL_DIR / "gemma.py").read_text()
     assert 'APP_NAME = "piro-gemma-vllm"' in source
