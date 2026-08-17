@@ -300,8 +300,11 @@ def test_training_failure_diagnostics_are_persisted_and_exposed():
 
     assert 'workerDiagnosticsJson: text("workerDiagnosticsJson")' in schema
     assert 'failureDetailsJson: text("failureDetailsJson")' in schema
-    assert 'workerEventLogJson: text("workerEventLogJson")' in schema
-    assert '"workerEventLogJson" = %s' in heartbeat
+    assert 'export const trainingRunEvent = pgTable(' in schema
+    assert 'references(() => trainingRun.id, { onDelete: "cascade" })' in schema
+    assert 'INSERT INTO training_run_event' in heartbeat
+    assert 'WORKER_EVENT_INSERT_SQL' in heartbeat
+    assert 'workerEventLogJson' not in heartbeat
     assert 'persist_worker_event' in training
     assert 'worker_method_entered' in training
     assert 'worker_startup_failed' in training

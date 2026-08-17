@@ -1,9 +1,7 @@
-import { sql, type SQL } from "drizzle-orm";
-import { trainingRun } from "../../data/schema";
-
 const MAX_TRAINING_RUN_EVENTS = 64;
 
 type TrainingRunEvent = Record<string, unknown>;
+export type TrainingRunEventPayload = TrainingRunEvent;
 
 export const TRAINING_RUN_EVENT_NAMES = [
   "queued",
@@ -17,9 +15,11 @@ export const TRAINING_RUN_EVENT_NAMES = [
 export type TrainingRunEventName = (typeof TRAINING_RUN_EVENT_NAMES)[number];
 
 export interface TrainingRunHistoryEvent {
-  event: TrainingRunEventName;
+  id?: string;
+  event: string;
   observedAt: string | null;
   step?: number;
+  details?: TrainingRunEventPayload;
 }
 
 export interface TrainingRunHistorySource {
@@ -87,19 +87,6 @@ export function appendTrainingRunEventJson(
   }
   events.push(event);
   return JSON.stringify(events.slice(-MAX_TRAINING_RUN_EVENTS));
-}
-
-export function appendTrainingRunEventSql(event: TrainingRunEvent): SQL {
-  const current = sql`COALESCE(NULLIF(${trainingRun.workerEventLogJson}, ''), '[]')::jsonb`;
-  const array = sql`CASE
-    WHEN jsonb_typeof(${current}) = 'array' THEN ${current}
-    ELSE '[]'::jsonb
-  END || ${JSON.stringify([event])}::jsonb`;
-  return sql`(
-    SELECT COALESCE(jsonb_agg(item.value ORDER BY item.ordinality), '[]'::jsonb)::text
-    FROM jsonb_array_elements(${array}) WITH ORDINALITY AS item(value, ordinality)
-    WHERE item.ordinality > GREATEST(jsonb_array_length(${array}) - ${MAX_TRAINING_RUN_EVENTS}, 0)
-  )`;
 }
 
 export function trainingRunEvent(

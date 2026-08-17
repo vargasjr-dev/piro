@@ -21,10 +21,8 @@ import {
   hasTrainingRunsRemaining,
 } from "~/lib/billing";
 import { isAdmin } from "~/lib/admin";
-import {
-  appendTrainingRunEventSql,
-  trainingRunEvent,
-} from "~/lib/training-run-events";
+import { trainingRunEvent } from "~/lib/training-run-events";
+import { insertTrainingRunEvent } from "~/lib/training-run-events.server";
 
 // ── GET /api/training-runs ────────────────────────────────────────────────────
 
@@ -151,7 +149,7 @@ export async function POST(request: Request) {
     maxSteps,
     debug,
   });
-  const createdEventLogJson = JSON.stringify([trainingRunEvent("run_created")]);
+  const createdEvent = trainingRunEvent("run_created");
 
   await db.insert(trainingRun).values({
     id,
@@ -162,8 +160,8 @@ export async function POST(request: Request) {
     status: "queued",
     maxSteps,
     configJson,
-    workerEventLogJson: createdEventLogJson,
   });
+  await insertTrainingRunEvent(id, createdEvent);
 
   // Increment the quota counter atomically
   if (!adminBypass) {
@@ -180,12 +178,7 @@ export async function POST(request: Request) {
   const modalEndpoint = process.env.MODAL_TRAINING_ENDPOINT;
   let dispatchError: string | null = null;
   const dispatchStartedEvent = trainingRunEvent("dispatch_started");
-  await db
-    .update(trainingRun)
-    .set({
-      workerEventLogJson: appendTrainingRunEventSql(dispatchStartedEvent),
-    })
-    .where(and(eq(trainingRun.id, id), eq(trainingRun.status, "queued")));
+  await insertTrainingRunEvent(id, dispatchStartedEvent);
   if (!modalEndpoint) {
     dispatchError = "MODAL_TRAINING_ENDPOINT is not configured.";
   } else {
@@ -225,13 +218,14 @@ export async function POST(request: Request) {
         status: "error",
         error: dispatchError,
         completedAt: new Date(),
-        workerEventLogJson: appendTrainingRunEventSql(
-          trainingRunEvent("dispatch_failed", {
-            error: dispatchError.slice(0, 500),
-          }),
-        ),
       })
       .where(and(eq(trainingRun.id, id), eq(trainingRun.status, "queued")));
+    await insertTrainingRunEvent(
+      id,
+      trainingRunEvent("dispatch_failed", {
+        error: dispatchError.slice(0, 500),
+      }),
+    );
 
     if (!adminBypass) {
       await db
@@ -245,14 +239,7 @@ export async function POST(request: Request) {
     return Response.json({ error: dispatchError, id }, { status: 503 });
   }
 
-  await db
-    .update(trainingRun)
-    .set({
-      workerEventLogJson: appendTrainingRunEventSql(
-        trainingRunEvent("dispatch_succeeded"),
-      ),
-    })
-    .where(and(eq(trainingRun.id, id), eq(trainingRun.status, "queued")));
+  await insertTrainingRunEvent(id, trainingRunEvent("dispatch_succeeded"));
 
   return Response.json({ id }, { status: 201 });
 }
