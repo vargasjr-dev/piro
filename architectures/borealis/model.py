@@ -153,11 +153,22 @@ class Borealis(ArchitectureModel):
             "tokenizer_merges": [list(pair) for pair in tokenizer.merges],
         }
 
-    def _tokens(self, example: Any) -> torch.Tensor:
+    def _training_text(self, example: Any) -> str:
         prompt = "\n".join(str(value) for value in example.inputs)
         continuation_prefix = getattr(example, "continuation_prefix", self.config.target_prefix)
-        text = f"{prompt}{continuation_prefix}{example.target}"
-        values = self.tokenizer.encode_training_text(text)
+        return f"{prompt}{continuation_prefix}{example.target}"
+
+    def training_example_diagnostics(self, example: Any) -> dict[str, Any]:
+        text = self._training_text(example)
+        token_count = len(self.tokenizer.encode_training_text(text))
+        return {
+            "inputCharCount": len(text),
+            "tokenCount": token_count,
+            "sequenceSteps": max(0, token_count - 1),
+        }
+
+    def _tokens(self, example: Any) -> torch.Tensor:
+        values = self.tokenizer.encode_training_text(self._training_text(example))
         return torch.tensor(values, dtype=torch.long, device=self.token_embedding.weight.device)
 
     def _sequence_logits(self, tokens: torch.Tensor) -> torch.Tensor:

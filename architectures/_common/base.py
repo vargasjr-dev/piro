@@ -6,7 +6,7 @@ import dataclasses
 import importlib
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Self
+from typing import Any, Callable, ClassVar, Self
 
 import torch
 import torch.nn as nn
@@ -67,18 +67,87 @@ class ArchitectureModel(nn.Module, ABC):
             return dict(config)
         return {}
 
+    def training_example_diagnostics(self, example: Any) -> dict[str, Any]:
+        """Return bounded, non-content diagnostics for one training example."""
+        del example
+        return {}
+
     def optimizer_kwargs(self) -> dict[str, float]:
         return {
             "lr": self.optimizer_learning_rate,
             "weight_decay": self.optimizer_weight_decay,
         }
 
-    def train_step(self, batch: list[Any], optimizer: torch.optim.Optimizer) -> float:
+    def train_step(
+        self,
+        batch: list[Any],
+        optimizer: torch.optim.Optimizer,
+        *,
+        on_phase: Callable[[str, dict[str, Any]], None] | None = None,
+    ) -> float:
+        """Run one optimizer step and report bounded operation breadcrumbs."""
+        def phase(name: str, **details: Any) -> None:
+            if on_phase is None:
+                return
+            if torch.cuda.is_available():
+                details.update(
+                    cudaMemoryAllocatedMb=round(torch.cuda.memory_allocated() / 1024 / 1024, 1),
+                    cudaMemoryReservedMb=round(torch.cuda.memory_reserved() / 1024 / 1024, 1),
+                    cudaMaxMemoryAllocatedMb=round(torch.cuda.max_memory_allocated() / 1024 / 1024, 1),
+                    cudaMaxMemoryReservedMb=round(torch.cuda.max_memory_reserved() / 1024 / 1024, 1),
+                )
+            on_phase(name, details)
+
+        def synchronize(name: str) -> None:
+            if on_phase is None or not torch.cuda.is_available():
+                return
+            phase(f"{name}_sync_started")
+            torch.cuda.synchronize()
+            phase(f"{name}_sync_completed")
+
         self.train()
+        phase("train_mode_set", batchSize=len(batch))
         optimizer.zero_grad()
-        loss = torch.stack([self.training_loss(example) for example in batch]).mean()
+        phase("gradients_zeroed")
+        losses: list[torch.Tensor] = []
+        for index, example in enumerate(batch):
+            phase("example_started", exampleIndex=index)
+            example_details = self.training_example_diagnostics(example)
+            phase("example_prepared", exampleIndex=index, **example_details)
+            phase("example_loss_started", exampleIndex=index, **example_details)
+            loss = self.training_loss(example)
+            phase("example_loss_returned", exampleIndex=index, **example_details)
+            synchronize("example_loss")
+            if loss.ndim != 0:
+                raise ValueError(f"training loss must be scalar, got shape {tuple(loss.shape)}")
+            losses.append(loss)
+            detached_loss = loss.detach()
+            phase(
+                "example_loss_ready",
+                exampleIndex=index,
+                loss=float(detached_loss),
+                lossFinite=bool(torch.isfinite(detached_loss).item()),
+                **example_details,
+            )
+        phase("loss_stack_started", lossCount=len(losses))
+        loss = torch.stack(losses).mean()
+        phase("loss_stack_completed", lossCount=len(losses))
+        detached_loss = loss.detach()
+        phase(
+            "loss_ready",
+            loss=float(detached_loss),
+            lossFinite=bool(torch.isfinite(detached_loss).item()),
+        )
+        phase("backward_started")
         loss.backward()
+        phase("backward_returned")
+        synchronize("backward")
+        phase("backward_completed")
+        phase("optimizer_started")
         optimizer.step()
+        phase("optimizer_returned")
+        synchronize("optimizer")
+        phase("optimizer_completed")
         return float(loss.detach())
 
     @abstractmethod

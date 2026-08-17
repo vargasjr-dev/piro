@@ -29,6 +29,27 @@ def test_training_does_not_persist_infrastructure_endpoint():
     assert "INFER_ENDPOINT" not in source
 
 
+def test_training_step_diagnostics_capture_native_and_operation_boundaries():
+    training = (MODAL_DIR / "training.py").read_text()
+    base = (MODAL_DIR.parent.parent / "architectures" / "_common" / "base.py").read_text()
+    borealis = (MODAL_DIR.parent.parent / "architectures" / "borealis" / "model.py").read_text()
+    for value in (
+        "CUDA_LAUNCH_BLOCKING",
+        "TORCH_SHOW_CPP_STACKTRACES",
+        "training_watchdog",
+        "threadStacks",
+        "batchIndices",
+        "optimizer_step_started",
+        "optimizer_step_failed",
+        "train_phase",
+        "torch.cuda.synchronize",
+    ):
+        assert value in training or value in base
+    assert "training_example_diagnostics" in base
+    assert "tokenCount" in borealis
+    assert "sequenceSteps" in borealis
+
+
 def test_gemma_server_pins_weights_and_uses_openai_compatible_vllm():
     source = (MODAL_DIR / "gemma.py").read_text()
     assert 'APP_NAME = "piro-gemma-vllm"' in source
