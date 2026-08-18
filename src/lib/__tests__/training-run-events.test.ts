@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   appendTrainingRunEventJson,
   deriveTrainingRunHistory,
+  canonicalTrainingRunEventName,
   exposeTrainingRunEvents,
   isTrainingRunTimelineEvent,
   paginateTrainingRunHistory,
@@ -50,11 +51,20 @@ describe("training-run-events", () => {
     expect(exposure.lastWorkerEvent?.event).toBe("training_completed");
   });
 
-  test("keeps verbose worker telemetry out of the user-facing timeline", () => {
-    expect(isTrainingRunTimelineEvent("checkpoint_saved")).toBe(true);
+  test("keeps the timeline to the six canonical names", () => {
+    expect(isTrainingRunTimelineEvent("checkpointed")).toBe(true);
+    expect(isTrainingRunTimelineEvent("checkpoint_saved")).toBe(false);
     expect(isTrainingRunTimelineEvent("train_phase")).toBe(false);
     expect(isTrainingRunTimelineEvent("optimizer_step_completed")).toBe(false);
-    expect(isTrainingRunTimelineEvent("example_loss_ready")).toBe(false);
+    expect(canonicalTrainingRunEventName("run_claimed")).toBe("started");
+    expect(canonicalTrainingRunEventName("checkpoint_saved")).toBe(
+      "checkpointed",
+    );
+    expect(canonicalTrainingRunEventName("optimizer_step_failed")).toBe(
+      "failed",
+    );
+    expect(canonicalTrainingRunEventName("complete")).toBe("succeeded");
+    expect(canonicalTrainingRunEventName("train_phase")).toBeNull();
   });
 
   test("derives only the supported user-facing lifecycle events", () => {

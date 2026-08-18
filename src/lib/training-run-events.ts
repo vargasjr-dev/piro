@@ -12,33 +12,32 @@ export const TRAINING_RUN_EVENT_NAMES = [
   "resumed",
 ] as const;
 
-/** Stable milestones shown in the user-facing training run timeline. */
-export const TRAINING_RUN_TIMELINE_EVENT_NAMES = new Set([
-  "run_created",
-  "dispatch_started",
-  "dispatch_succeeded",
-  "dispatch_failed",
-  "resume_requested",
-  "resume_claimed",
-  "resume_dispatch_started",
-  "resume_dispatch_succeeded",
-  "resume_dispatch_failed",
-  "run_claimed",
-  "worker_startup_failed",
-  "checkpoint_restore_started",
-  "checkpoint_restored",
-  "checkpoint_ready",
-  "checkpoint_stage_failed",
-  "checkpoint_saved",
-  "training_entered",
-  "publishing_started",
-  "complete",
-  "optimizer_step_failed",
-  "worker_failed",
-]);
+/** Only these six canonical names belong in the user-facing timeline. */
+export const TRAINING_RUN_TIMELINE_EVENT_NAMES = new Set<string>(
+  TRAINING_RUN_EVENT_NAMES,
+);
 
 export function isTrainingRunTimelineEvent(event: string): boolean {
   return TRAINING_RUN_TIMELINE_EVENT_NAMES.has(event);
+}
+
+export function canonicalTrainingRunEventName(
+  event: string,
+): TrainingRunEventName | null {
+  if (TRAINING_RUN_TIMELINE_EVENT_NAMES.has(event)) {
+    return event as TrainingRunEventName;
+  }
+  if (event === "run_created") return "queued";
+  if (event === "run_claimed") return "started";
+  if (event === "checkpoint_saved") return "checkpointed";
+  if (event === "resume_requested") return "resumed";
+  if (event === "complete") return "succeeded";
+  if (event.endsWith("_failed")) return "failed";
+  return null;
+}
+
+export function isTrainingRunHistorySourceEvent(event: string): boolean {
+  return canonicalTrainingRunEventName(event) !== null;
 }
 
 export type TrainingRunEventName = (typeof TRAINING_RUN_EVENT_NAMES)[number];
@@ -173,14 +172,9 @@ export function deriveTrainingRunHistory(
     const event = String(record.event ?? "");
     const observedAt = record.observedAt;
     const step = eventStep(record);
+    const canonicalEvent = canonicalTrainingRunEventName(event);
 
-    if (event === "run_claimed") add("started", observedAt, step);
-    if (event === "checkpoint_saved") add("checkpointed", observedAt, step);
-    if (event === "resume_requested") add("resumed", observedAt, step);
-    if (event === "complete") add("succeeded", observedAt, step);
-    if (event.endsWith("_failed") || event === "worker_startup_failed") {
-      add("failed", observedAt, step);
-    }
+    if (canonicalEvent) add(canonicalEvent, observedAt, step);
   }
 
   if (source.startedAt && !history.some((entry) => entry.event === "started")) {

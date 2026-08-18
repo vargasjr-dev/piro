@@ -52,13 +52,13 @@ def test_training_step_diagnostics_capture_native_and_operation_boundaries():
 
 def test_training_persists_lifecycle_milestones_but_logs_verbose_telemetry():
     training = (MODAL_DIR / "training.py").read_text()
-    assert "PERSISTED_WORKER_EVENTS" in training
-    assert "if event not in PERSISTED_WORKER_EVENTS" in training
-    persisted_events = training.split("PERSISTED_WORKER_EVENTS", 1)[1].split(")", 1)[0]
-    assert '"checkpoint_saved"' in persisted_events
-    assert '"complete"' in persisted_events
-    assert '"train_phase"' not in persisted_events
-    assert '"optimizer_step_completed"' not in persisted_events
+    assert "WORKER_TIMELINE_EVENT_NAMES" in training
+    assert '"run_claimed": "started"' in training
+    assert '"checkpoint_saved": "checkpointed"' in training
+    assert '"complete": "succeeded"' in training
+    assert 'canonical_event = "failed"' in training
+    assert '"train_phase"' not in training.split("WORKER_TIMELINE_EVENT_NAMES", 1)[1].split("}", 1)[0]
+    assert '"optimizer_step_completed"' not in training.split("WORKER_TIMELINE_EVENT_NAMES", 1)[1].split("}", 1)[0]
 
 
 def test_training_debug_environment_is_opt_in_and_propagates_to_resumes():
