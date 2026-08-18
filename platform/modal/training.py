@@ -37,22 +37,11 @@ DEBUG_ENV = {
 # The run timeline is a lifecycle record, not a high-volume worker log sink.
 # Detailed phase telemetry remains available in Modal logs and the latest
 # heartbeat diagnostics for debugging without overwhelming the user-facing UI.
-PERSISTED_WORKER_EVENTS = frozenset(
-    {
-        "worker_signal_received",
-        "worker_startup_failed",
-        "run_claimed",
-        "checkpoint_restore_started",
-        "checkpoint_ready",
-        "checkpoint_stage_failed",
-        "checkpoint_saved",
-        "training_entered",
-        "publishing_started",
-        "complete",
-        "optimizer_step_failed",
-        "worker_failed",
-    }
-)
+WORKER_TIMELINE_EVENT_NAMES = {
+    "run_claimed": "started",
+    "checkpoint_saved": "checkpointed",
+    "complete": "succeeded",
+}
 
 
 @app.cls(
@@ -222,13 +211,18 @@ class Trainer:
                 **_resource_diagnostics(),
                 **details,
             }
-            if event not in PERSISTED_WORKER_EVENTS:
+            canonical_event = WORKER_TIMELINE_EVENT_NAMES.get(event)
+            if event.endswith("_failed"):
+                canonical_event = "failed"
+            if canonical_event is None:
                 print(
                     f"[piro] run {run_id} worker telemetry: "
                     f"{json.dumps(payload, separators=(',', ':'))}",
                     flush=True,
                 )
                 return
+            payload["event"] = canonical_event
+            payload["sourceEvent"] = event
             try:
                 persisted = persist_worker_event(
                     _connect_database,
