@@ -3,6 +3,7 @@ import {
   appendTrainingRunEventJson,
   deriveTrainingRunHistory,
   exposeTrainingRunEvents,
+  isTrainingRunTimelineEvent,
   paginateTrainingRunHistory,
   parseTrainingRunEvents,
   trainingRunEvent,
@@ -47,6 +48,13 @@ describe("training-run-events", () => {
     expect(exposure.workerEvents).toHaveLength(2);
     expect(exposure.workerEvents[0]?.event).toBe("worker_method_entered");
     expect(exposure.lastWorkerEvent?.event).toBe("training_completed");
+  });
+
+  test("keeps verbose worker telemetry out of the user-facing timeline", () => {
+    expect(isTrainingRunTimelineEvent("checkpoint_saved")).toBe(true);
+    expect(isTrainingRunTimelineEvent("train_phase")).toBe(false);
+    expect(isTrainingRunTimelineEvent("optimizer_step_completed")).toBe(false);
+    expect(isTrainingRunTimelineEvent("example_loss_ready")).toBe(false);
   });
 
   test("derives only the supported user-facing lifecycle events", () => {

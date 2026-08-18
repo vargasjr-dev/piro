@@ -12,6 +12,35 @@ export const TRAINING_RUN_EVENT_NAMES = [
   "resumed",
 ] as const;
 
+/** Stable milestones shown in the user-facing training run timeline. */
+export const TRAINING_RUN_TIMELINE_EVENT_NAMES = new Set([
+  "run_created",
+  "dispatch_started",
+  "dispatch_succeeded",
+  "dispatch_failed",
+  "resume_requested",
+  "resume_claimed",
+  "resume_dispatch_started",
+  "resume_dispatch_succeeded",
+  "resume_dispatch_failed",
+  "run_claimed",
+  "worker_startup_failed",
+  "checkpoint_restore_started",
+  "checkpoint_restored",
+  "checkpoint_ready",
+  "checkpoint_stage_failed",
+  "checkpoint_saved",
+  "training_entered",
+  "publishing_started",
+  "complete",
+  "optimizer_step_failed",
+  "worker_failed",
+]);
+
+export function isTrainingRunTimelineEvent(event: string): boolean {
+  return TRAINING_RUN_TIMELINE_EVENT_NAMES.has(event);
+}
+
 export type TrainingRunEventName = (typeof TRAINING_RUN_EVENT_NAMES)[number];
 
 export interface TrainingRunHistoryEvent {

@@ -50,6 +50,17 @@ def test_training_step_diagnostics_capture_native_and_operation_boundaries():
     assert "sequenceSteps" in borealis
 
 
+def test_training_persists_lifecycle_milestones_but_logs_verbose_telemetry():
+    training = (MODAL_DIR / "training.py").read_text()
+    assert "PERSISTED_WORKER_EVENTS" in training
+    assert "if event not in PERSISTED_WORKER_EVENTS" in training
+    persisted_events = training.split("PERSISTED_WORKER_EVENTS", 1)[1].split(")", 1)[0]
+    assert '"checkpoint_saved"' in persisted_events
+    assert '"complete"' in persisted_events
+    assert '"train_phase"' not in persisted_events
+    assert '"optimizer_step_completed"' not in persisted_events
+
+
 def test_training_debug_environment_is_opt_in_and_propagates_to_resumes():
     training = (MODAL_DIR / "training.py").read_text()
     create = (Path(__file__).parents[1] / "src" / "app" / "api" / "training-runs" / "route.ts").read_text()
