@@ -17,6 +17,7 @@ describe("production schema migration safety", () => {
     expect(columnNames(dataset)).not.toContain("repositoryId");
     expect(columnNames(generationRun)).not.toContain("repositoryId");
     expect(columnNames(trainingRun)).not.toContain("repositoryId");
+    expect(columnNames(trainingRun)).toContain("modalFunctionCallId");
     expect(columnNames(dataset)).toContain("evaluationConfig");
   });
 

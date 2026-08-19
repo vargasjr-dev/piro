@@ -44,6 +44,7 @@ export function serializeTrainingRun(
     error: run.error,
     workerDiagnosticsJson: run.workerDiagnosticsJson,
     failureDetailsJson: run.failureDetailsJson,
+    modalFunctionCallId: run.modalFunctionCallId,
     workerEventLogJson: run.workerEventLogJson,
     ...workerEventExposure,
     heartbeatAt: run.heartbeatAt?.toISOString() ?? null,

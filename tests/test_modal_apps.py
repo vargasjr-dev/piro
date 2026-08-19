@@ -281,11 +281,33 @@ def test_training_resume_api_and_cli_surface():
     assert "export async function POST" in route
     assert 'eq(trainingRun.status, "error")' in route
     assert 'resume: true' in route
+    assert "parseModalDispatchResponse" in route
+    assert "modalFunctionCallId" in route
+    assert "functionCallId" in route
+    assert "modalFunctionCallId" in route
     assert "TRAINING_WORKER_LEASE_MS" in route
     assert 'method: "POST"' in cli_training
     assert '/resume' in cli_training
     assert 'case "resume"' in cli_index
     assert 'piro training resume <id>' in cli_index
+
+def test_training_trigger_returns_a_traceable_function_call_id():
+    training = (MODAL_DIR / "training.py").read_text()
+    route = (
+        Path(__file__).parents[1]
+        / "src"
+        / "app"
+        / "api"
+        / "training-runs"
+        / "route.ts"
+    ).read_text()
+
+    assert "function_call = _trainer_for(debug)().run.spawn(" in training
+    assert '"functionCallId": function_call.object_id' in training
+    assert "parseModalDispatchResponse" in route
+    assert "modalFunctionCallId" in route
+    assert "functionCallId" in route
+
 
 def test_training_failure_diagnostics_are_persisted_and_exposed():
     training = (MODAL_DIR / "training.py").read_text()
@@ -311,6 +333,7 @@ def test_training_failure_diagnostics_are_persisted_and_exposed():
 
     assert 'workerDiagnosticsJson: text("workerDiagnosticsJson")' in schema
     assert 'failureDetailsJson: text("failureDetailsJson")' in schema
+    assert 'modalFunctionCallId: text("modalFunctionCallId")' in schema
     assert 'export const trainingRunEvent = pgTable(' in schema
     assert 'references(() => trainingRun.id, { onDelete: "cascade" })' in schema
     assert 'INSERT INTO training_run_event' in heartbeat
@@ -353,6 +376,8 @@ def test_training_failure_diagnostics_are_persisted_and_exposed():
     assert "workerDiagnosticsJson: run.workerDiagnosticsJson" in serializer
     assert "failureDetailsJson: run.failureDetailsJson" in serializer
     assert "workerEventLogJson: run.workerEventLogJson" in serializer
+    assert "modalFunctionCallId: run.modalFunctionCallId" in serializer
+    assert "modalFunctionCallId: run.modalFunctionCallId" in observability
     assert "workerEvents" in observability
     assert "lastWorkerEvent" in observability
     assert "workerEventLogJson" in stream
