@@ -1241,7 +1241,7 @@ def trigger(body: dict) -> dict:
     if not isinstance(debug, bool):
         raise HTTPException(status_code=400, detail="debug must be a boolean")
 
-    _trainer_for(debug)().run.spawn(
+    function_call = _trainer_for(debug)().run.spawn(
         run_id=run_id,
         model_name=body.get("modelName"),
         architecture_path=architecture_path,
@@ -1252,4 +1252,8 @@ def trigger(body: dict) -> dict:
         resume=bool(body.get("resume", False)),
         debug=debug,
     )
-    return {"ok": True, "runId": run_id}
+    return {
+        "ok": True,
+        "runId": run_id,
+        "functionCallId": function_call.object_id,
+    }

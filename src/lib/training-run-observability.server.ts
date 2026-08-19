@@ -36,6 +36,7 @@ function failureDetailsJson(
     reason,
     observedAt: observedAt.toISOString(),
     lastHeartbeatAt: run.heartbeatAt?.toISOString() ?? null,
+    modalFunctionCallId: run.modalFunctionCallId,
     workerDiagnostics: parseWorkerDiagnostics(run.workerDiagnosticsJson),
     workerEvents,
     lastWorkerEvent,

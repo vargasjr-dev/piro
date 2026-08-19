@@ -264,6 +264,8 @@ export const trainingRun = pgTable(
     workerDiagnosticsJson: text("workerDiagnosticsJson"),
     /** Structured exception or reconciliation details for the latest failure. */
     failureDetailsJson: text("failureDetailsJson"),
+    /** Modal FunctionCall object ID for the current asynchronous worker dispatch. */
+    modalFunctionCallId: text("modalFunctionCallId"),
     /** Legacy bounded event log retained only as a rollout fallback for older runs. */
     workerEventLogJson: text("workerEventLogJson"),
     /** Last worker heartbeat; used to reconcile platform-level terminations. */

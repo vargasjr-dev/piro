@@ -9,6 +9,7 @@ import {
 } from "~/lib/training-runs.server";
 import { trainingRunEvent } from "~/lib/training-run-events";
 import { insertTrainingRunEvent } from "~/lib/training-run-events.server";
+import { parseModalDispatchResponse } from "~/lib/training-dispatch.server";
 
 const TRAINING_WORKER_LEASE_MS = 50 * 60 * 1000;
 
@@ -93,6 +94,7 @@ export async function POST(
       timeoutAt,
       workerDiagnosticsJson: null,
       failureDetailsJson: null,
+      modalFunctionCallId: null,
       completedAt: null,
     })
     .where(
@@ -126,6 +128,7 @@ export async function POST(
 
   const modalEndpoint = process.env.MODAL_TRAINING_ENDPOINT;
   let dispatchError: string | null = null;
+  let modalFunctionCallId: string | null = null;
   if (!modalEndpoint) {
     dispatchError = "MODAL_TRAINING_ENDPOINT is not configured.";
   } else {
@@ -147,8 +150,22 @@ export async function POST(
         }),
         signal: AbortSignal.timeout(30_000),
       });
-      if (!response.ok) {
-        dispatchError = `Modal trigger returned HTTP ${response.status}.`;
+      const dispatch = await parseModalDispatchResponse(response);
+      modalFunctionCallId = dispatch.functionCallId;
+      const [tracked] = await db
+        .update(trainingRun)
+        .set({ modalFunctionCallId })
+        .where(
+          and(
+            eq(trainingRun.id, claimed.id),
+            eq(trainingRun.status, "running"),
+          ),
+        )
+        .returning({ id: trainingRun.id });
+      if (!tracked) {
+        throw new Error(
+          "Training run changed before its Modal resume dispatch could be tracked.",
+        );
       }
     } catch (error) {
       dispatchError =
@@ -165,6 +182,7 @@ export async function POST(
       .set({
         status: "error",
         error: dispatchError,
+        modalFunctionCallId,
         completedAt: new Date(),
       })
       .where(
@@ -175,6 +193,7 @@ export async function POST(
       claimed.id,
       trainingRunEvent("resume_dispatch_failed", {
         error: dispatchError.slice(0, 500),
+        functionCallId: modalFunctionCallId,
       }),
     );
     return Response.json(
@@ -196,12 +215,15 @@ export async function POST(
     .limit(1);
   await insertTrainingRunEvent(
     claimed.id,
-    trainingRunEvent("resume_dispatch_succeeded"),
+    trainingRunEvent("resume_dispatch_succeeded", {
+      functionCallId: modalFunctionCallId,
+    }),
   );
 
   return Response.json(
     {
       id: claimed.id,
+      functionCallId: modalFunctionCallId,
       run: serializeTrainingRun(dispatched ?? claimed),
     },
     { status: 202 },
