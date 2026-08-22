@@ -64,9 +64,6 @@ export default async function AdminModelsPage() {
             Pretrained Piro models available for deployment.
           </p>
         </div>
-        <DeleteModelControl
-          models={models.map((item) => ({ id: item.id, name: item.name }))}
-        />
       </div>
       {models.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-amber-900/25 bg-amber-900/5 px-5 py-12 text-center text-sm text-amber-200/55">
@@ -156,6 +153,9 @@ export default async function AdminModelsPage() {
                       </form>
                     </div>
                   </div>
+                  <DeleteModelControl
+                    model={{ id: item.id, name: item.name }}
+                  />
                 </div>
               </article>
             );
