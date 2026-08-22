@@ -242,6 +242,26 @@ def test_training_checkpoints_after_every_optimizer_step_and_retains_latest_five
     assert 'Key=f"checkpoints/{run_id}/step-{step - 5}.pt"' in training
 
 
+def test_training_checkpoint_uploads_are_bounded_and_persist_before_cleanup():
+    common = (MODAL_DIR / "_common.py").read_text()
+    training = (MODAL_DIR / "training.py").read_text()
+
+    assert "CHECKPOINT_UPLOAD_ATTEMPTS = 3" in common
+    assert "CHECKPOINT_UPLOAD_BACKOFF_SECONDS = 1" in common
+    assert 'retries={"mode": "standard", "max_attempts": 4}' in common
+    assert "connect_timeout=10" in common
+    assert "read_timeout=60" in common
+    assert '"checkpoint_upload_attempt_failed"' in training
+    assert '"checkpoint_upload_succeeded"' in training
+    assert '"metadata_persist"' in training
+    assert '"cleanup_old_checkpoint"' in training
+    assert training.index('"metadata_persist"') < training.index('"cleanup_old_checkpoint"')
+    save = training[training.index("def _save_checkpoint"):training.index("def _next_batch")]
+    assert "_start_checkpoint_watchdog()" in save
+    assert "finally:" in save
+    assert "_stop_checkpoint_watchdog()" in save
+
+
 def test_training_has_no_inference_like_evaluation_path():
     training = (MODAL_DIR / "training.py").read_text()
     generic_trainer = (Path(__file__).parents[1] / "architectures" / "_common" / "trainer.py").read_text()
