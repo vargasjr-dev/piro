@@ -77,7 +77,7 @@ def test_training_debug_environment_is_opt_in_and_propagates_to_resumes():
     cli = (Path(__file__).parents[1] / "cli" / "src" / "index.ts").read_text()
 
     assert 'DEBUG_ENV = {' in training
-    assert 'Trainer.with_options(env=DEBUG_ENV) if debug else Trainer' in training
+    assert 'Trainer.with_options(env=DEBUG_ENV, secrets=[piro_secrets]) if debug else Trainer' in training
     assert '"debug": debug' in training
     assert 'debug=debug' in training
     assert 'debug = body.get("debug", False)' in training

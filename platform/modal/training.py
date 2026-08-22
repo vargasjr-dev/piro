@@ -1206,7 +1206,9 @@ class Trainer:
 
 def _trainer_for(debug: bool):
     """Use a separate Modal container pool when native debug env vars are needed."""
-    return Trainer.with_options(env=DEBUG_ENV) if debug else Trainer
+    return (
+        Trainer.with_options(env=DEBUG_ENV, secrets=[piro_secrets]) if debug else Trainer
+    )
 
 
 @app.function(image=trigger_image, secrets=[piro_secrets])
