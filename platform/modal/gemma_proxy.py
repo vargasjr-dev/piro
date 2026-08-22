@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from _common import R2_BUCKET, _r2_client
+from _common import R2_BUCKET, _b2_put_object
 
 MAX_LOG_BYTES = 512 * 1024
 MAX_RESPONSE_BYTES = 8 * 1024
@@ -118,14 +118,12 @@ class DiagnosticsStore:
                 f"{DIAGNOSTICS_PREFIX}{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')}"
                 f"-{uuid.uuid4().hex}.json"
             )
-            client = _r2_client(os)
             body = json.dumps(bundle, separators=(",", ":"), sort_keys=True).encode("utf-8")
-            client.put_object(
-                Bucket=R2_BUCKET,
-                Key=key,
-                Body=body,
-                ContentLength=len(body),
-                ContentType="application/json",
+            _b2_put_object(
+                os,
+                key=key,
+                body=body,
+                content_type="application/json",
             )
             print(f"[piro-gemma] uploaded diagnostics {R2_BUCKET}/{key}", flush=True)
         except Exception as error:

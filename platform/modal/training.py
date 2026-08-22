@@ -22,6 +22,7 @@ from _common import (
     TRAINING_GPU,
     TRAINING_MEMORY_MB,
     TRAINING_TIMEOUT_SECONDS,
+    _b2_put_object,
     _r2_client,
     image,
     piro_secrets,
@@ -881,12 +882,12 @@ class Trainer:
                         last_error = None
                         for attempt in range(1, CHECKPOINT_UPLOAD_ATTEMPTS + 1):
                             try:
-                                r2.put_object(
-                                    Bucket=R2_BUCKET,
-                                    Key=key,
-                                    Body=checkpoint_bytes,
-                                    ContentLength=len(checkpoint_bytes),
-                                    ContentType="application/octet-stream",
+                                _b2_put_object(
+                                    os,
+                                    key=key,
+                                    body=checkpoint_bytes,
+                                    content_type="application/octet-stream",
+                                    attempts=1,
                                 )
                                 _record_event(
                                     "checkpoint_upload_succeeded",
@@ -1158,19 +1159,18 @@ class Trainer:
                 {key: round_nested_numbers(value.tolist()) for key, value in state.items()}
             )
             r2_prefix = f"models/{model_id}"
-            r2.put_object(
-                Bucket=R2_BUCKET,
-                Key=f"{r2_prefix}/weights.pt",
-                Body=pt_bytes,
-                ContentLength=len(pt_bytes),
-                ContentType="application/octet-stream",
+            weights_json_bytes = weights_json_str.encode("utf-8")
+            _b2_put_object(
+                os,
+                key=f"{r2_prefix}/weights.pt",
+                body=pt_bytes,
+                content_type="application/octet-stream",
             )
-            r2.put_object(
-                Bucket=R2_BUCKET,
-                Key=f"{r2_prefix}/weights.json",
-                Body=weights_json_str.encode("utf-8"),
-                ContentLength=len(weights_json_str.encode("utf-8")),
-                ContentType="application/json",
+            _b2_put_object(
+                os,
+                key=f"{r2_prefix}/weights.json",
+                body=weights_json_bytes,
+                content_type="application/json",
             )
 
             completed_at = datetime.now(UTC)

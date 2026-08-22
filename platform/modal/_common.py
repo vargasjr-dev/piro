@@ -11,6 +11,12 @@ PLATFORM_DIR = Path(__file__).resolve().parents[1]
 if str(PLATFORM_DIR) not in sys.path:
     sys.path.insert(0, str(PLATFORM_DIR))
 
+
+def _b2_put_object(*args, **kwargs):
+    from b2 import put_object
+
+    return put_object(*args, **kwargs)
+
 R2_BUCKET = "piro-kb"
 TRAINING_GPU = "T4"
 TRAINING_CPU = 1.0
@@ -20,7 +26,7 @@ TRAINING_TIMEOUT_SECONDS = 3300
 TRAINING_DEADLINE_SECONDS = 3000
 CHECKPOINT_INTERVAL_STEPS = 1
 CHECKPOINT_SAFETY_SECONDS = 120
-CHECKPOINT_UPLOAD_ATTEMPTS = 3
+CHECKPOINT_UPLOAD_ATTEMPTS = 5
 CHECKPOINT_UPLOAD_BACKOFF_SECONDS = 1
 # Keep worker diagnostics fresh enough to capture short native hangs or termination
 # boundaries while keeping the heartbeat database traffic bounded.

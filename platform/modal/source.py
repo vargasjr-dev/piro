@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC
 
 import modal
-from _common import R2_BUCKET, SOURCE_APP, _r2_client, image, piro_secrets, trigger_image
+from _common import SOURCE_APP, _b2_put_object, image, piro_secrets, trigger_image
 
 app = modal.App(SOURCE_APP)
 
@@ -99,21 +99,20 @@ def generate_source(body: dict) -> dict:
                 "sampleCount": len(records),
                 "generatedAt": generated_at,
             }
-            r2 = _r2_client(os)
             prefix = r2_prefix.rstrip("/")
-            r2.put_object(
-                Bucket=R2_BUCKET,
-                Key=f"{prefix}/train.jsonl",
-                Body=train_jsonl.encode("utf-8"),
-                ContentLength=len(train_jsonl.encode("utf-8")),
-                ContentType="application/x-ndjson",
+            train_bytes = train_jsonl.encode("utf-8")
+            metadata_bytes = json.dumps(metadata, indent=2).encode("utf-8")
+            _b2_put_object(
+                os,
+                key=f"{prefix}/train.jsonl",
+                body=train_bytes,
+                content_type="application/x-ndjson",
             )
-            r2.put_object(
-                Bucket=R2_BUCKET,
-                Key=f"{prefix}/metadata.json",
-                Body=json.dumps(metadata, indent=2).encode("utf-8"),
-                ContentLength=len(json.dumps(metadata, indent=2).encode("utf-8")),
-                ContentType="application/json",
+            _b2_put_object(
+                os,
+                key=f"{prefix}/metadata.json",
+                body=metadata_bytes,
+                content_type="application/json",
             )
             callback(
                 {"status": "complete", "sampleCount": len(records), "generatedAt": generated_at}
