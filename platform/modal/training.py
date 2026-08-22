@@ -8,6 +8,8 @@ import modal
 from _common import (
     CHECKPOINT_INTERVAL_STEPS,
     CHECKPOINT_SAFETY_SECONDS,
+    CHECKPOINT_UPLOAD_ATTEMPTS,
+    CHECKPOINT_UPLOAD_BACKOFF_SECONDS,
     CPU_RATE_USD_PER_CORE_SECOND,
     GPU_RATE_USD_PER_SECOND,
     HEARTBEAT_INTERVAL_SECONDS,
@@ -95,6 +97,7 @@ class Trainer:
         import socket
         import sys
         import threading
+        import time
         import traceback
         import uuid as _uuid
         from datetime import datetime, timedelta
@@ -790,49 +793,26 @@ class Trainer:
                 _stop_checkpoint_watchdog()
                 print(f"[piro] resumed run {run_id} from checkpoint step {start_step}")
 
-            def _save_checkpoint(step: int) -> None:
-                _set_diagnostics("checkpointing", step=step)
-                if device.type == "cuda":
-                    torch.cuda.synchronize(device)
-                payload = {
-                    "version": 2,
-                    "step": step,
-                    "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "runtime": model.checkpoint_state(),
-                    "order": order,
-                    "cursor": cursor,
-                    "pythonRandomState": random.getstate(),
-                    "torchRandomState": torch.get_rng_state(),
-                    "cudaRandomState": (
-                        [state.cpu().to(dtype=torch.uint8).contiguous() for state in torch.cuda.get_rng_state_all()]
-                        if device.type == "cuda"
-                        else None
-                    ),
-                    "config": {
-                        "maxSteps": max_steps,
-                        "seed": seed,
-                        "architecturePath": architecture_path,
-                        "sourcePath": source_path,
-                        "datasetR2Prefix": dataset_r2_prefix,
-                        "modelConfig": model.config_dict(),
-                    },
-                }
-                buffer = io.BytesIO()
-                torch.save(payload, buffer)
-                key = f"checkpoints/{run_id}/step-{step}.pt"
-                r2.put_object(
-                    Bucket=R2_BUCKET,
-                    Key=key,
-                    Body=buffer.getvalue(),
-                    ContentType="application/octet-stream",
-                )
-                if step >= 5:
-                    r2.delete_object(
-                        Bucket=R2_BUCKET,
-                        Key=f"checkpoints/{run_id}/step-{step - 5}.pt",
+            def _checkpoint_stage(name: str, operation):
+                _set_checkpoint_stage(name)
+                _record_event("checkpoint_stage_started", stage=name)
+                try:
+                    result = operation()
+                except BaseException as exc:
+                    _record_event(
+                        "checkpoint_stage_failed",
+                        stage=name,
+                        exceptionType=type(exc).__name__,
+                        message=str(exc)[:2000],
+                        traceback=traceback.format_exc(limit=50)[-12000:],
                     )
-                checkpointed_at = datetime.now(UTC)
+                    raise
+                _record_event("checkpoint_stage_completed", stage=name)
+                return result
+
+            def _persist_checkpoint_metadata(
+                key: str, step: int, checkpointed_at: datetime
+            ) -> None:
                 cur.execute(
                     """
                     UPDATE training_run
@@ -842,25 +822,133 @@ class Trainer:
                         "heartbeatAt" = %s
                     WHERE id = %s AND status = 'running'
                     """,
-                    (
-                        key,
-                        step,
-                        checkpointed_at,
-                        checkpointed_at,
-                        run_id,
-                    ),
+                    (key, step, checkpointed_at, checkpointed_at, run_id),
                 )
                 if cur.rowcount != 1:
                     conn.rollback()
                     raise RuntimeError("training run became terminal while checkpointing")
                 conn.commit()
-                _set_diagnostics(
-                  "training",
-                  step=step,
-                  checkpointStep=step,
-                  checkpointKey=key,
-                )
-                _record_event("checkpoint_saved", step=step, checkpointStep=step)
+
+            def _save_checkpoint(step: int) -> None:
+                _set_diagnostics("checkpointing", step=step)
+                _start_checkpoint_watchdog()
+                try:
+                    _checkpoint_stage(
+                        "cuda_sync",
+                        lambda: torch.cuda.synchronize(device)
+                        if device.type == "cuda"
+                        else None,
+                    )
+                    payload = _checkpoint_stage(
+                        "payload_build",
+                        lambda: {
+                            "version": 2,
+                            "step": step,
+                            "model": model.state_dict(),
+                            "optimizer": optimizer.state_dict(),
+                            "runtime": model.checkpoint_state(),
+                            "order": order,
+                            "cursor": cursor,
+                            "pythonRandomState": random.getstate(),
+                            "torchRandomState": torch.get_rng_state(),
+                            "cudaRandomState": (
+                                [
+                                    state.cpu().to(dtype=torch.uint8).contiguous()
+                                    for state in torch.cuda.get_rng_state_all()
+                                ]
+                                if device.type == "cuda"
+                                else None
+                            ),
+                            "config": {
+                                "maxSteps": max_steps,
+                                "seed": seed,
+                                "architecturePath": architecture_path,
+                                "sourcePath": source_path,
+                                "datasetR2Prefix": dataset_r2_prefix,
+                                "modelConfig": model.config_dict(),
+                            },
+                        },
+                    )
+                    buffer = _checkpoint_stage("serialize", io.BytesIO)
+                    _checkpoint_stage(
+                        "serialize_payload",
+                        lambda: torch.save(payload, buffer),
+                    )
+                    key = f"checkpoints/{run_id}/step-{step}.pt"
+                    checkpoint_bytes = buffer.getvalue()
+
+                    def _upload_checkpoint() -> None:
+                        last_error = None
+                        for attempt in range(1, CHECKPOINT_UPLOAD_ATTEMPTS + 1):
+                            try:
+                                r2.put_object(
+                                    Bucket=R2_BUCKET,
+                                    Key=key,
+                                    Body=checkpoint_bytes,
+                                    ContentType="application/octet-stream",
+                                )
+                                _record_event(
+                                    "checkpoint_upload_succeeded",
+                                    step=step,
+                                    attempt=attempt,
+                                    bytes=len(checkpoint_bytes),
+                                )
+                                return
+                            except Exception as exc:
+                                last_error = exc
+                                _record_event(
+                                    "checkpoint_upload_attempt_failed",
+                                    step=step,
+                                    attempt=attempt,
+                                    exceptionType=type(exc).__name__,
+                                    message=str(exc)[:2000],
+                                )
+                                if attempt < CHECKPOINT_UPLOAD_ATTEMPTS:
+                                    time.sleep(
+                                        CHECKPOINT_UPLOAD_BACKOFF_SECONDS * attempt
+                                    )
+                        raise RuntimeError(
+                            f"checkpoint upload failed after "
+                            f"{CHECKPOINT_UPLOAD_ATTEMPTS} attempts: {last_error}"
+                        ) from last_error
+
+                    _checkpoint_stage("upload", _upload_checkpoint)
+                    checkpointed_at = datetime.now(UTC)
+                    _checkpoint_stage(
+                        "metadata_persist",
+                        lambda: _persist_checkpoint_metadata(
+                            key, step, checkpointed_at
+                        ),
+                    )
+                    if step >= 5:
+                        try:
+                            _checkpoint_stage(
+                                "cleanup_old_checkpoint",
+                                lambda: r2.delete_object(
+                                    Bucket=R2_BUCKET,
+                                    Key=f"checkpoints/{run_id}/step-{step - 5}.pt",
+                                ),
+                            )
+                        except BaseException as exc:
+                            _record_event(
+                                "checkpoint_cleanup_failed",
+                                step=step,
+                                exceptionType=type(exc).__name__,
+                                message=str(exc)[:2000],
+                            )
+                            print(
+                                f"[piro] run {run_id} checkpoint cleanup failed at step {step}: {exc}",
+                                flush=True,
+                            )
+                    _set_diagnostics(
+                        "training",
+                        step=step,
+                        checkpointStep=step,
+                        checkpointKey=key,
+                    )
+                    _record_event("checkpoint_saved", step=step, checkpointStep=step)
+                finally:
+                    _stop_checkpoint_watchdog()
 
             def _next_batch() -> tuple[list, list[int]]:
                 nonlocal cursor

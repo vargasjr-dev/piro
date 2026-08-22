@@ -20,6 +20,8 @@ TRAINING_TIMEOUT_SECONDS = 3300
 TRAINING_DEADLINE_SECONDS = 3000
 CHECKPOINT_INTERVAL_STEPS = 1
 CHECKPOINT_SAFETY_SECONDS = 120
+CHECKPOINT_UPLOAD_ATTEMPTS = 3
+CHECKPOINT_UPLOAD_BACKOFF_SECONDS = 1
 # Keep worker diagnostics fresh enough to capture short native hangs or termination
 # boundaries while keeping the heartbeat database traffic bounded.
 HEARTBEAT_INTERVAL_SECONDS = 5
@@ -36,6 +38,7 @@ SOURCE_APP = "piro-source"
 
 def _r2_client(os_module):
     import boto3
+    from botocore.config import Config
 
     endpoint = os_module.environ["BUCKET_ENDPOINT_URL"]
     if not endpoint.startswith("http"):
@@ -46,6 +49,11 @@ def _r2_client(os_module):
         aws_access_key_id=os_module.environ["BUCKET_KEY_ID"],
         aws_secret_access_key=os_module.environ["BUCKET_APPLICATION_SECRET"],
         region_name="auto",
+        config=Config(
+            retries={"mode": "standard", "max_attempts": 4},
+            connect_timeout=10,
+            read_timeout=60,
+        ),
     )
 
 
