@@ -885,6 +885,7 @@ class Trainer:
                                     Bucket=R2_BUCKET,
                                     Key=key,
                                     Body=checkpoint_bytes,
+                                    ContentLength=len(checkpoint_bytes),
                                     ContentType="application/octet-stream",
                                 )
                                 _record_event(
@@ -1161,12 +1162,14 @@ class Trainer:
                 Bucket=R2_BUCKET,
                 Key=f"{r2_prefix}/weights.pt",
                 Body=pt_bytes,
+                ContentLength=len(pt_bytes),
                 ContentType="application/octet-stream",
             )
             r2.put_object(
                 Bucket=R2_BUCKET,
                 Key=f"{r2_prefix}/weights.json",
                 Body=weights_json_str.encode("utf-8"),
+                ContentLength=len(weights_json_str.encode("utf-8")),
                 ContentType="application/json",
             )
 

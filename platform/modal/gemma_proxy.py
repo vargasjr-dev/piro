@@ -119,10 +119,12 @@ class DiagnosticsStore:
                 f"-{uuid.uuid4().hex}.json"
             )
             client = _r2_client(os)
+            body = json.dumps(bundle, separators=(",", ":"), sort_keys=True).encode("utf-8")
             client.put_object(
                 Bucket=R2_BUCKET,
                 Key=key,
-                Body=json.dumps(bundle, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+                Body=body,
+                ContentLength=len(body),
                 ContentType="application/json",
             )
             print(f"[piro-gemma] uploaded diagnostics {R2_BUCKET}/{key}", flush=True)

@@ -53,6 +53,13 @@ def _r2_client(os_module):
             retries={"mode": "standard", "max_attempts": 4},
             connect_timeout=10,
             read_timeout=60,
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
+            signature_version="s3v4",
+            s3={
+                "addressing_style": "path",
+                "payload_signing_enabled": False,
+            },
         ),
     )
 
