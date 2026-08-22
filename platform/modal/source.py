@@ -105,12 +105,14 @@ def generate_source(body: dict) -> dict:
                 Bucket=R2_BUCKET,
                 Key=f"{prefix}/train.jsonl",
                 Body=train_jsonl.encode("utf-8"),
+                ContentLength=len(train_jsonl.encode("utf-8")),
                 ContentType="application/x-ndjson",
             )
             r2.put_object(
                 Bucket=R2_BUCKET,
                 Key=f"{prefix}/metadata.json",
                 Body=json.dumps(metadata, indent=2).encode("utf-8"),
+                ContentLength=len(json.dumps(metadata, indent=2).encode("utf-8")),
                 ContentType="application/json",
             )
             callback(
