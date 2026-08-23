@@ -9,7 +9,10 @@ const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
 const sql = neon(databaseUrl);
-const before = await sql<{ model_id: string; architecture_path: string; config_json: string | null }[]>`
+type ModelConfigRow = { model_id: string; architecture_path: string; config_json: string | null }
+type ConfigRow = { config_json: string | null }
+
+const before = (await sql`
   SELECT
     m.id AS model_id,
     tr."architecturePath" AS architecture_path,
@@ -18,7 +21,7 @@ const before = await sql<{ model_id: string; architecture_path: string; config_j
   JOIN model_training_run mtr ON mtr."modelId" = m.id
   JOIN training_run tr ON tr.id = mtr."trainingRunId"
   WHERE m.id = ${MODEL_ID}
-`;
+`) as ModelConfigRow[];
 
 if (before.length !== 1) {
   throw new Error(`expected exactly one target model row, found ${before.length}`);
@@ -43,8 +46,8 @@ if (config.tokenizer_name !== "byte_bpe") {
 console.log(JSON.stringify({ modelId: MODEL_ID, architecturePath: row.architecture_path, before: config }));
 
 const nextConfig = { ...config, target_prefix: NEW_PREFIX };
-const [updated, after] = await sql.transaction([
-  sql<{ id: string }[]>`
+const [updated, after] = await sql.transaction((tx) => [
+  tx`
     UPDATE training_run tr
     SET "configJson" = ${JSON.stringify(nextConfig)}
     FROM model_training_run mtr
@@ -54,7 +57,7 @@ const [updated, after] = await sql.transaction([
       AND tr."configJson" = ${row.config_json}
     RETURNING tr.id
   `,
-  sql<{ config_json: string | null }[]>`
+  tx`
     SELECT tr."configJson" AS config_json
     FROM model_training_run mtr
     JOIN training_run tr ON tr.id = mtr."trainingRunId"
@@ -62,14 +65,17 @@ const [updated, after] = await sql.transaction([
   `,
 ]);
 
-if (updated.length !== 1) {
-  throw new Error(`expected exactly one config row to update, updated ${updated.length}`);
+const updatedRows = updated as { id: string }[];
+const afterRows = after as ConfigRow[];
+
+if (updatedRows.length !== 1) {
+  throw new Error(`expected exactly one config row to update, updated ${updatedRows.length}`);
 }
-if (after.length !== 1 || !after[0]?.config_json) {
+if (afterRows.length !== 1 || !afterRows[0]?.config_json) {
   throw new Error("could not verify migrated config");
 }
 
-const verified = JSON.parse(after[0].config_json) as Record<string, unknown>;
+const verified = JSON.parse(afterRows[0].config_json) as Record<string, unknown>;
 if (verified.target_prefix !== NEW_PREFIX) {
   throw new Error(`verification failed: target_prefix is ${JSON.stringify(verified.target_prefix)}`);
 }
