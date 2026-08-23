@@ -105,6 +105,7 @@ class Trainer:
 
         import psycopg2
         from platform_serialization import round_nested_numbers
+        from platform_time import as_utc
         from platform_training_state import heartbeat_loop, persist_worker_event
 
         torch = self._torch
@@ -292,7 +293,7 @@ class Trainer:
         checkpoint_key: str | None = row[1] if row else None
         checkpoint_step: int = int(row[2] or 0) if row else 0
         persisted_started_at = row[3] if row else None
-        started_at = persisted_started_at or now
+        started_at = as_utc(persisted_started_at) if persisted_started_at else now
         resume_attempts: int = int(row[5] or 0) if row else 0
         persisted_config = row[6] if row and row[6] else None
         if isinstance(persisted_config, str):
