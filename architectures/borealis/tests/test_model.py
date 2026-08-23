@@ -84,6 +84,21 @@ def test_adaptation_state_snapshot_round_trips_and_preserves_predictions():
     assert torch.equal(original, replayed)
 
 
+def test_loaded_adaptation_state_uses_model_dtype_for_float_updates():
+    model = small_model()
+    snapshot = {
+        "output_bias": [0] * 257,
+        "updates": 0,
+        "loss_ema": None,
+    }
+
+    restored = model.load_adaptation_state(snapshot)
+
+    assert restored.output_bias.dtype == model.output_head.weight.dtype
+    restored.output_bias.sub_(torch.ones(257) * 0.1)
+    assert torch.allclose(restored.output_bias, torch.full((257,), -0.1))
+
+
 def test_consolidation_moves_adaptation_bias_to_durable_output_head_and_clears_adaptation_state():
     model = small_model()
     state = BorealisAdaptationState(
