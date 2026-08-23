@@ -13,7 +13,7 @@ const DELETE_BATCH_SIZE = 1_000;
 
 type VersionEntry = Pick<
   ObjectVersion,
-  "Key" | "VersionId" | "LastModified" | "Size"
+  "Key" | "VersionId" | "LastModified" | "Size" | "IsLatest"
 > & {
   isDeleteMarker: boolean;
 };
@@ -42,13 +42,6 @@ function entryKey(entry: VersionEntry): string {
     throw new Error("Backblaze returned a version without a key or version id");
   }
   return `${entry.Key}\u0000${entry.VersionId}`;
-}
-
-function sortNewestFirst(a: VersionEntry, b: VersionEntry): number {
-  const aTime = a.LastModified?.getTime() ?? 0;
-  const bTime = b.LastModified?.getTime() ?? 0;
-  if (aTime !== bTime) return bTime - aTime;
-  return entryKey(a).localeCompare(entryKey(b));
 }
 
 async function listAllVersions(
@@ -108,11 +101,14 @@ function selectSuperseded(entries: VersionEntry[]): {
   const current: VersionEntry[] = [];
   const superseded: VersionEntry[] = [];
   for (const versions of byKey.values()) {
-    versions.sort(sortNewestFirst);
-    const [latest, ...older] = versions;
-    if (!latest) throw new Error("Encountered an empty version group");
-    current.push(latest);
-    superseded.push(...older);
+    const latest = versions.filter((entry) => entry.IsLatest);
+    if (latest.length !== 1) {
+      throw new Error(
+        `Expected exactly one latest version for ${versions[0]?.Key ?? "unknown key"}; received ${latest.length}`,
+      );
+    }
+    current.push(latest[0]);
+    superseded.push(...versions.filter((entry) => !entry.IsLatest));
   }
   return { current, superseded };
 }

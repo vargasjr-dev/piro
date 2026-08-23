@@ -19,6 +19,11 @@ on:
           - database
           - bucket
         default: database
+      apply:
+        description: "Allow a script that supports it to perform writes (otherwise dry run)"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -152,6 +157,7 @@ jobs:
           BUCKET_ENDPOINT_URL: ${{ secrets.BUCKET_ENDPOINT_URL }}
           BUCKET_KEY_ID: ${{ secrets.BUCKET_KEY_ID }}
           BUCKET_APPLICATION_SECRET: ${{ secrets.BUCKET_APPLICATION_SECRET }}
+          B2_CLEANUP_CONFIRM: ${{ inputs.apply && 'DELETE_SUPERSEDED_CHECKPOINT_VERSIONS' || '' }}
           MIGRATION_SCRIPT: ${{ inputs.script }}
         run: |
           set -euo pipefail
