@@ -7,9 +7,18 @@ from platform_training_state import (
     HEARTBEAT_SQL,
     WORKER_EVENT_DIAGNOSTICS_SQL,
     WORKER_EVENT_INSERT_SQL,
+    checkpoint_train_loss,
     persist_worker_event,
     send_heartbeat,
 )
+
+
+def test_checkpoint_train_loss_recovers_latest_loss_from_new_payload():
+    assert checkpoint_train_loss({"trainLoss": 1.25}) == 1.25
+
+
+def test_checkpoint_train_loss_returns_none_for_legacy_payload():
+    assert checkpoint_train_loss({"step": 500}) is None
 
 
 class FakeCursor:
