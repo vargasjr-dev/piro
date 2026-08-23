@@ -1,4 +1,4 @@
-import postgres from "postgres";
+import { neon } from "@neondatabase/serverless";
 
 const MODEL_ID = "bea4d410-42a6-4be9-83af-407f67bcb119";
 const EXPECTED_ARCHITECTURE = "architectures/borealis/main.py";
@@ -8,7 +8,7 @@ const NEW_PREFIX = "";
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
-const sql = postgres(databaseUrl, { max: 1 });
+const sql = neon(databaseUrl);
 try {
   const before = await sql<{ model_id: string; architecture_path: string; config_json: string | null }[]>`
     SELECT
@@ -73,5 +73,5 @@ try {
   }
   console.log(JSON.stringify({ modelId: MODEL_ID, after: verified }));
 } finally {
-  await sql.end();
+  
 }
