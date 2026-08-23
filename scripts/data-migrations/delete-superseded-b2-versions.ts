@@ -118,6 +118,22 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1_000_000).toFixed(2)} MB`;
 }
 
+function sumBytes(entries: VersionEntry[]): number {
+  return entries.reduce((total, entry) => total + (entry.Size ?? 0), 0);
+}
+
+function logBackblazeTotals(label: string, entries: VersionEntry[]): void {
+  const versions = entries.filter((entry) => !entry.isDeleteMarker);
+  const deleteMarkers = entries.filter((entry) => entry.isDeleteMarker);
+  console.log(`${label} (Backblaze ListObjectVersions):`);
+  console.log(`  version records: ${versions.length.toLocaleString()}`);
+  console.log(
+    `  version bytes: ${sumBytes(versions).toLocaleString()} (${formatBytes(sumBytes(versions))})`,
+  );
+  console.log(`  delete markers: ${deleteMarkers.length.toLocaleString()}`);
+  console.log(`  all records: ${entries.length.toLocaleString()}`);
+}
+
 function describe(entry: VersionEntry): string {
   const kind = entry.isDeleteMarker
     ? "delete marker"
@@ -158,11 +174,9 @@ async function main(): Promise<void> {
 
   const client = getClient();
   const entries = await listAllVersions(client, prefix);
+  logBackblazeTotals("Before cleanup", entries);
   const { current, superseded } = selectSuperseded(entries);
-  const supersededBytes = superseded.reduce(
-    (total, entry) => total + (entry.Size ?? 0),
-    0,
-  );
+  const supersededBytes = sumBytes(superseded);
   const apply = process.env.B2_CLEANUP_CONFIRM === APPLY_CONFIRMATION;
 
   console.log(`Bucket: ${BUCKET}`);
@@ -202,6 +216,7 @@ async function main(): Promise<void> {
   }
 
   const remaining = await listAllVersions(client, prefix);
+  logBackblazeTotals("After cleanup", remaining);
   const remainingSelection = selectSuperseded(remaining);
   if (remainingSelection.superseded.length !== 0) {
     throw new Error(
