@@ -372,6 +372,7 @@ class Borealis(ArchitectureModel):
         output_bias = torch.as_tensor(
             snapshot["output_bias"],
             device=self.output_head.weight.device,
+            dtype=self.output_head.weight.dtype,
         ).clone()
         loss_ema = float(snapshot["loss_ema"]) if snapshot.get("loss_ema") is not None else None
         state = BorealisAdaptationState(
