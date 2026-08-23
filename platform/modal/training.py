@@ -13,8 +13,8 @@ from _common import (
     CPU_RATE_USD_PER_CORE_SECOND,
     GPU_RATE_USD_PER_SECOND,
     HEARTBEAT_INTERVAL_SECONDS,
-    MEMORY_RATE_USD_PER_GIB_SECOND,
     MAX_AUTO_RESUME_ATTEMPTS,
+    MEMORY_RATE_USD_PER_GIB_SECOND,
     R2_BUCKET,
     TRAINING_APP,
     TRAINING_CPU,
@@ -63,6 +63,7 @@ class Trainer:
 
         try:
             import torch
+
             from architectures._common import load_architecture
             from sources._common.training import load_source_examples
         except BaseException:
@@ -106,7 +107,11 @@ class Trainer:
         import psycopg2
         from platform_serialization import round_nested_numbers
         from platform_time import as_utc
-        from platform_training_state import heartbeat_loop, persist_worker_event
+        from platform_training_state import (
+            checkpoint_train_loss,
+            heartbeat_loop,
+            persist_worker_event,
+        )
 
         torch = self._torch
         device = None
@@ -581,6 +586,7 @@ class Trainer:
 
         model = None
         optimizer = None
+        train_loss: float | None = None
         try:
             _set_diagnostics("loading_data")
             _record_event("loading_data_entered")
@@ -704,7 +710,7 @@ class Trainer:
                 return result
 
             def _load_checkpoint() -> None:
-                nonlocal checkpoint_payload, order, cursor, start_step
+                nonlocal checkpoint_payload, order, cursor, start_step, train_loss
                 _start_checkpoint_watchdog()
                 if not checkpoint_key:
                     _record_event("checkpoint_restore_started", checkpointStep=0)
@@ -756,6 +762,7 @@ class Trainer:
                     start_step = int(checkpoint_payload.get("step", checkpoint_step))
 
                 _restore_stage("progress_state", _restore_progress_state)
+                train_loss = checkpoint_train_loss(checkpoint_payload)
                 _record_event("checkpoint_progress_state_loaded", checkpointStep=start_step)
 
                 def _validate_dataset_order() -> None:
@@ -846,6 +853,7 @@ class Trainer:
                         lambda: {
                             "version": 2,
                             "step": step,
+                            "trainLoss": train_loss,
                             "model": model.state_dict(),
                             "optimizer": optimizer.state_dict(),
                             "runtime": model.checkpoint_state(),
@@ -1186,7 +1194,7 @@ class Trainer:
                 """,
                 (
                     "complete",
-                    float(train_loss),
+                    train_loss,
                     completed_at,
                     completed_at,
                     runtime_ms,

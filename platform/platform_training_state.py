@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -29,6 +29,16 @@ WORKER_EVENT_DIAGNOSTICS_SQL = (
     'COALESCE(%s, "workerDiagnosticsJson") '
     "WHERE id = %s AND status IN ('queued', 'running')"
 )
+
+
+def checkpoint_train_loss(payload: Mapping[str, Any] | None) -> float | None:
+    """Return the last loss recorded in a checkpoint, if one is available."""
+    if payload is None:
+        return None
+    value = payload.get("trainLoss")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
 
 
 def send_heartbeat(
