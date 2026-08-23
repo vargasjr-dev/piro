@@ -33,6 +33,8 @@ class BorealisConfig:
     vocab_size: int | None = None
     tokenizer_name: str | None = "byte_bpe"
     tokenizer_merges: list[list[int]] | None = None
+    # Source-owned continuation framing is persisted during training. This
+    # default preserves older answer-oriented Borealis configurations.
     target_prefix: str = "\nANSWER:"
     max_new_tokens: int = 32
     embed_dim: int = 32
@@ -143,14 +145,21 @@ class Borealis(ArchitectureModel):
             for example in examples
             for value in (
                 *example.inputs,
-                getattr(example, "continuation_prefix", "\nANSWER:"),
+                getattr(example, "continuation_prefix", ""),
                 example.target,
             )
         ]
         tokenizer = BorealisTokenizer.fit(texts, max_vocab_size=8192)
+        prefixes = {
+            str(getattr(example, "continuation_prefix", ""))
+            for example in examples
+        }
+        if len(prefixes) > 1:
+            raise ValueError("Borealis training examples must use one continuation prefix")
         return {
             "tokenizer_name": tokenizer.name,
             "tokenizer_merges": [list(pair) for pair in tokenizer.merges],
+            "target_prefix": next(iter(prefixes), ""),
         }
 
     def _training_text(self, example: Any) -> str:

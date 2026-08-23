@@ -116,17 +116,19 @@ the source-decoded examples. Its merge table is stored in `BorealisConfig` and
 therefore in every persisted training configuration, so serving reconstructs the
 same tokenizer without depending on the training corpus being present.
 
-Training constructs complete sequences as:
+Training constructs complete sequences from the source-owned continuation frame:
 
 ```text
-<input context>\nANSWER:<target><end-of-text>
+<input context><continuation_prefix><target><end-of-text>
 ```
 
 The loss is teacher-forced across every next-token target, not only the final token.
-Inference encodes the input plus `target_prefix`, generates token IDs
-autoregressively until EOS or `max_new_tokens`, and decodes those IDs with the same
-BPE tokenizer before returning the API response. Token IDs remain diagnostic
-metadata, while `text` is always decoded model output.
+`config_for_training` persists the single continuation prefix used by the source;
+raw language modeling uses an empty prefix, while answer-oriented sources use
+`\nANSWER:`. Inference encodes the input plus that persisted `target_prefix`,
+generates token IDs autoregressively until EOS or `max_new_tokens`, and decodes
+those IDs with the same BPE tokenizer before returning the API response. Token IDs
+remain diagnostic metadata, while `text` is always decoded model output.
 
 The `byte` tokenizer name is retained only as a small reversible test fixture; it is
 not the production tokenizer. `o200k_base` remains supported for explicitly

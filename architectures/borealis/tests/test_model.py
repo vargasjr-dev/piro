@@ -355,6 +355,7 @@ def test_training_config_persists_fitted_tokenizer():
             {
                 "inputs": ("Alice owns a customer success plan. " * 4,),
                 "target": "retention retention",
+                "continuation_prefix": "",
             },
         )(),
     ]
@@ -363,10 +364,45 @@ def test_training_config_persists_fitted_tokenizer():
 
     assert config["tokenizer_name"] == "byte_bpe"
     assert config["tokenizer_merges"]
+    assert config["target_prefix"] == ""
     tokenizer = BorealisTokenizer(config["tokenizer_name"], config["tokenizer_merges"])
     assert tokenizer.decode(tokenizer.encode("Alice owns a customer success plan.")) == (
         "Alice owns a customer success plan."
     )
+
+
+def test_training_config_persists_answer_continuation_prefix():
+    example = type(
+        "Example",
+        (),
+        {
+            "inputs": ("What color is the sky?",),
+            "target": "blue",
+            "continuation_prefix": "\nANSWER:",
+        },
+    )()
+
+    config = Borealis.config_for_training([example])
+
+    assert config["target_prefix"] == "\nANSWER:"
+
+
+def test_training_config_rejects_mixed_continuation_prefixes():
+    examples = [
+        type("Example", (), {"inputs": ("raw",), "target": "text", "continuation_prefix": ""})(),
+        type(
+            "Example",
+            (),
+            {"inputs": ("question",), "target": "answer", "continuation_prefix": "\nANSWER:"},
+        )(),
+    ]
+
+    try:
+        Borealis.config_for_training(examples)
+    except ValueError as error:
+        assert "one continuation prefix" in str(error)
+    else:
+        raise AssertionError("mixed continuation prefixes should be rejected")
 
 
 def test_output_head_reuses_token_embedding_weights():
