@@ -409,3 +409,26 @@ def test_output_head_reuses_token_embedding_weights():
     model = small_model()
 
     assert model.output_head.weight is model.token_embedding.weight
+
+
+def test_tiny_causal_fixture_overfits_and_free_runs_without_repetition():
+    torch.manual_seed(11)
+    model = small_model(
+        embed_dim=4,
+        context_dim=6,
+        max_new_tokens=4,
+        adaptation_learning_rate=0.0,
+        consolidation_rate=0.0,
+    )
+    example = type(
+        "Example",
+        (),
+        {"inputs": ("ab",), "target": "", "continuation_prefix": "", "metadata": {}},
+    )()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=0.0)
+
+    losses = [model.train_step([example], optimizer) for _ in range(50)]
+    generated = model.generate(model._encode("a"), max_new_tokens=2, adapt=False)
+
+    assert losses[-1] < 0.1
+    assert torch.equal(generated, torch.tensor([ord("b"), model.config.eos_token_id]))
