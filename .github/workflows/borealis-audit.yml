@@ -38,7 +38,7 @@ jobs:
           MODEL_ID: ${{ inputs.model_id }}
         run: |
           set -o pipefail
-          modal run platform/modal/borealis_audit.py --model-id "$MODEL_ID" | tee borealis-audit.json
+          MODEL_ID="$MODEL_ID" modal run platform/modal/borealis_audit.py | tee borealis-audit.json
       - name: Upload audit result
         uses: actions/upload-artifact@v4
         with:

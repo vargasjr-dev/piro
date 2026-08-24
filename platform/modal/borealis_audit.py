@@ -182,4 +182,5 @@ def audit(model_id: str = MODEL_ID) -> dict[str, Any]:
 
 @app.local_entrypoint()
 def main():
-    print(json.dumps(audit.remote(), indent=2, sort_keys=True))
+    model_id = os.environ.get("MODEL_ID", MODEL_ID)
+    print(json.dumps(audit.remote(model_id=model_id), indent=2, sort_keys=True))
