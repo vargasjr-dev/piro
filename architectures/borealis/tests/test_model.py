@@ -347,6 +347,31 @@ def test_byte_bpe_fit_preserves_deterministic_merge_order():
     assert tokenizer.merges == ((97, 98), (256, 256))
 
 
+def test_training_config_uses_compact_natural_language_model_defaults():
+    example = type(
+        "Example",
+        (),
+        {
+            "inputs": tuple(
+                f"hey there, how are you today? This is natural language sample {index}."
+                for index in range(400)
+            ),
+            "target": "",
+            "continuation_prefix": "",
+        },
+    )()
+
+    config = Borealis.config_for_training([example])
+    tokenizer = BorealisTokenizer(config["tokenizer_name"], config["tokenizer_merges"])
+
+    assert Borealis.training_vocab_size == 1024
+    assert tokenizer.vocab_size <= Borealis.training_vocab_size
+    assert config["vocab_size"] == tokenizer.vocab_size
+    assert config["embed_dim"] == 64
+    assert config["context_dim"] == 128
+    assert tokenizer.decode(tokenizer.encode("hey")) == "hey"
+
+
 def test_training_config_persists_fitted_tokenizer():
     examples = [
         type(

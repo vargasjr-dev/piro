@@ -92,7 +92,12 @@ image = (
 trigger_image = (
     modal.Image.debian_slim(python_version="3.11")
     .env({"PYTHONPATH": "/root/platform/modal"})
-    .pip_install("fastapi[standard]>=0.110.0")
+    .pip_install(
+        "fastapi[standard]>=0.110.0",
+        # The trigger imports Modal and _common during container startup.
+        # Keep that dependency explicit instead of relying on Modal runtime injection.
+        "modal>=1.5.0",
+    )
     .add_local_dir("platform/modal", remote_path="/root/platform/modal")
 )
 
