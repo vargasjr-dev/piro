@@ -101,6 +101,9 @@ class Borealis(ArchitectureModel):
     module = "borealis"
     config_type = BorealisConfig
     training_batch_size = 16
+    training_vocab_size = 1024
+    training_embed_dim = 64
+    training_context_dim = 128
     hyper_parameters = {**BorealisConfig().__dict__}
 
     def __init__(self, config: BorealisConfig | None = None, **kwargs: Any) -> None:
@@ -149,7 +152,7 @@ class Borealis(ArchitectureModel):
                 example.target,
             )
         ]
-        tokenizer = BorealisTokenizer.fit(texts, max_vocab_size=8192)
+        tokenizer = BorealisTokenizer.fit(texts, max_vocab_size=cls.training_vocab_size)
         prefixes = {
             str(getattr(example, "continuation_prefix", ""))
             for example in examples
@@ -157,6 +160,9 @@ class Borealis(ArchitectureModel):
         if len(prefixes) > 1:
             raise ValueError("Borealis training examples must use one continuation prefix")
         return {
+            "vocab_size": tokenizer.vocab_size,
+            "embed_dim": cls.training_embed_dim,
+            "context_dim": cls.training_context_dim,
             "tokenizer_name": tokenizer.name,
             "tokenizer_merges": [list(pair) for pair in tokenizer.merges],
             "target_prefix": next(iter(prefixes), ""),
