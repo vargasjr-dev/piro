@@ -31,7 +31,8 @@ CHECKPOINT_UPLOAD_BACKOFF_SECONDS = 1
 # Keep worker diagnostics fresh enough to capture short native hangs or termination
 # boundaries while keeping the heartbeat database traffic bounded.
 HEARTBEAT_INTERVAL_SECONDS = 5
-MAX_AUTO_RESUME_ATTEMPTS = 8
+# Long research runs may need many Modal handoffs before converging.
+MAX_AUTO_RESUME_ATTEMPTS = 100
 GPU_RATE_USD_PER_SECOND = 0.000164
 CPU_RATE_USD_PER_CORE_SECOND = 0.0000131
 MEMORY_RATE_USD_PER_GIB_SECOND = 0.00000222
