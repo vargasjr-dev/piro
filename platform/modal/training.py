@@ -986,6 +986,8 @@ class Trainer:
                     _save_checkpoint(step - 1)
                     _set_diagnostics("handoff", step=step - 1)
                     handoff_at = datetime.now(UTC)
+                    # Keep handing off through checkpoints until the explicit per-run
+                    # resume budget is exhausted; short worker lifetimes are expected.
                     if resume_attempts >= MAX_AUTO_RESUME_ATTEMPTS:
                         runtime_ms = max(
                             0,
