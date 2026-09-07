@@ -22,6 +22,7 @@ from _common import (
     TRAINING_GPU,
     TRAINING_MEMORY_MB,
     TRAINING_TIMEOUT_SECONDS,
+    _b2_delete_file_versions,
     _b2_put_object,
     _r2_client,
     image,
@@ -30,6 +31,41 @@ from _common import (
 )
 
 app = modal.App(TRAINING_APP)
+
+
+@app.function(image=image, secrets=[piro_secrets], timeout=3600)
+def cleanup_checkpoint_versions(run_id: str, retain_count: int = 5) -> dict:
+    """Permanently remove old checkpoint versions for one training run."""
+    import os
+    import re
+
+    from b2 import delete_listed_file_versions, list_file_versions
+
+    if retain_count < 1:
+        raise ValueError("retain_count must be at least 1")
+    prefix = f"checkpoints/{run_id}/"
+    versions = [
+        version
+        for version in list_file_versions(os, prefix=prefix)
+        if version.get("fileName", "").startswith(prefix)
+    ]
+    steps = {}
+    for version in versions:
+        match = re.fullmatch(rf"{re.escape(prefix)}step-(\d+)\.pt", version["fileName"])
+        if match:
+            steps.setdefault(int(match.group(1)), version["fileName"])
+    retained_steps = sorted(steps, reverse=True)[:retain_count]
+    retained_names = {steps[step] for step in retained_steps}
+    old_versions = [
+        version for version in versions if version.get("fileName") not in retained_names
+    ]
+    deleted_versions = delete_listed_file_versions(os, versions=old_versions)
+    return {
+        "runId": run_id,
+        "retainedSteps": retained_steps,
+        "deletedFileNames": len({version["fileName"] for version in old_versions}),
+        "deletedVersions": deleted_versions,
+    }
 
 DEBUG_ENV = {
     "CUDA_LAUNCH_BLOCKING": "1",
@@ -933,12 +969,17 @@ class Trainer:
                     )
                     if step >= 5:
                         try:
-                            _checkpoint_stage(
+                            deleted_versions = _checkpoint_stage(
                                 "cleanup_old_checkpoint",
-                                lambda: r2.delete_object(
-                                    Bucket=R2_BUCKET,
-                                    Key=f"checkpoints/{run_id}/step-{step - 5}.pt",
+                                lambda: _b2_delete_file_versions(
+                                    os,
+                                    file_name=f"checkpoints/{run_id}/step-{step - 5}.pt",
                                 ),
+                            )
+                            _record_event(
+                                "checkpoint_cleanup_succeeded",
+                                step=step,
+                                deletedVersions=deleted_versions,
                             )
                         except BaseException as exc:
                             _record_event(

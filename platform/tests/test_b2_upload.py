@@ -109,3 +109,62 @@ class B2UploadTest(TestCase):
 
 if __name__ == "__main__":
     main()
+
+class B2VersionDeletionTest(TestCase):
+    def test_delete_file_versions_permanently_deletes_all_versions_for_a_name(self):
+        calls = []
+
+        def fake_urlopen(request, timeout):
+            calls.append((request.full_url, json.loads(request.data.decode("utf-8"))))
+            if request.full_url.endswith("b2_authorize_account"):
+                return FakeResponse(
+                    {
+                        "accountId": "account-id",
+                        "authorizationToken": "account-token",
+                        "apiInfo": {
+                            "storageApi": {
+                                "apiUrl": "https://api.example.test",
+                                "allowed": {
+                                    "buckets": [{"id": "bucket-id", "name": "piro-kb"}]
+                                },
+                            }
+                        },
+                    }
+                )
+            if request.full_url.endswith("b2_list_file_versions"):
+                return FakeResponse(
+                    {
+                        "files": [
+                            {"fileName": "checkpoints/run/step-1.pt", "fileId": "upload-id"},
+                            {"fileName": "checkpoints/run/step-1.pt", "fileId": "hide-id"},
+                        ]
+                    }
+                )
+            self.assertTrue(request.full_url.endswith("b2_delete_file_version"))
+            return FakeResponse({"fileName": "checkpoints/run/step-1.pt"})
+
+        environment = SimpleNamespace(
+            environ={
+                "BUCKET_KEY_ID": "key-id",
+                "BUCKET_APPLICATION_SECRET": "application-secret",
+            }
+        )
+        with patch.object(b2, "urlopen", side_effect=fake_urlopen):
+            deleted = b2.delete_file_versions(
+                environment,
+                file_name="checkpoints/run/step-1.pt",
+            )
+
+        self.assertEqual(deleted, 2)
+        self.assertEqual(
+            [url.rsplit("/", 1)[-1] for url, _body in calls],
+            [
+                "b2_authorize_account",
+                "b2_list_file_versions",
+                "b2_authorize_account",
+                "b2_delete_file_version",
+                "b2_delete_file_version",
+            ],
+        )
+        self.assertEqual(calls[-2][1]["fileId"], "upload-id")
+        self.assertEqual(calls[-1][1]["fileId"], "hide-id")
