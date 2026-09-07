@@ -37,7 +37,7 @@ def _json_request(
         ) from error
 
 
-def _upload_target(os_module) -> tuple[str, str]:
+def _authorize(os_module) -> tuple[str, str, str]:
     key_id = os_module.environ["BUCKET_KEY_ID"]
     application_key = os_module.environ["BUCKET_APPLICATION_SECRET"]
     credentials = base64.b64encode(f"{key_id}:{application_key}".encode()).decode()
@@ -90,16 +90,104 @@ def _upload_target(os_module) -> tuple[str, str]:
     if not bucket_id:
         raise RuntimeError(f"Backblaze bucket {B2_BUCKET!r} has no ID")
 
+    return api_url, auth["authorizationToken"], bucket_id
+
+
+def _upload_target(os_module) -> tuple[str, str]:
+    api_url, authorization, bucket_id = _authorize(os_module)
     upload = _json_request(
         f"{api_url}/b2api/v4/b2_get_upload_url",
         method="POST",
         headers={
-            "Authorization": auth["authorizationToken"],
+            "Authorization": authorization,
             "Content-Type": "application/json",
         },
         body=json.dumps({"bucketId": bucket_id}).encode("utf-8"),
     )
     return upload["uploadUrl"], upload["authorizationToken"]
+
+
+def list_file_versions(os_module, *, prefix: str) -> list[dict]:
+    """List every B2 file version whose name starts with ``prefix``."""
+    api_url, authorization, bucket_id = _authorize(os_module)
+    versions: list[dict] = []
+    start_file_name = None
+    start_file_id = None
+    while True:
+        body = {
+            "bucketId": bucket_id,
+            "prefix": prefix,
+            "maxFileCount": 1000,
+        }
+        if start_file_name is not None:
+            body["startFileName"] = start_file_name
+            body["startFileId"] = start_file_id
+        response = _json_request(
+            f"{api_url}/b2api/v4/b2_list_file_versions",
+            method="POST",
+            headers={
+                "Authorization": authorization,
+                "Content-Type": "application/json",
+            },
+            body=json.dumps(body).encode("utf-8"),
+        )
+        versions.extend(response.get("files", []))
+        next_file_name = response.get("nextFileName")
+        next_file_id = response.get("nextFileId")
+        if not next_file_name or not next_file_id:
+            break
+        if (next_file_name, next_file_id) == (start_file_name, start_file_id):
+            raise RuntimeError("Backblaze version listing did not advance")
+        start_file_name = next_file_name
+        start_file_id = next_file_id
+    return versions
+
+
+def _delete_file_version(
+    api_url: str, authorization: str, *, file_name: str, file_id: str
+) -> None:
+    _json_request(
+        f"{api_url}/b2api/v4/b2_delete_file_version",
+        method="POST",
+        headers={
+            "Authorization": authorization,
+            "Content-Type": "application/json",
+        },
+        body=json.dumps({"fileName": file_name, "fileId": file_id}).encode("utf-8"),
+    )
+
+
+def delete_listed_file_versions(os_module, *, versions: list[dict]) -> int:
+    """Permanently delete the supplied B2 file versions with one auth session."""
+    api_url, authorization, _bucket_id = _authorize(os_module)
+    deletable = [
+        version
+        for version in versions
+        if version.get("fileName") and version.get("fileId")
+    ]
+    for version in deletable:
+        _delete_file_version(
+            api_url,
+            authorization,
+            file_name=version["fileName"],
+            file_id=version["fileId"],
+        )
+    return len(deletable)
+
+
+def delete_file_versions(os_module, *, file_name: str) -> int:
+    """Permanently delete every stored version of one B2 file name.
+
+    S3 DeleteObject only creates a hidden marker in B2. Training checkpoints
+    use unique names, so retention must enumerate their file IDs and call the
+    native delete-file-version endpoint to release the stored bytes.
+    """
+    versions = [
+        version
+        for version in list_file_versions(os_module, prefix=file_name)
+        if version.get("fileName") == file_name
+    ]
+    return delete_listed_file_versions(os_module, versions=versions)
 
 
 def put_object(

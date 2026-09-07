@@ -17,6 +17,12 @@ def _b2_put_object(*args, **kwargs):
 
     return put_object(*args, **kwargs)
 
+
+def _b2_delete_file_versions(*args, **kwargs):
+    from b2 import delete_file_versions
+
+    return delete_file_versions(*args, **kwargs)
+
 R2_BUCKET = "piro-kb"
 TRAINING_GPU = "T4"
 TRAINING_CPU = 1.0
