@@ -13,3 +13,17 @@ variable "stripe_live_api_key" {
   nullable    = true
   default     = null
 }
+
+variable "cloudflare_account_id" {
+  description = "Cloudflare account ID used for R2 infrastructure."
+  type        = string
+  nullable    = false
+  default     = "86a058d54a5266257c8e1814c4d9b656"
+}
+
+variable "github_token" {
+  description = "GitHub token with permission to manage repository environment secrets."
+  type        = string
+  sensitive   = true
+  nullable    = false
+}

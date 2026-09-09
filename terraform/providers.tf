@@ -14,6 +14,11 @@ terraform {
       source  = "Backblaze/b2"
       version = "~> 0.13"
     }
+
+    github = {
+      source  = "integrations/github"
+      version = "~> 6.0"
+    }
   }
 }
 
@@ -25,6 +30,11 @@ provider "cloudflare" {
 provider "b2" {
   # Authentication is supplied through B2_APPLICATION_KEY_ID and
   # B2_APPLICATION_KEY workspace variables.
+}
+
+provider "github" {
+  owner = "vargasjr-dev"
+  token = var.github_token
 }
 
 provider "stripe" {
