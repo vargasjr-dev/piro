@@ -34,7 +34,9 @@ provider "b2" {
 
 provider "github" {
   owner = "vargasjr-dev"
-  token = var.github_token
+
+  # Authentication is supplied through the GITHUB_TOKEN workspace
+  # variable. No credential is stored in this repository.
 }
 
 provider "stripe" {

@@ -80,7 +80,7 @@ current provider configuration expects:
 - `B2_APPLICATION_KEY_ID` and `B2_APPLICATION_KEY` for Backblaze B2
 - Sensitive Terraform variable `stripe_test_api_key` for Stripe test mode
 - Sensitive Terraform variable `stripe_live_api_key` for Stripe live mode
-- Sensitive Terraform variable `github_token` for GitHub environment secrets
+- `GITHUB_TOKEN` for GitHub environment secrets
 
 Keep Terraform state in HCP Terraform; never commit `.tfstate`, plan files,
 provider credentials, or HCP tokens.
