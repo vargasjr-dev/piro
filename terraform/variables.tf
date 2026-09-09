@@ -20,10 +20,3 @@ variable "cloudflare_account_id" {
   nullable    = false
   default     = "86a058d54a5266257c8e1814c4d9b656"
 }
-
-variable "github_token" {
-  description = "GitHub token with permission to manage repository environment secrets."
-  type        = string
-  sensitive   = true
-  nullable    = false
-}
