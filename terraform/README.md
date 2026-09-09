@@ -9,9 +9,9 @@ Terraform root:    terraform/
 HCP workspace:     piro
 ```
 
-The root configuration currently manages zero resources. Provider plugins are
-declared and configured for discovery/import work, but no production resource is
-created or changed by this foundation.
+The root configuration manages the R2 bucket used by Piro and the scoped
+credentials that are copied into the protected GitHub migration environment.
+Other provider plugins are still declared for discovery/import work.
 
 ## HCP Terraform workflow
 
@@ -80,6 +80,7 @@ current provider configuration expects:
 - `B2_APPLICATION_KEY_ID` and `B2_APPLICATION_KEY` for Backblaze B2
 - Sensitive Terraform variable `stripe_test_api_key` for Stripe test mode
 - Sensitive Terraform variable `stripe_live_api_key` for Stripe live mode
+- Sensitive Terraform variable `github_token` for GitHub environment secrets
 
 Keep Terraform state in HCP Terraform; never commit `.tfstate`, plan files,
 provider credentials, or HCP tokens.
@@ -91,5 +92,13 @@ provider credentials, or HCP tokens.
 3. Import Stripe test product, price, and webhook configuration.
 4. Import Stripe live product, price, and webhook configuration.
 5. Create the R2 destination bucket and telemetry infrastructure.
-6. Migrate Backblaze objects to R2 with a transfer tool, not Terraform.
+6. Migrate Backblaze objects to R2 with a one-off repository script, not Terraform.
 7. Add the application telemetry producers and event contracts.
+
+The R2 bucket already exists. Import it into Terraform state before the first
+apply with:
+
+```bash
+terraform import cloudflare_r2_bucket.knowledge_base \
+  "${var.cloudflare_account_id}/piro-kb/default"
+```
