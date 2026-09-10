@@ -135,8 +135,9 @@ function requireEnv(name: string): string {
 }
 
 function hostnameFor(endpoint: string): string {
+  const normalized = endpoint.startsWith("http") ? endpoint : `https://${endpoint}`;
   try {
-    return new URL(endpoint).hostname;
+    return new URL(normalized).hostname;
   } catch {
     throw new Error(`invalid S3 endpoint URL: ${endpoint}`);
   }
