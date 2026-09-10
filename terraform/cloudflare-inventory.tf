@@ -13,7 +13,7 @@ locals {
     for account in data.cloudflare_accounts.available.result : account.id => {
       name = account.name
       type = account.type
-    }
+    }...
   }
 
   cloudflare_zones = {
