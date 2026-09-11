@@ -77,7 +77,7 @@ export function deriveTrainingRunMetrics(
   const segmentStartStep = isRunning ? (run.resumedFromStep ?? 0) : 0;
   const stepsThisSegment =
     boundedStep === null ? 0 : Math.max(0, boundedStep - segmentStartStep);
-  if (isRunning && stepsThisSegment > 0 && elapsedRuntimeMs !== null) {
+  if (isRunning && boundedStep !== null && stepsThisSegment > 0 && elapsedRuntimeMs !== null) {
     const remainingSteps = Math.max(0, progressMaxSteps - boundedStep);
     const millisecondsPerStep = elapsedRuntimeMs / stepsThisSegment;
     const projected = new Date(
