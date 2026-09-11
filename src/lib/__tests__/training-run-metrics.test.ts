@@ -32,6 +32,7 @@ function makeRun(overrides: Partial<TrainingRun> = {}): TrainingRun {
     checkpointR2Key: null,
     checkpointStep: null,
     checkpointAt: null,
+    resumedFromStep: null,
     queuedAt: STARTED_AT,
     startedAt: STARTED_AT,
     completedAt: null,
@@ -87,5 +88,29 @@ describe("deriveTrainingRunMetrics", () => {
     expect(metrics.elapsedRuntimeMs).toBe(600_000);
     expect(metrics.estimatedCostUsd).toBe(0.135168);
     expect(metrics.metricsAreLive).toBe(true);
+  });
+
+  test("resumed runs pace on segment steps and ignore stale segment runtime", () => {
+    // Resumed at 18:00 from step 2955; a stale previous segment left
+    // runtimeMs=61923 and costUsd behind. Only 181 steps trained since.
+    const metrics = deriveTrainingRunMetrics(
+      makeRun({
+        maxSteps: 5000,
+        checkpointStep: 3136,
+        resumedFromStep: 2955,
+        runtimeMs: 61_923,
+        costUsd: 0.012066,
+        costBasis: "modal_standard_estimate",
+      }),
+      NOW,
+    );
+
+    // Elapsed is now - startedAt, NOT the stale runtimeMs; cost is a live
+    // estimate, not the stale previous-segment costUsd.
+    expect(metrics.elapsedRuntimeMs).toBe(600_000);
+    expect(metrics.costIsEstimate).toBe(true);
+    expect(metrics.estimatedCostUsd).toBe(0.135168);
+    // 600,000ms / 181 segment steps ≈ 3,315ms per step × 1,864 remaining.
+    expect(metrics.estimatedCompletionAt).toBe("2026-07-25T19:52:59.005Z");
   });
 });
