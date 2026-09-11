@@ -12,17 +12,6 @@ if str(PLATFORM_DIR) not in sys.path:
     sys.path.insert(0, str(PLATFORM_DIR))
 
 
-def _b2_put_object(*args, **kwargs):
-    from b2 import put_object
-
-    return put_object(*args, **kwargs)
-
-
-def _b2_delete_file_versions(*args, **kwargs):
-    from b2 import delete_file_versions
-
-    return delete_file_versions(*args, **kwargs)
-
 R2_BUCKET = "piro-kb"
 TRAINING_GPU = "T4"
 TRAINING_CPU = 1.0
@@ -75,6 +64,40 @@ def _r2_client(os_module):
             },
         ),
     )
+
+
+def _r2_put_object(os_module, *, key, body, content_type, attempts=5):
+    """Upload one object to R2 over the S3 API with retry and backoff."""
+    import time
+
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            _r2_client(os_module).put_object(
+                Bucket=R2_BUCKET,
+                Key=key,
+                Body=body,
+                ContentType=content_type,
+            )
+            return
+        except Exception as error:
+            last_error = error
+        if attempt < attempts:
+            time.sleep(attempt)
+
+    raise RuntimeError(f"R2 upload failed after {attempts} attempts: {last_error}") from last_error
+
+
+def _r2_delete_object(os_module, *, key):
+    """Delete one R2 object. Returns 1 if the object existed, else 0."""
+    r2 = _r2_client(os_module)
+    found = r2.list_objects_v2(Bucket=R2_BUCKET, Prefix=key, MaxKeys=1).get(
+        "KeyCount", 0
+    )
+    if not found:
+        return 0
+    r2.delete_object(Bucket=R2_BUCKET, Key=key)
+    return 1
 
 
 image = (

@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from _common import R2_BUCKET, _b2_put_object
+from _common import R2_BUCKET, _r2_put_object
 
 MAX_LOG_BYTES = 512 * 1024
 MAX_RESPONSE_BYTES = 8 * 1024
@@ -119,7 +119,7 @@ class DiagnosticsStore:
                 f"-{uuid.uuid4().hex}.json"
             )
             body = json.dumps(bundle, separators=(",", ":"), sort_keys=True).encode("utf-8")
-            _b2_put_object(
+            _r2_put_object(
                 os,
                 key=key,
                 body=body,
