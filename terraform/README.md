@@ -81,6 +81,7 @@ current provider configuration expects:
 - Sensitive Terraform variable `stripe_test_api_key` for Stripe test mode
 - Sensitive Terraform variable `stripe_live_api_key` for Stripe live mode
 - `GITHUB_TOKEN` for GitHub environment secrets
+- `VERCEL_TOKEN` for Vercel project environment variables
 
 Keep Terraform state in HCP Terraform; never commit `.tfstate`, plan files,
 provider credentials, or HCP tokens.

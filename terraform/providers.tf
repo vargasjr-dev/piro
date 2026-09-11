@@ -19,6 +19,11 @@ terraform {
       source  = "integrations/github"
       version = "~> 6.0"
     }
+
+    vercel = {
+      source  = "vercel/vercel"
+      version = "~> 5.4"
+    }
   }
 }
 
@@ -36,6 +41,11 @@ provider "github" {
   owner = "vargasjr-dev"
 
   # Authentication is supplied through the GITHUB_TOKEN workspace
+  # variable. No credential is stored in this repository.
+}
+
+provider "vercel" {
+  # Authentication is supplied through the VERCEL_TOKEN workspace
   # variable. No credential is stored in this repository.
 }
 
