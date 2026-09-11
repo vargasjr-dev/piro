@@ -96,6 +96,12 @@ export async function POST(
       failureDetailsJson: null,
       modalFunctionCallId: null,
       completedAt: null,
+      // Previous-segment bookkeeping is stale once the run resumes; the worker
+      // repopulates runtime/cost for the new segment.
+      runtimeMs: null,
+      costUsd: null,
+      costBasis: null,
+      resumedFromStep: run.checkpointStep ?? 0,
     })
     .where(
       and(

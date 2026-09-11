@@ -56,23 +56,30 @@ export function deriveTrainingRunMetrics(
 
   const isRunning = run.status === "running" && run.startedAt !== null;
   const end = run.completedAt ?? now;
+  // While a run is active, ignore runtimeMs — it only describes the latest
+  // worker segment and is stale until the segment ends.
   const elapsedRuntimeMs = run.startedAt
-    ? (run.runtimeMs ?? Math.max(0, end.getTime() - run.startedAt.getTime()))
+    ? isRunning
+      ? Math.max(0, end.getTime() - run.startedAt.getTime())
+      : (run.runtimeMs ?? Math.max(0, end.getTime() - run.startedAt.getTime()))
     : null;
-  const hasFinalCost = run.costUsd !== null;
-  const estimatedCostUsd =
-    run.costUsd ??
-    (elapsedRuntimeMs === null ? null : estimateCostUsd(run, elapsedRuntimeMs));
+  const hasFinalCost = run.costUsd !== null && !isRunning;
+  // While running, costUsd describes a previous segment — estimate live cost.
+  const estimatedCostUsd = isRunning
+    ? (elapsedRuntimeMs === null ? null : estimateCostUsd(run, elapsedRuntimeMs))
+    : (run.costUsd ??
+      (elapsedRuntimeMs === null ? null : estimateCostUsd(run, elapsedRuntimeMs)));
 
   let estimatedCompletionAt: string | null = null;
-  if (
-    isRunning &&
-    boundedStep !== null &&
-    boundedStep > 0 &&
-    elapsedRuntimeMs !== null
-  ) {
+  // Pace must come from steps trained in the current segment: resumed runs
+  // start at a non-zero checkpoint step, and dividing by the absolute step
+  // undercounts per-step time by the resume offset.
+  const segmentStartStep = isRunning ? (run.resumedFromStep ?? 0) : 0;
+  const stepsThisSegment =
+    boundedStep === null ? 0 : Math.max(0, boundedStep - segmentStartStep);
+  if (isRunning && boundedStep !== null && stepsThisSegment > 0 && elapsedRuntimeMs !== null) {
     const remainingSteps = Math.max(0, progressMaxSteps - boundedStep);
-    const millisecondsPerStep = elapsedRuntimeMs / boundedStep;
+    const millisecondsPerStep = elapsedRuntimeMs / stepsThisSegment;
     const projected = new Date(
       now.getTime() + remainingSteps * millisecondsPerStep,
     );
