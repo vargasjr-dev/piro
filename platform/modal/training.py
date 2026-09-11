@@ -22,9 +22,9 @@ from _common import (
     TRAINING_GPU,
     TRAINING_MEMORY_MB,
     TRAINING_TIMEOUT_SECONDS,
-    _b2_delete_file_versions,
-    _b2_put_object,
     _r2_client,
+    _r2_delete_object,
+    _r2_put_object,
     image,
     piro_secrets,
     trigger_image,
@@ -39,31 +39,35 @@ def cleanup_checkpoint_versions(run_id: str, retain_count: int = 5) -> dict:
     import os
     import re
 
-    from b2 import delete_listed_file_versions, list_file_versions
-
     if retain_count < 1:
         raise ValueError("retain_count must be at least 1")
     prefix = f"checkpoints/{run_id}/"
+    r2 = _r2_client(os)
     versions = [
-        version
-        for version in list_file_versions(os, prefix=prefix)
-        if version.get("fileName", "").startswith(prefix)
+        obj["Key"]
+        for page in r2.get_paginator("list_objects_v2").paginate(
+            Bucket=R2_BUCKET, Prefix=prefix
+        )
+        for obj in page.get("Contents", [])
     ]
     steps = {}
-    for version in versions:
-        match = re.fullmatch(rf"{re.escape(prefix)}step-(\d+)\.pt", version["fileName"])
+    for file_name in versions:
+        match = re.fullmatch(rf"{re.escape(prefix)}step-(\d+)\.pt", file_name)
         if match:
-            steps.setdefault(int(match.group(1)), version["fileName"])
+            steps.setdefault(int(match.group(1)), file_name)
     retained_steps = sorted(steps, reverse=True)[:retain_count]
     retained_names = {steps[step] for step in retained_steps}
     old_versions = [
-        version for version in versions if version.get("fileName") not in retained_names
+        version for version in versions if version not in retained_names
     ]
-    deleted_versions = delete_listed_file_versions(os, versions=old_versions)
+    deleted_versions = 0
+    for file_name in old_versions:
+        r2.delete_object(Bucket=R2_BUCKET, Key=file_name)
+        deleted_versions += 1
     return {
         "runId": run_id,
         "retainedSteps": retained_steps,
-        "deletedFileNames": len({version["fileName"] for version in old_versions}),
+        "deletedFileNames": len(old_versions),
         "deletedVersions": deleted_versions,
     }
 
@@ -927,7 +931,7 @@ class Trainer:
                         last_error = None
                         for attempt in range(1, CHECKPOINT_UPLOAD_ATTEMPTS + 1):
                             try:
-                                _b2_put_object(
+                                _r2_put_object(
                                     os,
                                     key=key,
                                     body=checkpoint_bytes,
@@ -971,9 +975,9 @@ class Trainer:
                         try:
                             deleted_versions = _checkpoint_stage(
                                 "cleanup_old_checkpoint",
-                                lambda: _b2_delete_file_versions(
+                                lambda: _r2_delete_object(
                                     os,
-                                    file_name=f"checkpoints/{run_id}/step-{step - 5}.pt",
+                                    key=f"checkpoints/{run_id}/step-{step - 5}.pt",
                                 ),
                             )
                             _record_event(
@@ -1212,13 +1216,13 @@ class Trainer:
             )
             r2_prefix = f"models/{model_id}"
             weights_json_bytes = weights_json_str.encode("utf-8")
-            _b2_put_object(
+            _r2_put_object(
                 os,
                 key=f"{r2_prefix}/weights.pt",
                 body=pt_bytes,
                 content_type="application/octet-stream",
             )
-            _b2_put_object(
+            _r2_put_object(
                 os,
                 key=f"{r2_prefix}/weights.json",
                 body=weights_json_bytes,

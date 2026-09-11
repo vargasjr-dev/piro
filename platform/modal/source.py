@@ -5,7 +5,13 @@ from __future__ import annotations
 from datetime import UTC
 
 import modal
-from _common import SOURCE_APP, _b2_put_object, image, piro_secrets, trigger_image
+from _common import (
+    SOURCE_APP,
+    _r2_put_object,
+    image,
+    piro_secrets,
+    trigger_image,
+)
 
 app = modal.App(SOURCE_APP)
 
@@ -102,13 +108,13 @@ def generate_source(body: dict) -> dict:
             prefix = r2_prefix.rstrip("/")
             train_bytes = train_jsonl.encode("utf-8")
             metadata_bytes = json.dumps(metadata, indent=2).encode("utf-8")
-            _b2_put_object(
+            _r2_put_object(
                 os,
                 key=f"{prefix}/train.jsonl",
                 body=train_bytes,
                 content_type="application/x-ndjson",
             )
-            _b2_put_object(
+            _r2_put_object(
                 os,
                 key=f"{prefix}/metadata.json",
                 body=metadata_bytes,
