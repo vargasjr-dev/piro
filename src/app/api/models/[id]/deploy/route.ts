@@ -113,3 +113,37 @@ export async function POST(
 
   return Response.json({ deployment: created, created: true }, { status: 201 });
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: modelId } = await params;
+  const resolvedAuth = await resolveRequestAuth(request);
+  if (!resolvedAuth) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Only the creator can delete their own private deployment. Global and
+  // admin-targeted deployments are managed through the admin surfaces.
+  const [deleted] = await db
+    .delete(deployment)
+    .where(
+      and(
+        eq(deployment.modelId, modelId),
+        eq(deployment.isAdmin, false),
+        eq(deployment.createdByUserId, resolvedAuth.userId),
+        isNull(deployment.targetUserId),
+      ),
+    )
+    .returning({ id: deployment.id });
+
+  if (!deleted) {
+    return Response.json(
+      { error: "Deployment not found" },
+      { status: 404 },
+    );
+  }
+
+  return Response.json({ ok: true, deploymentId: deleted.id });
+}

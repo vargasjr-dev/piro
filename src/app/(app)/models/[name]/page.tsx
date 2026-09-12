@@ -9,8 +9,10 @@ import { db } from "../../../../../data/db";
 import { deployment, model } from "../../../../../data/schema";
 import GlobalDeploymentControls from "../GlobalDeploymentControls";
 import ModelSandbox from "../ModelSandbox";
+import PrivateDeploymentControls from "../PrivateDeploymentControls";
 import {
   deleteGlobalDeployment,
+  deletePrivateDeployment,
   disableGlobalDeployment,
   disablePrivateDeployment,
 } from "../actions";
@@ -122,19 +124,11 @@ export default async function ModelSandboxPage({
             {resolvedModel.name}
           </h1>
           {canDisablePrivateDeployment && (
-            <form action={disablePrivateDeployment} className="shrink-0">
-              <input
-                type="hidden"
-                name="deploymentId"
-                value={resolvedModel.deploymentId ?? ""}
-              />
-              <button
-                type="submit"
-                className="rounded-xl border border-red-500/30 px-3 py-2 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/10"
-              >
-                Disable
-              </button>
-            </form>
+            <PrivateDeploymentControls
+              deploymentId={resolvedModel.deploymentId!}
+              disableAction={disablePrivateDeployment}
+              deleteAction={deletePrivateDeployment}
+            />
           )}
           {canManageGlobalDeployment && (
             <GlobalDeploymentControls
