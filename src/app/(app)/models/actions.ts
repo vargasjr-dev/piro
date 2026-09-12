@@ -44,6 +44,38 @@ export async function disablePrivateDeployment(formData: FormData) {
   redirect("/models");
 }
 
+export async function deletePrivateDeployment(formData: FormData) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) throw new Error("Unauthorized");
+
+  const deploymentId = formData.get("deploymentId");
+  if (typeof deploymentId !== "string" || deploymentId.length === 0) {
+    throw new Error("Invalid deployment");
+  }
+
+  const [ownedDeployment] = await db
+    .select({ id: deployment.id, modelName: model.name })
+    .from(deployment)
+    .innerJoin(model, eq(model.id, deployment.modelId))
+    .where(
+      and(
+        eq(deployment.id, deploymentId),
+        eq(deployment.isAdmin, false),
+        eq(deployment.createdByUserId, session.user.id),
+        eq(model.userId, session.user.id),
+      ),
+    )
+    .limit(1);
+
+  if (!ownedDeployment) throw new Error("Deployment not found");
+
+  await db.delete(deployment).where(eq(deployment.id, ownedDeployment.id));
+
+  revalidatePath("/models");
+  revalidatePath("/admin/deployments");
+  redirect("/models");
+}
+
 async function getGlobalDeployment(deploymentId: string) {
   const [globalDeployment] = await db
     .select({ id: deployment.id, modelName: model.name })
