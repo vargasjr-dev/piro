@@ -61,11 +61,6 @@ export default function DocsPage() {
               "API",
               "Send observations, continue state, and receive model output.",
             ],
-            [
-              "/docs/architecture",
-              "Architecture",
-              "Trace the state update loop from input to output.",
-            ],
           ].map(([href, label, detail]) => (
             <Link
               key={href}

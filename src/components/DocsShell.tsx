@@ -14,10 +14,6 @@ export const DOCS_NAV = [
     label: "Build with Piro",
     items: [{ href: "/docs/api", label: "API" }],
   },
-  {
-    label: "Understand Piro",
-    items: [{ href: "/docs/architecture", label: "Architecture" }],
-  },
 ] as const;
 
 type DocsNavItem = (typeof DOCS_NAV)[number]["items"][number];
