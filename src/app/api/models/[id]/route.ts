@@ -10,6 +10,7 @@ import {
 } from "../../../../../data/schema";
 import { and, eq } from "drizzle-orm";
 import { deriveTrainingRunMetrics } from "~/lib/training-run-metrics";
+import { resolveRequestAuth } from "~/lib/request-auth";
 
 export async function PATCH(
   _request: Request,
@@ -123,4 +124,32 @@ export async function GET(
         }
       : null,
   });
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const resolvedAuth = await resolveRequestAuth(request);
+  if (!resolvedAuth) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Owners delete their own models; admins can delete any (including fleet
+  // models). Deployments and training-run links cascade from the model row;
+  // R2 weight objects are intentionally left in place.
+  const conditions = [eq(model.id, id)];
+  if (!resolvedAuth.isAdmin) {
+    conditions.push(eq(model.userId, resolvedAuth.userId));
+  }
+
+  const [deleted] = await db
+    .delete(model)
+    .where(and(...conditions))
+    .returning({ id: model.id });
+
+  if (!deleted) return Response.json({ error: "Not found" }, { status: 404 });
+
+  return Response.json({ ok: true, modelId: deleted.id });
 }
