@@ -13,6 +13,7 @@ import {
 import { getSubscription, isActive } from "~/lib/billing";
 import { modelIdSchema } from "~/lib/model-identifiers";
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { resolveRequestAuth } from "~/lib/request-auth";
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -155,15 +156,15 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
-export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session)
+export async function GET(request: Request) {
+  const resolvedAuth = await resolveRequestAuth(request);
+  if (!resolvedAuth)
     return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const models = await db
     .select()
     .from(model)
-    .where(eq(model.userId, session.user.id))
+    .where(eq(model.userId, resolvedAuth.userId))
     .orderBy(model.createdAt);
 
   // Fetch hosted API info for all models
