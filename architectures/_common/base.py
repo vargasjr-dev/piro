@@ -28,6 +28,11 @@ class ArchitectureModel(nn.Module, ABC):
     training_batch_size: ClassVar[int] = 32
     optimizer_learning_rate: ClassVar[float] = 1e-3
     optimizer_weight_decay: ClassVar[float] = 1e-4
+    # Optional L2 gradient-norm clip applied after backward, before the
+    # optimizer step. None disables clipping. Architectures whose loss
+    # backprops through unrolled inner loops (meta-learning) should set this —
+    # one enormous meta-gradient otherwise poisons the weights permanently.
+    gradient_clip_max_norm: ClassVar[float | None] = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -143,6 +148,25 @@ class ArchitectureModel(nn.Module, ABC):
         phase("backward_returned")
         synchronize("backward")
         phase("backward_completed")
+
+        clip_max_norm = self.gradient_clip_max_norm
+        if clip_max_norm is not None:
+            total_norm = torch.nn.utils.clip_grad_norm_(
+                self.parameters(), clip_max_norm
+            )
+            phase(
+                "gradient_clipped",
+                totalNorm=float(total_norm) if total_norm == total_norm else None,
+                clipMaxNorm=clip_max_norm,
+            )
+            if not all(
+                parameter.grad is None or torch.isfinite(parameter.grad).all()
+                for parameter in self.parameters()
+            ):
+                phase("nonfinite_gradient_skipped_step")
+                optimizer.zero_grad()
+                return float(loss.detach())
+
         phase("optimizer_started")
         optimizer.step()
         phase("optimizer_returned")
