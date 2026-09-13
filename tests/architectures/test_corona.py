@@ -76,6 +76,49 @@ def test_generation_state_survives_a_snapshot_round_trip():
     assert torch.equal(model.next_token_logits(restored), model.next_token_logits(state))
 
 
+def test_long_sequence_training_stays_finite():
+    """Meta-gradients through the unrolled inner loop must not explode.
+
+    The production NaN (corona-smoke-500) came from one enormous
+    meta-gradient through the unrolled loop poisoning every weight. This
+    walks real optimizer steps over long sequences and asserts the loss and
+    weights stay finite.
+    """
+    model = Corona(_small_config())
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    long_text = "the quick brown fox jumps over the lazy dog " * 40  # ~1.8k tokens
+    for _ in range(6):
+        optimizer.zero_grad()
+        loss = model.training_loss(_lm_example(long_text))
+        assert torch.isfinite(loss), "training loss diverged in the forward pass"
+        loss.backward()
+        assert model.gradient_clip_max_norm is not None
+        torch.nn.utils.clip_grad_norm_(model.parameters(), model.gradient_clip_max_norm)
+        optimizer.step()
+        for parameter in model.parameters():
+            assert torch.isfinite(parameter).all(), "weights became non-finite"
+
+
+def test_clip_attr_is_applied_by_the_shared_trainer():
+    """The base train_step must honor gradient_clip_max_norm."""
+    model = Corona(_small_config())
+    phases: list[tuple[str, dict]] = []
+
+    def on_phase(name: str, details: dict) -> None:
+        phases.append((name, details))
+
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    loss = model.train_step([_lm_example("hello world")], optimizer, on_phase=on_phase)
+    assert torch.isfinite(torch.tensor(loss))
+    names = [name for name, _ in phases]
+    assert "gradient_clipped" in names
+    assert "nonfinite_gradient_skipped_step" not in names
+    clipped = next(details for name, details in phases if name == "gradient_clipped")
+    assert clipped["clipMaxNorm"] == 1.0
+    # clip_grad_norm_ reports the pre-clip norm; clipping still bounded it.
+    assert 0.0 < clipped["totalNorm"]
+
+
 def test_invoke_returns_text_and_json_safe_state():
     model = Corona(_small_config())
     result = model.invoke({"parts": [{"type": "text", "text": "hello"}]})

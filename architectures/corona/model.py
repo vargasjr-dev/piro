@@ -151,6 +151,10 @@ class Corona(ArchitectureModel):
     training_model_dim = 320
     training_inner_dim = 320
     training_num_blocks = 2
+    # The outer loss backprops through the full unrolled inner loop (one
+    # gradient step per token), which multiplies meta-gradients across the
+    # whole sequence — clip so one hot step cannot poison the weights.
+    gradient_clip_max_norm = 1.0
     hyper_parameters = {**CoronaConfig().__dict__}
 
     def __init__(self, config: CoronaConfig | None = None, **kwargs: Any) -> None:
