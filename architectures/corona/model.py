@@ -98,12 +98,21 @@ class CoronaBlock(nn.Module):
 
     def _keys_values_queries(self, stream: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         normalized = self.pre_norm(stream)
-        return self.theta_k(normalized), self.theta_v(normalized), self.theta_q(normalized)
+        keys = F.normalize(self.theta_k(normalized), dim=-1)
+        values = F.normalize(self.theta_v(normalized), dim=-1)
+        queries = self.theta_q(normalized)
+        return keys, values, queries
 
     def scan(self, stream: torch.Tensor) -> torch.Tensor:
         """Differentiable chunked mini-batch TTT over a full sequence.
 
         ``stream`` has shape (T, model_dim); returns (T, model_dim).
+
+        Keys and values are L2-normalized per token so the inner update is a
+        contraction: the per-token update magnitude is bounded by
+        ``2 * inner_lr * ||error||`` with ``||k|| = 1``, keeping the LMS-style
+        recursion inside its stability bound (``2 * inner_lr < 2``) no matter
+        how the projections scale with width.
         """
         keys, values, queries = self._keys_values_queries(stream)
         outputs = torch.zeros_like(queries)
@@ -125,7 +134,11 @@ class CoronaBlock(nn.Module):
         return stream + self.out_proj(self.post_norm(outputs))
 
     def step(self, stream: torch.Tensor, matrix: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """Primal token-at-a-time update used while generating."""
+        """Primal token-at-a-time update used while generating.
+
+        Mirrors the chunked training recursion: same L2-normalized keys and
+        values, same update rule.
+        """
         keys, values, queries = self._keys_values_queries(stream)
         gradient = 2 * (matrix @ keys - values)
         matrix = matrix - self.inner_learning_rate * torch.outer(gradient, keys)

@@ -99,6 +99,29 @@ def test_long_sequence_training_stays_finite():
             assert torch.isfinite(parameter).all(), "weights became non-finite"
 
 
+def test_production_dims_inner_loop_stays_finite():
+    """Regression: the fast-weight inner loop diverged at width 320.
+
+    With unnormalized keys the per-token update step was 2 * lr * ||k||^2 ≈ 21
+    (stability bound is 2), so W exploded to inf within ~400 tokens and the
+    production smoke runs ended with NaN loss. Keys/values are now
+    L2-normalized, making the recursion a contraction regardless of width.
+    """
+    config = CoronaConfig(
+        tokenizer_name="byte",
+        vocab_size=257,
+        model_dim=320,
+        inner_dim=320,
+        embed_table_dim=64,
+        num_blocks=2,
+        chunk_size=16,
+    )
+    model = Corona(config)
+    long_text = "the quick brown fox jumps over the lazy dog. " * 80
+    loss = model.training_loss(_lm_example(long_text))
+    assert torch.isfinite(loss), "inner loop diverged at production width"
+
+
 def test_clip_attr_is_applied_by_the_shared_trainer():
     """The base train_step must honor gradient_clip_max_norm."""
     model = Corona(_small_config())
