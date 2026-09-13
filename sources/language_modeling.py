@@ -12,6 +12,7 @@ import argparse
 import gzip
 import json
 import random
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,6 +22,9 @@ from typing import Any, Callable, Iterator
 
 DATASET_VIEWER_URL = "https://datasets-server.huggingface.co/rows"
 DOLMA_URLS = "https://huggingface.co/datasets/allenai/dolma/resolve/main/urls/v1_7.txt?download=true"
+# The viewer caps pages at 100 rows; fetching full pages keeps large corpora
+# within Hugging Face's rate limits.
+VIEWER_PAGE_SIZE = 100
 
 
 @dataclass(frozen=True)
@@ -90,10 +94,19 @@ class SourceRow:
 RowFetcher = Callable[[DatasetSpec, int, int], tuple[list[SourceRow], int | None]]
 
 
-def _http_json(url: str, *, timeout: int = 60) -> dict[str, Any]:
+def _http_json(url: str, *, timeout: int = 60, retries: int = 6) -> dict[str, Any]:
     request = urllib.request.Request(url, headers={"User-Agent": "piro-language-modeling-source/1"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            delay = float(retry_after) if retry_after else min(2.0 ** attempt * 2.0, 60.0)
+            if exc.code not in (429, 500, 502, 503, 504) or attempt == retries - 1:
+                raise
+            time.sleep(delay)
+    raise RuntimeError("unreachable")
 
 
 def _nested_value(row: dict[str, Any], field: str) -> Any:
@@ -298,21 +311,26 @@ def generate_language_modeling_dataset(
         produced = 0
         attempts = 0
         max_attempts = max(100, count * 20)
+        buffers: dict[tuple[str, str], list[SourceRow]] = {}
         while produced < count and attempts < max_attempts:
             attempts += 1
             spec_index = order[produced % len(order)]
             spec = mixture[spec_index]
             key = (spec.name, split)
             default_offset = 0 if split == "train" else train_counts[spec_index]
-            offset = cursors.get(key, default_offset)
-            rows, total = fetcher(spec, offset, 8)
-            if total is not None:
-                totals[spec.name] = total
-            if not rows:
-                cursors[key] = offset + 8
-                continue
-            row = rows[0]
-            cursors[key] = offset + 1
+            buffer = buffers.get(key, [])
+            if not buffer:
+                offset = cursors.get(key, default_offset)
+                rows, total = fetcher(spec, offset, VIEWER_PAGE_SIZE)
+                if total is not None:
+                    totals[spec.name] = total
+                if not rows:
+                    cursors[key] = offset + VIEWER_PAGE_SIZE
+                    continue
+                cursors[key] = offset + len(rows)
+                buffer = rows
+            row = buffer.pop(0)
+            buffers[key] = buffer
             chunks = list(_chunk_text(row.text, chunk_characters=chunk_characters))
             if not chunks:
                 continue
