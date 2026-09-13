@@ -202,7 +202,7 @@ export async function GET(request: Request) {
       count: sql<number>`COUNT(*)::int`,
     })
     .from(benchmarkRun)
-    .where(eq(benchmarkRun.userId, session.user.id))
+    .where(eq(benchmarkRun.userId, resolvedAuth.userId))
     .groupBy(benchmarkRun.target);
 
   const countByTarget = Object.fromEntries(
