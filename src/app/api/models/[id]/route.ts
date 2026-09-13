@@ -8,7 +8,7 @@ import {
   modelTrainingRun,
   trainingRun,
 } from "../../../../../data/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { deriveTrainingRunMetrics } from "~/lib/training-run-metrics";
 import { resolveRequestAuth } from "~/lib/request-auth";
 
@@ -137,9 +137,10 @@ export async function DELETE(
   }
 
   // Owners delete their own models; admins can delete any (including fleet
-  // models). Deployments and training-run links cascade from the model row;
-  // R2 weight objects are intentionally left in place.
-  const conditions = [eq(model.id, id)];
+  // models). Accepts model id or name (matching the invoke route). Deployments
+  // and training-run links cascade from the model row; R2 weight objects are
+  // intentionally left in place.
+  const conditions = [or(eq(model.id, id), eq(model.name, id))];
   if (!resolvedAuth.isAdmin) {
     conditions.push(eq(model.userId, resolvedAuth.userId));
   }
