@@ -123,7 +123,13 @@ class CoronaBlock(nn.Module):
             chunk_keys = keys[start:stop].T
             chunk_values = values[start:stop].T
             chunk_queries = queries[start:stop].T
-            causal = torch.tril(
+            # (K^T Q)[j, tau] pairs key position j with query position tau, so
+            # the mask must keep keys at or before the query (j <= tau): the
+            # UPPER triangle in this orientation. tril here was transposed and
+            # fed each readout the reconstruction error of FUTURE tokens in
+            # the chunk, letting training loss collapse by copying the answer
+            # (2026-09 corona-30k: loss 0.019, generation loops).
+            causal = torch.triu(
                 torch.ones(stop - start, stop - start, device=stream.device, dtype=stream.dtype)
             )
             reconstruction_error = matrix @ chunk_keys - chunk_values
