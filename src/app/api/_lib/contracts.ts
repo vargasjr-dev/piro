@@ -9,9 +9,17 @@ const textPartSchema = z
   })
   .strict();
 
+export const piroSamplingSchema = z
+  .object({
+    temperature: z.number().min(0).max(4).optional(),
+    topK: z.number().int().min(1).optional(),
+  })
+  .strict();
+
 export const piroInputSchema = z
   .object({
     parts: z.array(textPartSchema).min(1),
+    sampling: piroSamplingSchema.optional(),
   })
   .strict();
 

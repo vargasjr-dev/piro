@@ -187,6 +187,7 @@ def infer(body: dict) -> dict:
     architecture = body.get("architecture")
     parts = body.get("parts")
     state = body.get("state")
+    sampling = body.get("sampling")
     request_id = body.get("request_id")
     if not isinstance(model_id, str) or not model_id:
         raise HTTPException(status_code=400, detail="model_id required")
@@ -204,13 +205,18 @@ def infer(body: dict) -> dict:
             raise HTTPException(status_code=400, detail="parts must contain non-empty text parts")
     if state is not None and not isinstance(state, dict):
         raise HTTPException(status_code=400, detail="state must be an object")
+    if sampling is not None and not isinstance(sampling, dict):
+        raise HTTPException(status_code=400, detail="sampling must be an object")
 
     endpoint_started_at = time.perf_counter()
     inferrer = Infer()
+    input_packet: dict = {"parts": parts}
+    if sampling is not None:
+        input_packet["sampling"] = sampling
     result = inferrer.generate.remote(
         model_id=model_id,
         architecture=architecture,
-        input_packet={"parts": parts},
+        input_packet=input_packet,
         state=state,
         request_id=request_id if isinstance(request_id, str) else None,
     )

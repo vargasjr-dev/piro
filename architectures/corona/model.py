@@ -152,6 +152,22 @@ class CoronaBlock(nn.Module):
         return stream + self.out_proj(self.post_norm(output)), matrix
 
 
+def _sample_token(
+    logits: torch.Tensor,
+    temperature: float,
+    top_k: int | None,
+) -> torch.Tensor:
+    """Pick the next token: greedy argmax at temperature 0, else sample."""
+    if temperature <= 0:
+        return torch.argmax(logits, dim=-1)
+    scaled = logits / temperature
+    if top_k is not None and top_k < scaled.shape[-1]:
+        kth_value = torch.topk(scaled, top_k, dim=-1).values[..., -1:]
+        scaled = scaled.masked_fill(scaled < kth_value, float("-inf"))
+    probs = torch.softmax(scaled, dim=-1)
+    return torch.multinomial(probs, num_samples=1).squeeze(0)
+
+
 class Corona(ArchitectureModel):
     """Small causal language model with meta-learned fast-weight memory."""
 
@@ -296,6 +312,25 @@ class Corona(ArchitectureModel):
     # ── Generation: primal per-token updates, self-supervised ─────────────────
 
     @staticmethod
+    def _sampling_from_input(input_packet: dict[str, Any]) -> dict[str, Any]:
+        """Parse optional ``sampling`` overrides from an input packet."""
+        raw = input_packet.get("sampling")
+        if raw is None:
+            return {"temperature": 0.0, "topK": None}
+        if not isinstance(raw, dict):
+            raise ValueError("sampling must be an object")
+        temperature = raw.get("temperature", 0.0)
+        if not isinstance(temperature, int | float) or isinstance(temperature, bool):
+            raise ValueError("sampling.temperature must be a number")
+        if not 0 <= float(temperature) <= 4:
+            raise ValueError("sampling.temperature must be between 0 and 4")
+        top_k = raw.get("topK")
+        if top_k is not None:
+            if not isinstance(top_k, int) or isinstance(top_k, bool) or top_k < 1:
+                raise ValueError("sampling.topK must be a positive integer")
+        return {"temperature": float(temperature), "topK": top_k}
+
+    @staticmethod
     def _text_from_input(input_packet: dict[str, Any]) -> str:
         parts = input_packet.get("parts")
         if not isinstance(parts, list) or not parts:
@@ -387,19 +422,30 @@ class Corona(ArchitectureModel):
         *,
         adapt: bool = True,
         eos_token_id: int | None = None,
+        temperature: float = 0.0,
+        top_k: int | None = None,
     ) -> tuple[torch.Tensor, CoronaGenerationState]:
-        """Greedily generate tokens while the inner loop keeps adapting."""
+        """Generate tokens while the inner loop keeps adapting.
+
+        ``temperature`` of 0 (the default) keeps exact greedy argmax so
+        existing snapshots and tests stay bit-identical. A positive
+        temperature samples from the temperature-scaled distribution,
+        optionally restricted to the ``top_k`` highest-probability tokens —
+        pure greedy decoding is known to phrase-loop on this architecture.
+        """
         if max_new_tokens < 0:
             raise ValueError("max_new_tokens must be non-negative")
         if eos_token_id is not None and not 0 <= eos_token_id < self._vocab_size():
             raise ValueError("eos_token_id must be within the tokenizer vocabulary")
+        if top_k is not None and top_k < 1:
+            raise ValueError("top_k must be at least 1 when provided")
         stop_token_id = self.config.eos_token_id if eos_token_id is None else eos_token_id
 
         current = self.prefill(prompt_token_ids, state, adapt=adapt)
         generated: list[torch.Tensor] = []
         for _ in range(max_new_tokens):
             logits = self.next_token_logits(current)
-            token = torch.argmax(logits, dim=-1)
+            token = _sample_token(logits, temperature, top_k)
             generated.append(token)
             if stop_token_id is not None and int(token) == stop_token_id:
                 break
@@ -428,6 +474,7 @@ class Corona(ArchitectureModel):
 
     def invoke(self, input_packet: dict[str, Any], state: dict[str, Any] | None = None) -> dict[str, Any]:
         text = self._text_from_input(input_packet)
+        sampling = self._sampling_from_input(input_packet)
         prompt = self._encode(f"{text}{self.config.target_prefix}")
         generation_state = (
             self.load_generation_state(state)
@@ -440,6 +487,8 @@ class Corona(ArchitectureModel):
                 self.config.max_new_tokens,
                 generation_state,
                 adapt=True,
+                temperature=sampling["temperature"],
+                top_k=sampling["topK"],
             )
         generated_ids = [int(token_id) for token_id in generated.detach().cpu().tolist()]
         return {
@@ -453,6 +502,7 @@ class Corona(ArchitectureModel):
                     generated_ids and generated_ids[-1] == self.config.eos_token_id
                 ),
                 "innerUpdates": final_state.updates,
+                "sampling": sampling,
             },
             "state": json_state(self.snapshot_generation_state(final_state)),
         }
