@@ -73,6 +73,7 @@ export async function invokeModalInference(
       model_id: modelId,
       architecture,
       parts: input.parts,
+      ...(input.sampling ? { sampling: input.sampling } : {}),
       state,
       secret,
       request_id: requestId,
