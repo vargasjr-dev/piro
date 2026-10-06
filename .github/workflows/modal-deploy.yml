@@ -226,7 +226,7 @@ jobs:
       - name: Seed GLM weights to R2 (no-op once seeded)
         run: |
           set -o pipefail
-          modal run platform/modal/glm.py::seed --timestamps 2>&1 | tee glm-seed.log
+          modal run platform/modal/glm.py::seed 2>&1 | tee glm-seed.log
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
