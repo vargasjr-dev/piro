@@ -97,6 +97,9 @@ def _manifest_files(manifest: dict) -> list[dict]:
     secrets=[piro_secrets],
     timeout=4 * 60 * 60,
     cpu=8,
+    # The image sets HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE for the R2-hydrating
+    # server; the seeder is the one function that must reach HuggingFace.
+    env={"HF_HUB_OFFLINE": "0", "TRANSFORMERS_OFFLINE": "0"},
     volumes={"/root/.cache/huggingface": hf_cache},
 )
 def seed() -> dict:
