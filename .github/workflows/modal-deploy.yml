@@ -20,6 +20,7 @@ jobs:
       inference: ${{ steps.filter.outputs.inference }}
       source: ${{ steps.filter.outputs.source }}
       gemma: ${{ steps.filter.outputs.gemma }}
+      glm: ${{ steps.filter.outputs.glm }}
     steps:
       - uses: actions/checkout@v4
       - id: filter
@@ -47,6 +48,13 @@ jobs:
               - '.github/workflows/modal-deploy.yml'
             gemma:
               - 'platform/modal/gemma.py'
+              - 'platform/modal/gemma_proxy.py'
+              - 'platform/modal/_common.py'
+              - 'pyproject.toml'
+              - '.github/workflows/modal-deploy.yml'
+            glm:
+              - 'platform/modal/glm.py'
+              - 'platform/modal/gemma_proxy.py'
               - 'platform/modal/_common.py'
               - 'pyproject.toml'
               - '.github/workflows/modal-deploy.yml'
@@ -205,6 +213,53 @@ jobs:
             sleep 10
           done
           echo "Gemma did not become ready within 10 minutes." >&2
+
+  deploy-glm:
+    name: Deploy GLM app
+    needs: [changes, sync-secrets]
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.glm == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv tool install modal
+      - name: Seed GLM weights to R2 (no-op once seeded)
+        run: |
+          set -o pipefail
+          modal run platform/modal/glm.py::seed --timestamps 2>&1 | tee glm-seed.log
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      - name: Deploy GLM with timestamped output
+        id: deploy
+        run: |
+          set -o pipefail
+          modal deploy platform/modal/glm.py --timestamps 2>&1 | tee glm-deploy.log
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      - name: Smoke-test GLM readiness
+        if: steps.deploy.outcome == 'success'
+        env:
+          GLM_ENDPOINT: https://dvargasfuertes--piro-glm-vllm-server.us-east.modal.direct/v1/models
+        run: |
+          set -euo pipefail
+          : > glm-health.json
+          : > glm-health.headers
+          : > glm-readiness.log
+          for attempt in $(seq 1 240); do
+            status="$(curl --silent --show-error --max-time 15 \
+              --dump-header glm-health.headers \
+              --output glm-health.json \
+              --write-out '%{http_code}' \
+              "$GLM_ENDPOINT" || true)"
+            echo "GLM readiness attempt ${attempt}/240: HTTP ${status}" | tee -a glm-readiness.log
+            if [ "$status" = "200" ]; then
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "GLM did not become ready within 60 minutes." >&2
           exit 1
       - name: Smoke-test Gemma generation
         if: steps.deploy.outcome == 'success'

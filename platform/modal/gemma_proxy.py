@@ -102,6 +102,8 @@ class DiagnosticsStore:
         process: subprocess.Popen[str],
         command: list[str],
         environment: dict[str, str],
+        diagnostics_prefix: str = DIAGNOSTICS_PREFIX,
+        log_tag: str = "piro-gemma",
     ):
         self.log_path = log_path
         self.model = model
@@ -109,13 +111,16 @@ class DiagnosticsStore:
         self.process = process
         self.command = command
         self.environment = environment
+        self.diagnostics_prefix = diagnostics_prefix
+        self.log_tag = log_tag
         self._capture_lock = threading.Lock()
         self._last_capture_by_kind: dict[str, float] = {}
 
     def _upload(self, bundle: dict[str, object]) -> None:
         try:
             key = (
-                f"{DIAGNOSTICS_PREFIX}{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')}"
+                f"{self.diagnostics_prefix}"
+                f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')}"
                 f"-{uuid.uuid4().hex}.json"
             )
             body = json.dumps(bundle, separators=(",", ":"), sort_keys=True).encode("utf-8")
@@ -125,9 +130,9 @@ class DiagnosticsStore:
                 body=body,
                 content_type="application/json",
             )
-            print(f"[piro-gemma] uploaded diagnostics {R2_BUCKET}/{key}", flush=True)
+            print(f"[{self.log_tag}] uploaded diagnostics {R2_BUCKET}/{key}", flush=True)
         except Exception as error:
-            print(f"[piro-gemma] diagnostics upload failed: {error!r}", flush=True)
+            print(f"[{self.log_tag}] diagnostics upload failed: {error!r}", flush=True)
 
     def capture(
         self,
@@ -190,7 +195,15 @@ class DiagnosticsStore:
 
 
 class VllmSupervisor:
-    def __init__(self, command: list[str], log_path: Path, model: str, revision: str):
+    def __init__(
+        self,
+        command: list[str],
+        log_path: Path,
+        model: str,
+        revision: str,
+        log_tag: str = "piro-gemma",
+    ):
+        self.log_tag = log_tag
         self.log_path = log_path
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         child_env = os.environ.copy()
@@ -215,6 +228,7 @@ class VllmSupervisor:
             self.process,
             command,
             child_env,
+            log_tag=self.log_tag,
         )
         self._log_thread = threading.Thread(target=self._read_logs, daemon=True)
         self._log_thread.start()
@@ -241,7 +255,7 @@ class VllmSupervisor:
     def _watch_process(self) -> None:
         exit_code = self.process.wait()
         self._log_thread.join(timeout=2)
-        print(f"[piro-gemma] vLLM exited with code {exit_code}", flush=True)
+        print(f"[{self.log_tag}] vLLM exited with code {exit_code}", flush=True)
         if not self.stopping:
             self.diagnostics.capture(kind="vllm_process_exit", asynchronous=False)
 
@@ -259,9 +273,11 @@ def create_proxy_server(
     supervisor: VllmSupervisor,
     upstream_port: int,
     proxy_port: int,
+    log_tag: str = "piro-gemma-proxy",
 ) -> tuple[http.server.ThreadingHTTPServer, threading.Thread]:
     ProxyHandler.supervisor = supervisor
     ProxyHandler.upstream_port = upstream_port
+    ProxyHandler.log_tag = log_tag
     server = http.server.ThreadingHTTPServer(("0.0.0.0", proxy_port), ProxyHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -271,9 +287,10 @@ def create_proxy_server(
 class ProxyHandler(http.server.BaseHTTPRequestHandler):
     supervisor: VllmSupervisor
     upstream_port: int
+    log_tag: str = "piro-gemma-proxy"
 
     def log_message(self, format: str, *args: object) -> None:
-        print(f"[piro-gemma-proxy] {self.address_string()} {format % args}", flush=True)
+        print(f"[{self.log_tag}] {self.address_string()} {format % args}", flush=True)
 
     def do_GET(self) -> None:
         self._forward()
@@ -327,7 +344,7 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(response_body)))
             self.end_headers()
             self.wfile.write(response_body)
-            print(f"[piro-gemma-proxy] upstream failure: {error!r}", flush=True)
+            print(f"[{self.log_tag}] upstream failure: {error!r}", flush=True)
 
         if (
             self.command == "POST"
