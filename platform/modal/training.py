@@ -128,6 +128,7 @@ class Trainer:
         seed: int,
         resume: bool = False,
         debug: bool = False,
+        snapshot_steps: list[int] | None = None,
     ) -> None:
         import faulthandler
         import io
@@ -345,6 +346,22 @@ class Trainer:
             persisted_config = json.loads(persisted_config)
         if persisted_config is not None and not isinstance(persisted_config, dict):
             raise RuntimeError("training run configJson must be an object")
+        # Mid-run snapshot steps survive resume via the persisted configJson,
+        # so a resumed run keeps publishing snapshots without new dispatch flags.
+        if snapshot_steps is None and isinstance(persisted_config, dict):
+            snapshot_steps = persisted_config.get("snapshotSteps")
+        try:
+            snapshot_steps = sorted({int(step) for step in (snapshot_steps or [])})
+        except (TypeError, ValueError):
+            raise RuntimeError("snapshotSteps must be a list of integers")
+        out_of_range_steps = [
+            step for step in snapshot_steps if step < 1 or step >= max_steps
+        ]
+        if out_of_range_steps:
+            raise RuntimeError(
+                "snapshotSteps entries must be between 1 and maxSteps - 1: "
+                f"{out_of_range_steps}"
+            )
         timeout_at = (
             now + timedelta(seconds=TRAINING_DEADLINE_SECONDS)
             if resume
@@ -690,6 +707,7 @@ class Trainer:
                 "maxSteps": max_steps,
                 "debug": debug,
                 "checkpointIntervalSteps": CHECKPOINT_INTERVAL_STEPS,
+                "snapshotSteps": snapshot_steps,
             }
             cur.execute(
                 'UPDATE training_run SET "configJson" = %s WHERE id = %s',
@@ -1006,6 +1024,93 @@ class Trainer:
                 finally:
                     _stop_checkpoint_watchdog()
 
+            def _publish_snapshot(step: int) -> None:
+                """Publish an invokable model from the current weights mid-run.
+
+                The artifact layout matches run finalization exactly
+                (weights.pt + weights.json under models/{id}/), so the
+                standard inference path hydrates it like any other model.
+                Live runs stay running: snapshots are a worker-side side
+                effect of reaching the step, not a pause.
+                """
+                base_name = (
+                    model_name.strip()
+                    if model_name and model_name.strip()
+                    else f"model-{run_id[:8]}"
+                )
+                snapshot_name = f"{base_name}-snap-{step}"
+                cur.execute(
+                    """
+                    SELECT 1 FROM model_training_run mtr
+                    JOIN model m ON m.id = mtr."modelId"
+                    WHERE mtr."trainingRunId" = %s AND m.name = %s
+                    LIMIT 1
+                    """,
+                    (run_id, snapshot_name),
+                )
+                if cur.fetchone():
+                    _record_event("snapshot_already_published", step=step)
+                    return
+                snapshot_model_id = str(_uuid.uuid4())
+                state = {
+                    key: value.detach().cpu()
+                    for key, value in model.state_dict().items()
+                }
+                pt_buf = io.BytesIO()
+                torch.save(state, pt_buf)
+                snapshot_r2_prefix = f"models/{snapshot_model_id}"
+                _r2_put_object(
+                    os,
+                    key=f"{snapshot_r2_prefix}/weights.pt",
+                    body=pt_buf.getvalue(),
+                    content_type="application/octet-stream",
+                )
+                weights_json_str = json.dumps(
+                    {
+                        key: round_nested_numbers(value.tolist())
+                        for key, value in state.items()
+                    }
+                )
+                _r2_put_object(
+                    os,
+                    key=f"{snapshot_r2_prefix}/weights.json",
+                    body=weights_json_str.encode("utf-8"),
+                    content_type="application/json",
+                )
+                cur.execute(
+                    """
+                    INSERT INTO model (id, "userId", name, "parameterCount", "weightsR2Key",
+                                       "createdAt")
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                    """,
+                    (
+                        snapshot_model_id,
+                        user_id,
+                        snapshot_name,
+                        model.parameter_count(),
+                        snapshot_r2_prefix,
+                    ),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO model_training_run (id, "modelId", "trainingRunId")
+                    VALUES (%s, %s, %s)
+                    """,
+                    (str(_uuid.uuid4()), snapshot_model_id, run_id),
+                )
+                conn.commit()
+                _record_event(
+                    "snapshot_published",
+                    step=step,
+                    modelId=snapshot_model_id,
+                    modelName=snapshot_name,
+                )
+                print(
+                    f"[piro] run {run_id} published snapshot model "
+                    f"{snapshot_name} at step {step}",
+                    flush=True,
+                )
+
             def _next_batch() -> tuple[list, list[int]]:
                 nonlocal cursor
                 if cursor == 0:
@@ -1201,6 +1306,8 @@ class Trainer:
                 _ensure_lease()
                 if step % CHECKPOINT_INTERVAL_STEPS == 0 or step == max_steps:
                     _save_checkpoint(step)
+                if step in snapshot_steps:
+                    _publish_snapshot(step)
 
             _set_diagnostics("publishing_model", step=max_steps)
             _record_event("publishing_started", step=max_steps)
@@ -1386,6 +1493,17 @@ def trigger(body: dict) -> dict:
     max_steps = int(body.get("maxSteps", 5000))
     if max_steps < 1 or max_steps > 1_000_000:
         raise HTTPException(status_code=400, detail="maxSteps must be between 1 and 1,000,000")
+    snapshot_steps = body.get("snapshotSteps")
+    if snapshot_steps is not None and (
+        not isinstance(snapshot_steps, list)
+        or not all(
+            isinstance(step, int) and not isinstance(step, bool)
+            for step in snapshot_steps
+        )
+    ):
+        raise HTTPException(
+            status_code=400, detail="snapshotSteps must be a list of integers"
+        )
     debug = body.get("debug", False)
     if not isinstance(debug, bool):
         raise HTTPException(status_code=400, detail="debug must be a boolean")
@@ -1400,6 +1518,7 @@ def trigger(body: dict) -> dict:
         seed=int(body.get("seed", 42)),
         resume=bool(body.get("resume", False)),
         debug=debug,
+        snapshot_steps=snapshot_steps,
     )
     return {
         "ok": True,

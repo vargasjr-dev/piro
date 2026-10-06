@@ -52,6 +52,7 @@ interface CreateBody {
   maxSteps?: number;
   modelName?: string;
   debug?: boolean;
+  snapshotSteps?: number[];
 }
 
 async function resolveAuth(
@@ -111,6 +112,7 @@ export async function POST(request: Request) {
     maxSteps = 5000,
     modelName,
     debug = false,
+    snapshotSteps,
   } = body;
 
   if (!architecturePath || !datasetId) {
@@ -123,6 +125,22 @@ export async function POST(request: Request) {
   if (!Number.isInteger(maxSteps) || maxSteps < 1 || maxSteps > 1_000_000) {
     return Response.json(
       { error: "maxSteps must be an integer between 1 and 1,000,000" },
+      { status: 400 },
+    );
+  }
+  if (
+    snapshotSteps !== undefined &&
+    (!Array.isArray(snapshotSteps) ||
+      snapshotSteps.length > 10 ||
+      snapshotSteps.some(
+        (step) => !Number.isInteger(step) || step < 1 || step >= maxSteps,
+      ))
+  ) {
+    return Response.json(
+      {
+        error:
+          "snapshotSteps must be an array of up to 10 integers between 1 and maxSteps - 1",
+      },
       { status: 400 },
     );
   }
@@ -149,6 +167,7 @@ export async function POST(request: Request) {
     datasetId,
     maxSteps,
     debug,
+    snapshotSteps: snapshotSteps ?? null,
   });
   const createdEvent = trainingRunEvent("run_created");
 
@@ -197,6 +216,7 @@ export async function POST(request: Request) {
           maxSteps,
           seed: 42,
           debug,
+          ...(snapshotSteps ? { snapshotSteps } : {}),
           secret: process.env.MODAL_WEBHOOK_SECRET ?? "",
         }),
         signal: AbortSignal.timeout(30_000),
